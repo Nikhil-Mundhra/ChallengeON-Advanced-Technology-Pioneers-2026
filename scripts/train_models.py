@@ -55,6 +55,7 @@ def train(
     train_df = df[
         (df["dataset_split"] == "train") &
         (df["is_complete_week"] == 1) &
+        (df["is_complete_guest_inputs"] == 1) &
         (df["week_start"] <= pd.to_datetime(max_date).date())
     ].copy()
 
@@ -72,13 +73,18 @@ def train(
         rel_errors = []
         for s in m_df["season"].unique():
             s_df = m_df[m_df["season"] == s]
+            if s not in struct_engine.params.get(m, {}):
+                continue
             p = struct_engine.params[m][s]
-            seats = s_df["seats"].values
-            lf = np.where(~np.isnan(s_df["load_factor"]), s_df["load_factor"], p.baseline_load_factor)
-            p2p_s = np.where(~np.isnan(s_df["p2p_share"]), s_df["p2p_share"], p.baseline_p2p_share)
-            pax = seats * lf
-            p2p = pax * p2p_s
-            arr = np.where(p2p > 0, p2p * p.effective_response_multiplier, s_df["new_arrivals"].values)
+            if m == "DOMESTIC":
+                arr = s_df["new_arrivals"].values
+            else:
+                seats = s_df["seats"].values
+                lf = np.where(~np.isnan(s_df["load_factor"]), s_df["load_factor"], p.baseline_load_factor)
+                p2p_s = np.where(~np.isnan(s_df["p2p_share"]), s_df["p2p_share"], p.baseline_p2p_share)
+                pax = seats * lf
+                p2p = pax * p2p_s
+                arr = np.where(p2p > 0, p2p * p.effective_response_multiplier, s_df["new_arrivals"].values)
             preds = arr * p.baseline_los
             errs = np.abs(s_df["guests"].values - preds) / np.maximum(preds, 100.0)
             rel_errors.extend(errs.tolist())

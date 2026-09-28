@@ -109,5 +109,88 @@ class TestDigitalTwin(unittest.TestCase):
         self.assertIn("_demonstrated_holdout_coverage", conf_data)
 
 
+    def test_data_contract_and_grain_separation(self):
+        """Verify explicit data contracts, grain separation, and date grid completeness."""
+        lake_dir = Path(__file__).resolve().parents[1] / "lake" / "curated"
+        f_daily_path = lake_dir / "flight_daily.parquet"
+        f_monthly_path = lake_dir / "flight_monthly.parquet"
+        g_daily_path = lake_dir / "guest_daily.parquet"
+
+        self.assertTrue(f_daily_path.exists())
+        self.assertTrue(f_monthly_path.exists())
+        self.assertTrue(g_daily_path.exists())
+
+        f_daily = pd.read_parquet(f_daily_path)
+        f_monthly = pd.read_parquet(f_monthly_path)
+        g_daily = pd.read_parquet(g_daily_path)
+
+        # 1. Flight daily is strictly daily from 2023 onward
+        self.assertTrue((f_daily["source_grain"] == "daily").all())
+        self.assertGreaterEqual(pd.to_datetime(f_daily["date"]).min(), pd.to_datetime("2023-01-01"))
+
+        # 2. Flight monthly isolates 2022 monthly data
+        self.assertTrue((f_monthly["source_grain"] == "monthly").all())
+        self.assertEqual(pd.to_datetime(f_monthly["date"]).max().year, 2022)
+
+        # 3. Guest data includes contract columns
+        for col in ["is_source_present", "target_available", "is_suppressed_arrival", "source_grain"]:
+            self.assertIn(col, g_daily.columns)
+
+        # 4. Total grid records (1520 dates x 45 intl nationalities + 1520 domestic)
+        self.assertEqual(len(g_daily), 69920)
+
+    def test_top15_includes_philippines_and_archetype(self):
+        """Verify Philippines is promoted to Top 15 (rank 14 by volume) and Armenia is reassigned to regional priors."""
+        from engine.archetypes import TOP_15_INTERNATIONAL_MARKETS, MarketArchetype
+        self.assertIn("PHILIPPINES", TOP_15_INTERNATIONAL_MARKETS)
+        self.assertNotIn("ARMENIA", TOP_15_INTERNATIONAL_MARKETS)
+        self.assertEqual(get_market_archetype("PHILIPPINES"), MarketArchetype.RESIDENT_VFR)
+        self.assertIn("PHILIPPINES", self.df_panel["market"].unique())
+
+    def test_load_factor_outliers_preserved_and_flagged(self):
+        """Verify raw load factors > 100% are preserved with quality flags rather than silently clipped."""
+        self.assertIn("load_factor_raw", self.df_panel.columns)
+        self.assertIn("is_load_factor_outlier", self.df_panel.columns)
+        self.assertIn("load_factor", self.df_panel.columns)
+
+        # Raw maximum should exceed 1.0
+        self.assertGreater(self.df_panel["load_factor_raw"].max(), 1.0)
+        # Modeling version should be clipped to 1.0
+        self.assertLessEqual(self.df_panel["load_factor"].max(), 1.0)
+        # Quality flag should mark all instances > 1.0
+        outlier_count = (self.df_panel["is_load_factor_outlier"] == 1).sum()
+        self.assertGreater(outlier_count, 0)
+
+    def test_domestic_domain_decoupling(self):
+        """Verify domestic staycation model ignores aviation levers and preserves waterfall identity."""
+        lever_with_flights = ScenarioLever(
+            market="DOMESTIC",
+            delta_frequency=5.0,
+            aircraft_gauge=300.0,
+            delta_load_factor=0.05,
+            delta_multiplier_pct=0.10,
+            delta_los=0.2,
+        )
+        res = self.twin.structural_engine.simulate("DOMESTIC", "Winter_Peak", lever_with_flights)
+
+        # Flight levers must not produce seats or pax
+        self.assertEqual(res.base_seats, 0.0)
+        self.assertEqual(res.sim_seats, 0.0)
+        self.assertEqual(res.waterfall_seats, 0.0)
+        self.assertEqual(res.waterfall_lf, 0.0)
+        self.assertEqual(res.waterfall_p2p, 0.0)
+
+        # Shifts must be driven by multiplier and stay duration
+        self.assertGreater(res.waterfall_multiplier, 0.0)
+        self.assertGreater(res.waterfall_los, 0.0)
+
+        # Exact waterfall identity
+        discrepancy = abs(
+            (res.waterfall_seats + res.waterfall_lf + res.waterfall_p2p + res.waterfall_multiplier + res.waterfall_los)
+            - res.delta_guests
+        )
+        self.assertLess(discrepancy, 1e-5)
+
+
 if __name__ == "__main__":
     unittest.main()

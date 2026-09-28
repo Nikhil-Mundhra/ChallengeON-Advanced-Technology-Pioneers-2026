@@ -123,6 +123,7 @@ class StructuralEngine:
         train_df = df[
             (df["dataset_split"] == "train") &
             (df["is_complete_week"] == 1) &
+            (df["is_complete_guest_inputs"] == 1) &
             (df["week_start"] <= pd.to_datetime(max_date).date())
         ].copy()
 
@@ -230,49 +231,70 @@ class StructuralEngine:
         if lever is None:
             lever = ScenarioLever(market=market_norm)
 
+        is_domestic = (market_norm == "DOMESTIC") or (p.archetype == MarketArchetype.DOMESTIC_STAYCATION.value)
+
         # Baseline chain
-        base_seats = p.baseline_weekly_seats
-        base_lf = p.baseline_load_factor
+        base_seats = 0.0 if is_domestic else p.baseline_weekly_seats
+        base_lf = 0.0 if is_domestic else p.baseline_load_factor
         base_pax = base_seats * base_lf
-        base_p2p_share = p.baseline_p2p_share
+        base_p2p_share = 0.0 if is_domestic else p.baseline_p2p_share
         base_p2p = base_pax * base_p2p_share
         base_mult = p.effective_response_multiplier
-        base_arrivals = base_p2p * base_mult if base_p2p > 0 else p.baseline_weekly_arrivals
+        base_arrivals = base_p2p * base_mult if (base_p2p > 0 and not is_domestic) else p.baseline_weekly_arrivals
         base_los = p.baseline_los
         base_guests = base_arrivals * base_los
 
-        # Scenario adjustments
-        added_freq_seats = lever.delta_frequency * lever.aircraft_gauge
-        sim_seats = max(0.0, (base_seats + added_freq_seats) * (1.0 + lever.delta_seats_pct))
-        sim_lf = np.clip(base_lf + lever.delta_load_factor, 0.10, 0.99)
-        sim_pax = sim_seats * sim_lf
-        sim_p2p_share = np.clip(base_p2p_share + lever.delta_p2p_share, 0.05, 0.99)
-        sim_p2p = sim_pax * sim_p2p_share
-        sim_mult = max(0.01, base_mult * (1.0 + lever.delta_multiplier_pct))
-        sim_arrivals = sim_p2p * sim_mult if sim_p2p > 0 else base_arrivals
-        sim_los = max(1.0, base_los + lever.delta_los)
-        sim_guests = sim_arrivals * sim_los
+        if is_domestic:
+            # Domestic staycation domain: no aviation counterpart; flight levers are strictly inactive
+            sim_seats = 0.0
+            sim_lf = 0.0
+            sim_pax = 0.0
+            sim_p2p_share = 0.0
+            sim_p2p = 0.0
+            sim_mult = base_mult * (1.0 + lever.delta_multiplier_pct)
+            sim_arrivals = max(0.0, base_arrivals * (1.0 + lever.delta_multiplier_pct))
+            sim_los = max(1.0, base_los + lever.delta_los)
+            sim_guests = sim_arrivals * sim_los
 
-        # Exact Waterfall Attribution Decomposition
-        # Step 1: Seat Capacity Effect
-        delta_s = sim_seats - base_seats
-        waterfall_seats = delta_s * base_lf * base_p2p_share * base_mult * base_los
+            # Waterfall attribution for domestic: purely marketing multiplier and length of stay
+            waterfall_seats = 0.0
+            waterfall_lf = 0.0
+            waterfall_p2p = 0.0
+            waterfall_mult = (sim_arrivals - base_arrivals) * base_los
+            waterfall_los = sim_arrivals * (sim_los - base_los)
+        else:
+            # International aviation conversion chain
+            added_freq_seats = lever.delta_frequency * lever.aircraft_gauge
+            sim_seats = max(0.0, (base_seats + added_freq_seats) * (1.0 + lever.delta_seats_pct))
+            sim_lf = np.clip(base_lf + lever.delta_load_factor, 0.10, 0.99)
+            sim_pax = sim_seats * sim_lf
+            sim_p2p_share = np.clip(base_p2p_share + lever.delta_p2p_share, 0.05, 0.99)
+            sim_p2p = sim_pax * sim_p2p_share
+            sim_mult = max(0.01, base_mult * (1.0 + lever.delta_multiplier_pct))
+            sim_arrivals = sim_p2p * sim_mult if sim_p2p > 0 else base_arrivals
+            sim_los = max(1.0, base_los + lever.delta_los)
+            sim_guests = sim_arrivals * sim_los
 
-        # Step 2: Load Factor Effect
-        delta_lf = sim_lf - base_lf
-        waterfall_lf = sim_seats * delta_lf * base_p2p_share * base_mult * base_los
+            # Exact Waterfall Attribution Decomposition
+            # Step 1: Seat Capacity Effect
+            delta_s = sim_seats - base_seats
+            waterfall_seats = delta_s * base_lf * base_p2p_share * base_mult * base_los
 
-        # Step 3: P2P Share Mix Effect
-        delta_p2p_s = sim_p2p_share - base_p2p_share
-        waterfall_p2p = sim_pax * delta_p2p_s * base_mult * base_los
+            # Step 2: Load Factor Effect
+            delta_lf = sim_lf - base_lf
+            waterfall_lf = sim_seats * delta_lf * base_p2p_share * base_mult * base_los
 
-        # Step 4: Multiplier Effect (Marketing/Conversion Shift)
-        delta_mult = sim_mult - base_mult
-        waterfall_mult = sim_p2p * delta_mult * base_los
+            # Step 3: P2P Share Mix Effect
+            delta_p2p_s = sim_p2p_share - base_p2p_share
+            waterfall_p2p = sim_pax * delta_p2p_s * base_mult * base_los
 
-        # Step 5: Stay Duration Effect
-        delta_l = sim_los - base_los
-        waterfall_los = sim_arrivals * delta_l
+            # Step 4: Multiplier Effect (Marketing/Conversion Shift)
+            delta_mult = sim_mult - base_mult
+            waterfall_mult = sim_p2p * delta_mult * base_los
+
+            # Step 5: Stay Duration Effect
+            delta_l = sim_los - base_los
+            waterfall_los = sim_arrivals * delta_l
 
         return SimulationResult(
             market=market_norm,

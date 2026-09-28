@@ -60,6 +60,11 @@ GUEST_DESCRIPTIONS = {
     "same_day_guests": "Same-day visitors. NULL can mean suppressed, unavailable, or not applicable.",
     "dataset_split": "Train or test source classification.",
     "source_file": "Original workbook filename for lineage.",
+    "source_grain": "Explicit observation grain ('daily').",
+    "is_source_present": "True if present in source, False if absent from expected date grid.",
+    "target_available": "True if target 'guests' is populated (train split).",
+    "is_suppressed_arrival": "True if raw arrival value was missing/suppressed.",
+    "is_suppressed_same_day": "True if raw same-day guest value was missing/suppressed.",
 }
 
 FLIGHT_DESCRIPTIONS = {
@@ -86,10 +91,11 @@ FLIGHT_DESCRIPTIONS = {
     "transfer_economy_class_count": "Transfer passengers in Economy Class.",
     "transfer_first_class_count": "Transfer passengers in First Class.",
     "transit_business_class_count": "Transit passengers in Business Class.",
-    "transit_economy_class_count": "Transit passengers in Economy Class.",
     "transit_first_count": "Transit passengers in First Class.",
     "destination": "Destination IATA code; currently AUH.",
-    "source_file": "Original workbook filename for lineage.",
+    "source_grain": "Explicit observation grain ('daily' for 2023+, 'monthly' for 2022).",
+    "is_load_factor_outlier": "Flag marking observations with unclipped load factor > 100%.",
+    "source_file": "Original source file name for provenance.",
 }
 
 VIEW_DESCRIPTIONS = {
@@ -98,6 +104,7 @@ VIEW_DESCRIPTIONS = {
     "guest_daily_totals": "Guest facts aggregated to one row per date and dataset split.",
     "flight_daily_totals": "Flight facts aggregated to daily demand, capacity, and weighted load factor.",
     "guest_flight_daily": "Safe daily join between guest totals and flight totals.",
+    "flight_all": "Unified view combining daily observations and 2022 monthly records with source_grain flag.",
 }
 
 
@@ -431,7 +438,7 @@ def schema_table(rows: list[dict], descriptions: dict[str, str], styles: dict[st
                 p(f"<b>{name}</b>", styles["table"]),
                 p(row["column_type"], styles["table"]),
                 p(row["null"].title(), styles["table"]),
-                p(descriptions[name], styles["table"]),
+                p(descriptions.get(name, "Column measure or metadata attribute."), styles["table"]),
             ]
         )
     return standard_table(data, [43 * mm, 25 * mm, 19 * mm, 89 * mm])
@@ -650,7 +657,7 @@ def build_story(data: dict, styles: dict[str, ParagraphStyle]) -> list:
         standard_table(
             [[p("View", styles["table_bold"]), p("Purpose", styles["table_bold"]), p("Primary input", styles["table_bold"])]]
             + [
-                [p(f"<b>{view}</b>", styles["table"]), p(VIEW_DESCRIPTIONS[view], styles["table"]),
+                [p(f"<b>{view}</b>", styles["table"]), p(VIEW_DESCRIPTIONS.get(view, "Analytical view."), styles["table"]),
                  p("guest_daily" if view.startswith("guest_") and view != "guest_flight_daily" else ("flight_daily" if view == "flight_daily_totals" else "daily aggregate views"), styles["table"])]
                 for view in data["views"]
             ],

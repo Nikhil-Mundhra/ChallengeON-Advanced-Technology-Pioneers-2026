@@ -64,21 +64,21 @@ Evaluated on 30 complete 7-day holdout weeks (Jan 2025 – Jul 2025, 510 market-
 
 | Evaluation Setting | WMAPE | Directional Bias | MAE | RMSE | Operational Scope |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **International Planning Mode** | **25.38%** | **+0.83%** | 2,853.3 | 4,460.8 | Scheduled seats + training priors only (true pre-flight planning). |
-| **International Realized-Chain** | **23.75%** | **-6.65%** | 2,670.5 | 4,022.6 | Downstream conversion holding realized P2P fixed. |
+| **International Planning Mode** | **24.89%** | **+0.68%** | 2,798.1 | 4,433.5 | Scheduled seats + training priors only (true pre-flight planning). |
+| **International Realized-Chain** | **23.59%** | **-6.73%** | 2,652.6 | 4,016.4 | Downstream conversion holding realized P2P fixed. |
 | **Domestic Forecast Mode** | **16.04%** | **+13.05%** | 17,485.2 | 21,078.9 | Dedicated seasonal prior; NO holdout arrival leakage. |
-| **Combined Planning Mode** | **21.85%** | **+5.44%** | 3,714.0 | 6,698.1 | Full territory diagnostic (International + Domestic). |
+| **Combined Planning Mode** | **21.55%** | **+5.35%** | 3,662.1 | 6,681.0 | Full territory diagnostic (International + Domestic). |
 
 ### Model Benchmark (All Markets)
 
 | Model Architecture | WMAPE | Directional Bias | MAE | RMSE | Model Status |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **1. Historical Seasonal Prior** | 22.62% | -7.05% | 3,845.0 | 7,074.2 | Naive Baseline |
-| **2. Pure ML / Calendar Model** | 22.01% | -8.98% | 3,740.7 | 6,742.6 | Calendar Extrapolation |
-| **3. Structural-Only Engine** | 21.85% | +5.44% | 3,714.0 | 6,698.1 | Pre-Flight Decision Chain |
-| **4. Hybrid Digital Twin (Proposed)** | **20.64%** | **+4.92%** | **3,507.6** | **6,307.5** | **Champion (Lowest WMAPE & RMSE)** |
+| **1. Historical Seasonal Prior** | 22.44% | -7.05% | 3,813.3 | 7,137.3 | Naive Baseline |
+| **2. Pure ML / Calendar Model** | 21.93% | -8.93% | 3,726.9 | 6,843.6 | Calendar Extrapolation |
+| **3. Structural-Only Engine** | 21.55% | +5.35% | 3,662.1 | 6,681.0 | Pre-Flight Decision Chain |
+| **4. Hybrid Digital Twin (Proposed)** | **20.52%** | **+4.83%** | **3,488.0** | **6,306.2** | **Champion (Lowest WMAPE & RMSE)** |
 
-*Demonstrated Empirical Holdout Coverage: 68.4% (Nominal target: 80.0%, reflecting positive 2025 secular trend drift relative to 2023–2024 base).*
+*Demonstrated Empirical Holdout Coverage: 66.9% (Nominal target: 80.0%, reflecting positive 2025 secular trend drift relative to 2023–2024 base).*
 
 ---
 
@@ -86,9 +86,10 @@ Evaluated on 30 complete 7-day holdout weeks (Jan 2025 – Jul 2025, 510 market-
 
 | File | Grain | Records | Description |
 | :--- | :--- | :--- | :--- |
-| `lake/curated/guest_daily.parquet` | Daily | 69,344 | Unified domestic & international records (train & test splits) |
-| `lake/curated/flight_daily.parquet` | Daily | 117,608 | Operating metrics by route, airline, and date |
-| `lake/curated/weekly_market_panel.parquet` | Weekly | 2,839 | Cleanly matched panel with complete week isolation |
+| `lake/curated/guest_daily.parquet` | Daily | 69,920 | Complete date-nationality grid with presence & suppression flags |
+| `lake/curated/flight_daily.parquet` | Daily | 116,395 | True daily operating metrics (2023+) with outlier quality flags |
+| `lake/curated/flight_monthly.parquet` | Monthly | 1,213 | Isolated 2022 monthly records on distinct month-start dates |
+| `lake/curated/weekly_market_panel.parquet` | Weekly | 2,839 | Cleanly matched panel with complete week & input isolation |
 | `lake/curated/structural_calibration.json` | JSON | 17 markets | Calibrated seasonal parameters ($M, L, LF, P2P$) |
 | `lake/curated/residual_engine.pkl` | Pickle | 17 models | Trained regularized RidgeCV residual models |
 | `lake/curated/conformal_calibrator.json` | JSON | 17 markets | Non-conformity margins and holdout coverage metrics |
