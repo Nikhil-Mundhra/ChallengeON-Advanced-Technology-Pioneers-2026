@@ -4,3 +4,5 @@ __pycache__/
 *.py[cod]
 lake/*.duckdb
 lake/*.duckdb.wal
+tmp/
+output/
