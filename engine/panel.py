@@ -77,11 +77,12 @@ def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
 
     Filters to Jan 1, 2023 onward. Matches flight operations and guest records
     at the daily grain first to prevent flight total duplication across split boundaries.
+    Propagates grid completeness, unclipped raw load factors, and quality flags.
     """
     con = duckdb.connect(str(db_path), read_only=True)
     top15_tuple = tuple(TOP_15_INTERNATIONAL_MARKETS)
 
-    # 1. Join daily flights and daily guests at exact daily grain first
+    # 1. Aggregate daily flights and daily guests at exact daily grain first
     matched_query = f"""
     WITH daily_f AS (
         SELECT 
@@ -95,7 +96,8 @@ def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
             SUM(total_p2p) as p2p,
             SUM(total_transfer) as transfer_pax,
             SUM(total_transit) as transit_pax,
-            AVG(average_weekly_frequency) as avg_frequency
+            COUNT(*) as flight_services_count,
+            SUM(CASE WHEN is_load_factor_outlier THEN 1 ELSE 0 END) as flight_load_factor_outliers
         FROM flight_daily
         WHERE date >= '2023-01-01'
         GROUP BY 1, 2
@@ -112,7 +114,10 @@ def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
             END as market,
             SUM(guests) as guests,
             SUM(new_arrivals) as new_arrivals,
-            SUM(same_day_guests) as same_day_guests
+            SUM(same_day_guests) as same_day_guests,
+            COUNT(*) as total_grid_records,
+            SUM(CASE WHEN is_source_present THEN 1 ELSE 0 END) as present_source_records,
+            SUM(CASE WHEN is_suppressed_arrival THEN 1 ELSE 0 END) as missing_arrival_records
         FROM guest_daily
         WHERE date >= '2023-01-01'
         GROUP BY 1, 2, 3, 4
@@ -130,10 +135,14 @@ def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
         SUM(COALESCE(f.p2p, 0.0)) as p2p,
         SUM(COALESCE(f.transfer_pax, 0.0)) as transfer_pax,
         SUM(COALESCE(f.transit_pax, 0.0)) as transit_pax,
-        AVG(f.avg_frequency) as avg_frequency,
+        SUM(COALESCE(f.flight_services_count, 0)) as weekly_flight_services,
+        SUM(COALESCE(f.flight_load_factor_outliers, 0)) as weekly_load_factor_outliers,
         SUM(g.guests) as guests,
         SUM(g.new_arrivals) as new_arrivals,
-        SUM(g.same_day_guests) as same_day_guests
+        SUM(g.same_day_guests) as same_day_guests,
+        SUM(g.total_grid_records) as total_grid_records,
+        SUM(g.present_source_records) as present_source_records,
+        SUM(g.missing_arrival_records) as missing_arrival_records
     FROM daily_g g
     LEFT JOIN daily_f f ON g.date = f.date AND g.market = f.market
     GROUP BY 1, 2, 3
@@ -146,15 +155,22 @@ def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
     panel["min_date"] = pd.to_datetime(panel["min_date"]).dt.date
     panel["max_date"] = pd.to_datetime(panel["max_date"]).dt.date
 
-    # Flag strictly complete 7-day ISO weeks
+    # Completeness verification
     panel["is_complete_week"] = (panel["days_in_week"] == 7).astype(int)
+    panel["is_complete_guest_inputs"] = (
+        (panel["present_source_records"] == panel["total_grid_records"])
+        & (panel["missing_arrival_records"] == 0)
+    ).astype(int)
 
-    # Computed operational ratios
-    panel["load_factor"] = np.where(
+    # Computed operational ratios: preserve unclipped raw load factor alongside bounded version
+    panel["load_factor_raw"] = np.where(
         panel["seats"] > 0,
-        np.clip(panel["pax"] / panel["seats"], 0.0, 1.0),
+        panel["pax"] / panel["seats"],
         np.nan,
     )
+    panel["is_load_factor_outlier"] = (panel["load_factor_raw"] > 1.0).astype(int)
+    panel["load_factor"] = np.clip(panel["load_factor_raw"], 0.0, 1.0)
+
     panel["p2p_share"] = np.where(
         panel["pax"] > 0,
         np.clip(panel["p2p"] / panel["pax"], 0.0, 1.0),

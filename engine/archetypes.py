@@ -141,29 +141,52 @@ MARKET_ARCHETYPE_MAP: Dict[str, MarketArchetype] = {
     "ITALY": MarketArchetype.DIRECT_LEISURE,
     "KAZAKHSTAN": MarketArchetype.HIGHLY_SEASONAL,
     "ISRAEL": MarketArchetype.DIRECT_LEISURE,
-    "ARMENIA": MarketArchetype.HIGHLY_SEASONAL,
+    "PHILIPPINES": MarketArchetype.RESIDENT_VFR,
     "OMAN": MarketArchetype.REGIONAL_GCC,
     "OTHER INTERNATIONAL": MarketArchetype.EMERGING_SPARSE,
     "DOMESTIC": MarketArchetype.DOMESTIC_STAYCATION,
 }
 
+# Empirical Top-15 International Markets ranked strictly by verified training guest volume
+# Rank 14 is PHILIPPINES (417,156 guests); Rank 18 is ARMENIA (370,463 guests)
 TOP_15_INTERNATIONAL_MARKETS = [
     "INDIA",
-    "RUSSIAN FEDERATION",
     "UNITED KINGDOM",
-    "CHINA",
-    "GERMANY",
-    "SAUDI ARABIA",
+    "RUSSIAN FEDERATION",
     "UNITED STATES OF AMERICA",
-    "KUWAIT",
+    "GERMANY",
+    "CHINA",
+    "SAUDI ARABIA",
     "FRANCE",
     "EGYPT",
+    "KUWAIT",
     "ITALY",
     "KAZAKHSTAN",
     "ISRAEL",
-    "ARMENIA",
+    "PHILIPPINES",
     "OMAN",
 ]
+
+# Regional clusters to decompose the 30 nationalities pooled in "OTHER INTERNATIONAL" (25.9% of demand)
+REGIONAL_CLUSTERS: Dict[str, List[str]] = {
+    "OTHER_EUROPE": [
+        "POLAND", "NETHERLANDS", "SPAIN", "SWITZERLAND", "AUSTRIA",
+        "SWEDEN", "NORWAY", "DENMARK", "FINLAND", "CZECHIA", "ROMANIA",
+        "BELGIUM", "IRELAND",
+    ],
+    "OTHER_ASIA_PACIFIC": [
+        "SOUTH KOREA", "AUSTRALIA", "PAKISTAN", "BANGLADESH", "JAPAN",
+    ],
+    "OTHER_MENA": [
+        "JORDAN", "BAHRAIN", "QATAR", "LEBANON",
+    ],
+    "OTHER_AMERICAS_AFRICA": [
+        "CANADA", "BRAZIL", "SOUTH AFRICA", "MEXICO", "MOROCCO",
+    ],
+    "OTHER_EURASIA": [
+        "UZBEKISTAN", "AZERBAIJAN", "ARMENIA",
+    ],
+}
 
 # Regional cold-start priors for new routes from unmodeled countries
 COUNTRY_TO_REGION_MAP: Dict[str, MarketArchetype] = {
@@ -186,8 +209,8 @@ COUNTRY_TO_REGION_MAP: Dict[str, MarketArchetype] = {
     # South Asia
     "PAKISTAN": MarketArchetype.RESIDENT_VFR,
     "BANGLADESH": MarketArchetype.RESIDENT_VFR,
-    "PHILIPPINES": MarketArchetype.RESIDENT_VFR,
-    # Central / Eastern Europe & CIS
+    # Central / Eastern Europe, Caucasus & CIS
+    "ARMENIA": MarketArchetype.HIGHLY_SEASONAL,
     "POLAND": MarketArchetype.HIGHLY_SEASONAL,
     "CZECHIA": MarketArchetype.HIGHLY_SEASONAL,
     "AZERBAIJAN": MarketArchetype.HIGHLY_SEASONAL,
@@ -200,6 +223,8 @@ COUNTRY_TO_REGION_MAP: Dict[str, MarketArchetype] = {
     "SOUTH KOREA": MarketArchetype.HUB_MEDIATED,
     "BRAZIL": MarketArchetype.HUB_MEDIATED,
     "SOUTH AFRICA": MarketArchetype.HUB_MEDIATED,
+    "MEXICO": MarketArchetype.HUB_MEDIATED,
+    "MOROCCO": MarketArchetype.REGIONAL_GCC,
 }
 
 

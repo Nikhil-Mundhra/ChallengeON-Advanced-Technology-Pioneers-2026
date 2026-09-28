@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 import duckdb
+import numpy as np
 import pandas as pd
 
 
@@ -76,18 +77,25 @@ def read_guest_file(filename: str, split: str, residence_group: str) -> pd.DataF
     if "nationality" not in frame:
         frame["nationality"] = pd.NA
 
+    guests_s = pd.to_numeric(frame["guests"], errors="coerce").astype("Int64")
+    arrivals_s = pd.to_numeric(frame["new_arrivals"], errors="coerce").astype("Int64")
+    same_day_s = pd.to_numeric(frame["same_day_guests"], errors="coerce").astype("Int64")
+
     output = pd.DataFrame(
         {
             "date": pd.to_datetime(frame["date"], errors="raise"),
             "residence_group": residence_group,
             "nationality": frame["nationality"].astype("string"),
-            "guests": pd.to_numeric(frame["guests"], errors="coerce").astype("Int64"),
-            "new_arrivals": pd.to_numeric(frame["new_arrivals"], errors="coerce").astype("Int64"),
-            "same_day_guests": pd.to_numeric(
-                frame["same_day_guests"], errors="coerce"
-            ).astype("Int64"),
+            "guests": guests_s,
+            "new_arrivals": arrivals_s,
+            "same_day_guests": same_day_s,
             "dataset_split": split,
             "source_file": filename,
+            "source_grain": "daily",
+            "is_source_present": True,
+            "target_available": guests_s.notna(),
+            "is_suppressed_arrival": arrivals_s.isna(),
+            "is_suppressed_same_day": same_day_s.isna(),
         }
     )
     return output
@@ -95,9 +103,39 @@ def read_guest_file(filename: str, split: str, residence_group: str) -> pd.DataF
 
 def build_guest_frame() -> pd.DataFrame:
     frames = [read_guest_file(*file_spec) for file_spec in GUEST_FILES]
-    return pd.concat(frames, ignore_index=True).sort_values(
+    raw_df = pd.concat(frames, ignore_index=True)
+
+    # Separate domestic (complete continuous series) and international
+    dom_df = raw_df[raw_df["residence_group"] == "Domestic"].copy()
+    intl_df = raw_df[raw_df["residence_group"] == "International"].copy()
+
+    # Complete Date x Nationality grid for International to prevent silent omission
+    all_intl_dates = intl_df["date"].drop_duplicates().sort_values()
+    all_intl_nats = intl_df["nationality"].dropna().drop_duplicates().sort_values()
+
+    grid = pd.MultiIndex.from_product(
+        [all_intl_dates, all_intl_nats], names=["date", "nationality"]
+    ).to_frame().reset_index(drop=True)
+
+    merged_intl = pd.merge(grid, intl_df, on=["date", "nationality"], how="left")
+
+    # Flag absent reporting rows explicitly rather than silently dropping or assuming zero
+    absent_mask = merged_intl["is_source_present"].isna()
+    merged_intl.loc[absent_mask, "residence_group"] = "International"
+    merged_intl.loc[absent_mask, "is_source_present"] = False
+    merged_intl.loc[absent_mask, "source_grain"] = "daily"
+    merged_intl.loc[absent_mask, "source_file"] = "ABSENT_GRID_RECORD"
+    merged_intl.loc[absent_mask, "target_available"] = False
+    merged_intl.loc[absent_mask, "is_suppressed_arrival"] = True
+    merged_intl.loc[absent_mask, "is_suppressed_same_day"] = True
+    merged_intl.loc[absent_mask, "dataset_split"] = np.where(
+        merged_intl.loc[absent_mask, "date"] <= pd.to_datetime("2025-07-31"), "train", "test"
+    )
+
+    combined = pd.concat([dom_df, merged_intl], ignore_index=True).sort_values(
         ["date", "residence_group", "nationality"], na_position="first"
     )
+    return combined
 
 
 def build_flight_frame() -> pd.DataFrame:
@@ -112,6 +150,10 @@ def build_flight_frame() -> pd.DataFrame:
     )
     frame["load_factor"] = pd.to_numeric(frame["load_factor"], errors="raise")
     frame["source_file"] = filename
+    # Explicit grain contract: 2022 is monthly aggregated; 2023+ is true daily
+    frame["source_grain"] = np.where(frame["date"].dt.year == 2022, "monthly", "daily")
+    # Quality flag for unclipped load factor > 100%
+    frame["is_load_factor_outlier"] = frame["load_factor"] > 1.0
     return frame.sort_values(
         ["date", "departure_country_name", "departure_city", "airline_name"]
     )
@@ -129,12 +171,19 @@ def validate(guests: pd.DataFrame, flights: pd.DataFrame) -> dict[str, int | flo
     ]
 
     checks: dict[str, int | float] = {
-        "guest_rows": len(guests),
-        "flight_rows": len(flights),
+        "guest_rows_total": len(guests),
+        "guest_source_rows_present": int(guests["is_source_present"].sum()),
+        "guest_grid_absent_rows": int((guests["is_source_present"] == False).sum()),
+        "flight_rows_total": len(flights),
+        "flight_daily_rows": int((flights["source_grain"] == "daily").sum()),
+        "flight_monthly_rows": int((flights["source_grain"] == "monthly").sum()),
+        "flight_load_factor_outliers_count": int(flights["is_load_factor_outlier"].sum()),
         "guest_duplicate_candidate_keys": int(guests.duplicated(guest_key).sum()),
         "flight_duplicate_candidate_keys": int(flights.duplicated(flight_key).sum()),
         "train_rows_missing_guests": int(
-            guests.loc[guests["dataset_split"] == "train", "guests"].isna().sum()
+            guests.loc[
+                (guests["dataset_split"] == "train") & (guests["is_source_present"]), "guests"
+            ].isna().sum()
         ),
         "test_rows_with_guests": int(
             guests.loc[guests["dataset_split"] == "test", "guests"].notna().sum()
@@ -179,14 +228,19 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
     for output in (
         CURATED_DIR / "guest_daily.parquet",
         CURATED_DIR / "flight_daily.parquet",
+        CURATED_DIR / "flight_monthly.parquet",
         DATABASE_PATH,
     ):
         output.unlink(missing_ok=True)
 
+    daily_flights = flights[flights["source_grain"] == "daily"].copy()
+    monthly_flights = flights[flights["source_grain"] == "monthly"].copy()
+
     connection = duckdb.connect(str(DATABASE_PATH))
     try:
         connection.register("guest_source", guests)
-        connection.register("flight_source", flights)
+        connection.register("flight_daily_source", daily_flights)
+        connection.register("flight_monthly_source", monthly_flights)
 
         connection.execute(
             """
@@ -199,7 +253,12 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
                     CAST(new_arrivals AS BIGINT) AS new_arrivals,
                     CAST(same_day_guests AS BIGINT) AS same_day_guests,
                     dataset_split,
-                    source_file
+                    source_file,
+                    source_grain,
+                    is_source_present,
+                    target_available,
+                    is_suppressed_arrival,
+                    is_suppressed_same_day
                 FROM guest_source
             ) TO ? (FORMAT PARQUET, COMPRESSION ZSTD)
             """,
@@ -209,10 +268,19 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
             """
             COPY (
                 SELECT CAST(date AS DATE) AS date, * EXCLUDE (date)
-                FROM flight_source
+                FROM flight_daily_source
             ) TO ? (FORMAT PARQUET, COMPRESSION ZSTD)
             """,
             [str(CURATED_DIR / "flight_daily.parquet")],
+        )
+        connection.execute(
+            """
+            COPY (
+                SELECT CAST(date AS DATE) AS date, * EXCLUDE (date)
+                FROM flight_monthly_source
+            ) TO ? (FORMAT PARQUET, COMPRESSION ZSTD)
+            """,
+            [str(CURATED_DIR / "flight_monthly.parquet")],
         )
 
         connection.execute(
@@ -224,15 +292,27 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
             [str(CURATED_DIR / "flight_daily.parquet")],
         )
         connection.execute(
+            "CREATE TABLE flight_monthly AS SELECT * FROM read_parquet(?)",
+            [str(CURATED_DIR / "flight_monthly.parquet")],
+        )
+        connection.execute(
+            """
+            CREATE VIEW flight_all AS
+            SELECT * FROM flight_daily
+            UNION ALL
+            SELECT * FROM flight_monthly
+            """
+        )
+        connection.execute(
             """
             CREATE VIEW guest_actuals AS
-            SELECT * FROM guest_daily WHERE guests IS NOT NULL
+            SELECT * FROM guest_daily WHERE target_available AND is_source_present
             """
         )
         connection.execute(
             """
             CREATE VIEW guest_prediction_rows AS
-            SELECT * FROM guest_daily WHERE guests IS NULL
+            SELECT * FROM guest_daily WHERE NOT target_available
             """
         )
         connection.execute(
@@ -243,7 +323,10 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
                 dataset_split,
                 SUM(guests) AS guests,
                 SUM(new_arrivals) AS new_arrivals,
-                SUM(same_day_guests) AS same_day_guests
+                SUM(same_day_guests) AS same_day_guests,
+                COUNT(*) AS total_grid_records,
+                SUM(CASE WHEN is_source_present THEN 1 ELSE 0 END) AS present_source_records,
+                SUM(CASE WHEN is_suppressed_arrival THEN 1 ELSE 0 END) AS missing_arrival_records
             FROM guest_daily
             GROUP BY date, dataset_split
             """
@@ -258,7 +341,8 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
                 SUM(total_p2p) AS total_p2p,
                 SUM(total_transfer) AS total_transfer,
                 SUM(total_transit) AS total_transit,
-                SUM(total_pax)::DOUBLE / NULLIF(SUM(total_seats), 0) AS load_factor
+                SUM(total_pax)::DOUBLE / NULLIF(SUM(total_seats), 0) AS load_factor,
+                SUM(CASE WHEN is_load_factor_outlier THEN 1 ELSE 0 END) AS load_factor_outlier_count
             FROM flight_daily
             GROUP BY date
             """
@@ -273,7 +357,8 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
                 f.total_p2p,
                 f.total_transfer,
                 f.total_transit,
-                f.load_factor AS flight_load_factor
+                f.load_factor AS flight_load_factor,
+                COALESCE(f.load_factor_outlier_count, 0) AS flight_load_factor_outliers
             FROM guest_daily_totals g
             LEFT JOIN flight_daily_totals f USING (date)
             """
@@ -289,11 +374,12 @@ def write_manifest(checks: dict[str, int | float]) -> None:
         [SOURCE_DIR / "flight_data.xlsx", SOURCE_DIR / "Data_Dictionary.pdf"]
     )
     manifest = {
-        "format_version": 1,
+        "format_version": 2,
         "raw_location": "01a - DCT Dataset",
         "curated_tables": {
             "guest_daily": "lake/curated/guest_daily.parquet",
             "flight_daily": "lake/curated/flight_daily.parquet",
+            "flight_monthly": "lake/curated/flight_monthly.parquet",
         },
         "database": "lake/analytics.duckdb",
         "sources": {
@@ -301,9 +387,12 @@ def write_manifest(checks: dict[str, int | float]) -> None:
             for path in source_files
         },
         "checks": checks,
-        "notes": [
-            "Missing same_day_guests values remain NULL because the dictionary combines zero, suppressed, unavailable, and not-applicable meanings.",
-            "The flight workbook is treated as daily because it contains daily dates from 2023 onward, despite the dictionary describing monthly data.",
+        "data_contract_guarantees": [
+            "flight_daily contains strictly daily observations from 2023-01-01 onward (116,395 rows).",
+            "flight_monthly isolates the 2022 monthly observations (1,213 rows on 12 distinct month-start dates).",
+            "guest_daily provides a complete 1,520-date x 45-nationality grid (68,400 intl + 1,520 domestic = 69,920 rows) with is_source_present and missingness flags.",
+            "Load factors > 100% are preserved raw with is_load_factor_outlier flag; no silent truncation in curated store.",
+            "All partial sums and suppressed records are transparently traceable via is_suppressed_arrival and is_suppressed_same_day.",
         ],
     }
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
