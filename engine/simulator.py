@@ -111,7 +111,7 @@ class TourismDigitalTwin:
         )
 
         # 4. Tornado sensitivity analysis
-        tornado = self.compute_tornado_sensitivity(market_norm, season)
+        tornado = self.compute_tornado_sensitivity(market_norm, season, base_lever=lever)
 
         # 5. Non-technical Executive Recommendation
         rec = self._generate_executive_recommendation(struct_res, unc_bands, tornado)
@@ -133,18 +133,46 @@ class TourismDigitalTwin:
         self,
         market: str,
         season: str,
+        base_lever: Optional[ScenarioLever] = None,
     ) -> List[Dict[str, Any]]:
         """Compute relative demand sensitivity across 5 core decision levers (Tornado ranking)."""
         market_norm = market.upper().strip()
         base_res = self.structural_engine.simulate(market_norm, season)
-        base_guests = base_res.base_guests
+
+        # For unserved or cold-start routes (base_seats == 0), evaluate sensitivity around
+        # the proposed operating point or a benchmark reference service (2 weekly flights, gauge 250 = 500 seats)
+        is_unserved = (base_res.base_seats == 0.0)
+        ref_freq = 0.0
+        ref_gauge = 250.0
+        if is_unserved:
+            if base_lever is not None and (base_lever.delta_frequency > 0 or base_lever.delta_seats_pct != 0):
+                ref_freq = base_lever.delta_frequency
+                ref_gauge = base_lever.aircraft_gauge
+            else:
+                ref_freq = 2.0
+                ref_gauge = 250.0
+            ref_lever = ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge)
+            operating_res = self.structural_engine.simulate(market_norm, season, ref_lever)
+            ref_baseline_guests = operating_res.sim_guests
+        else:
+            ref_baseline_guests = base_res.base_guests
 
         tests = [
-            ("Seat Capacity (+15% / -15%)", ScenarioLever(market_norm, delta_seats_pct=0.15), ScenarioLever(market_norm, delta_seats_pct=-0.15)),
-            ("Load Factor (+4% / -4%)", ScenarioLever(market_norm, delta_load_factor=0.04), ScenarioLever(market_norm, delta_load_factor=-0.04)),
-            ("P2P Share (+5% / -5%)", ScenarioLever(market_norm, delta_p2p_share=0.05), ScenarioLever(market_norm, delta_p2p_share=-0.05)),
-            ("Response Multiplier (+10% / -10%)", ScenarioLever(market_norm, delta_multiplier_pct=0.10), ScenarioLever(market_norm, delta_multiplier_pct=-0.10)),
-            ("Length of Stay (+0.5d / -0.5d)", ScenarioLever(market_norm, delta_los=0.5), ScenarioLever(market_norm, delta_los=-0.5)),
+            ("Seat Capacity (+15% / -15%)",
+             ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_seats_pct=0.15),
+             ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_seats_pct=-0.15)),
+            ("Load Factor (+4% / -4%)",
+             ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_load_factor=0.04),
+             ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_load_factor=-0.04)),
+            ("P2P Share (+5% / -5%)",
+             ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_p2p_share=0.05),
+             ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_p2p_share=-0.05)),
+            ("Response Multiplier (+10% / -10%)",
+             ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_multiplier_pct=0.10),
+             ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_multiplier_pct=-0.10)),
+            ("Length of Stay (+0.5d / -0.5d)",
+             ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_los=0.5),
+             ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_los=-0.5)),
         ]
 
         tornado_rows = []
@@ -152,8 +180,8 @@ class TourismDigitalTwin:
             res_up = self.structural_engine.simulate(market_norm, season, lever_up)
             res_down = self.structural_engine.simulate(market_norm, season, lever_down)
 
-            delta_up = res_up.sim_guests - base_guests
-            delta_down = res_down.sim_guests - base_guests
+            delta_up = res_up.sim_guests - ref_baseline_guests
+            delta_down = res_down.sim_guests - ref_baseline_guests
             spread = abs(delta_up - delta_down)
 
             tornado_rows.append({
@@ -161,7 +189,7 @@ class TourismDigitalTwin:
                 "high_impact_delta": float(delta_up),
                 "low_impact_delta": float(delta_down),
                 "swing_spread": float(spread),
-                "relative_sensitivity": float(spread / base_guests) if base_guests > 0 else 0.0,
+                "relative_sensitivity": float(spread / ref_baseline_guests) if ref_baseline_guests > 0 else 0.0,
             })
 
         tornado_rows.sort(key=lambda r: r["swing_spread"], reverse=True)
@@ -178,15 +206,22 @@ class TourismDigitalTwin:
         s = struct_res.season
         cold_tag = " (Cold-Start Regional Prior)" if struct_res.is_cold_start else ""
         delta_pct = (struct_res.delta_guests / struct_res.base_guests) * 100.0 if struct_res.base_guests > 0 else 0.0
-        primary_lever = tornado[0]["lever_name"]
+
+        top_swing = tornado[0]["swing_spread"] if len(tornado) > 0 else 0.0
+        if top_swing > 1e-3:
+            primary_lever = tornado[0]["lever_name"]
+            driver_text = f"Tornado sensitivity confirms that '{primary_lever}' represents the single most influential driver."
+        else:
+            driver_text = "With zero scheduled flight capacity, operational lever sensitivity is currently zero; allocate route capacity to evaluate lever elasticity."
 
         rec = (
             f"For {m}{cold_tag} in {s}, the simulated aviation intervention yields an estimated "
-            f"+{struct_res.delta_guests:,.0f} weekly hotel guest-days ({delta_pct:+.1f}% vs baseline). "
+            f"{struct_res.delta_guests:+,.0f} weekly hotel guest-days ({delta_pct:+.1f}% vs baseline). "
             f"Accounting for operational and parameter variation, the scenario outcome range spans from a conservative "
-            f"+{unc_bands.delta_p10:,.0f} guest-days (P10) to an optimistic +{unc_bands.delta_p90:,.0f} guest-days (P90) "
+            f"{unc_bands.delta_p10:+,.0f} guest-days (P10) to an optimistic {unc_bands.delta_p90:+,.0f} guest-days (P90) "
             f"(demonstrated historical holdout coverage: {unc_bands.demonstrated_coverage_pct:.1f}%). "
-            f"Tornado sensitivity confirms that '{primary_lever}' represents the single most influential driver. "
+            f"{driver_text} "
             f"Recommended action: align promotional campaigns to safeguard route load factor and preserve destination conversion."
         )
         return rec
+

@@ -191,6 +191,106 @@ class TestDigitalTwin(unittest.TestCase):
         )
         self.assertLess(discrepancy, 1e-5)
 
+    def test_route_closure_demand_loss_and_waterfall(self):
+        """Verify that discontinuing an aviation route yields 100% demand loss and exact waterfall reconciliation."""
+        test_markets = ["UNITED KINGDOM", "GERMANY", "INDIA"]
+        for m in test_markets:
+            lever_close = ScenarioLever(market=m, delta_seats_pct=-1.0)
+            res = self.twin.structural_engine.simulate(m, "Winter_Peak", lever_close)
+
+            # Simulated seats, pax, p2p, arrivals, and guests must strictly be 0
+            self.assertEqual(res.sim_seats, 0.0)
+            self.assertEqual(res.sim_pax, 0.0)
+            self.assertEqual(res.sim_p2p, 0.0)
+            self.assertEqual(res.sim_arrivals, 0.0)
+            self.assertEqual(res.sim_guests, 0.0)
+
+            # Net impact must equal negative baseline
+            self.assertAlmostEqual(res.delta_guests, -res.base_guests, places=4)
+
+            # Waterfall seats component must account for the full loss, others 0
+            self.assertAlmostEqual(res.waterfall_seats, -res.base_guests, places=4)
+            self.assertEqual(res.waterfall_lf, 0.0)
+            self.assertEqual(res.waterfall_p2p, 0.0)
+            self.assertEqual(res.waterfall_multiplier, 0.0)
+            self.assertEqual(res.waterfall_los, 0.0)
+
+            # Exact reconciliation
+            wf_sum = res.waterfall_seats + res.waterfall_lf + res.waterfall_p2p + res.waterfall_multiplier + res.waterfall_los
+            self.assertAlmostEqual(wf_sum, res.delta_guests, places=6)
+
+    def test_zero_lever_invariance_across_all_markets(self):
+        """Verify zero-lever scenario strictly preserves baseline across all 17 markets and 4 seasons (68 tests)."""
+        markets = self.df_panel["market"].unique()
+        seasons = ["Winter_Peak", "Spring_Shoulder", "Summer_Trough", "Autumn_Shoulder"]
+
+        for m in markets:
+            for s in seasons:
+                res = self.twin.structural_engine.simulate(m, s, ScenarioLever(market=m))
+                self.assertAlmostEqual(
+                    res.delta_guests,
+                    0.0,
+                    places=5,
+                    msg=f"Zero-lever invariant failed for {m} in {s}: delta_guests was {res.delta_guests}",
+                )
+                self.assertAlmostEqual(
+                    res.sim_guests,
+                    res.base_guests,
+                    places=5,
+                    msg=f"Base vs sim mismatch for {m} in {s}",
+                )
+                self.assertAlmostEqual(res.waterfall_seats, 0.0, places=5)
+                self.assertAlmostEqual(res.waterfall_lf, 0.0, places=5)
+                self.assertAlmostEqual(res.waterfall_p2p, 0.0, places=5)
+                self.assertAlmostEqual(res.waterfall_multiplier, 0.0, places=5)
+                self.assertAlmostEqual(res.waterfall_los, 0.0, places=5)
+
+    def test_deterministic_uncertainty_requests(self):
+        """Verify identical simulation calls produce identical uncertainty values (no RNG state drift)."""
+        res1 = self.twin.uncertainty_engine.run_monte_carlo("UNITED KINGDOM", "Winter_Peak", ScenarioLever("UNITED KINGDOM", delta_frequency=2))
+        res2 = self.twin.uncertainty_engine.run_monte_carlo("UNITED KINGDOM", "Winter_Peak", ScenarioLever("UNITED KINGDOM", delta_frequency=2))
+
+        self.assertEqual(res1.p10, res2.p10)
+        self.assertEqual(res1.p90, res2.p90)
+        self.assertEqual(res1.delta_p10, res2.delta_p10)
+        self.assertEqual(res1.delta_p90, res2.delta_p90)
+        self.assertEqual(res1.demonstrated_coverage_pct, res2.demonstrated_coverage_pct)
+
+    def test_cold_start_tornado_sensitivity(self):
+        """Verify unserved cold-start markets evaluate non-zero sensitivity around benchmark reference route."""
+        report = self.twin.run_scenario("SWEDEN", "Winter_Peak", ScenarioLever("SWEDEN", delta_frequency=0))
+        tornado = report.tornado_sensitivity
+
+        self.assertGreater(len(tornado), 0)
+        self.assertGreater(tornado[0]["swing_spread"], 0.0, "Cold-start swing spread should not be zero.")
+        self.assertIn("influential driver", report.recommendation_summary)
+
+    def test_api_validation_and_hybrid_exposure(self):
+        """Verify API returns 400 for invalid seasons and exposes the hybrid model in the response."""
+        from app.server import DigitalTwinHandler
+
+        class MockHandler:
+            def __init__(self):
+                self.response = None
+                self.status = None
+            def send_json(self, data, status=200):
+                self.response = data
+                self.status = status
+
+        handler = MockHandler()
+        # Invalid season
+        DigitalTwinHandler.handle_simulate(handler, {"market": ["UNITED KINGDOM"], "season": ["InvalidSeason"]})
+        self.assertEqual(handler.status, 400)
+        self.assertIn("Invalid season", handler.response["error"])
+
+        # Valid request exposes hybrid model
+        DigitalTwinHandler.handle_simulate(handler, {"market": ["UNITED KINGDOM"], "season": ["Winter_Peak"], "delta_freq": [2]})
+        self.assertEqual(handler.status, 200)
+        self.assertIn("hybrid", handler.response)
+        self.assertIn("residual_adjustment", handler.response["hybrid"])
+        self.assertIn("is_monotonic", handler.response["hybrid"])
+
 
 if __name__ == "__main__":
     unittest.main()
+

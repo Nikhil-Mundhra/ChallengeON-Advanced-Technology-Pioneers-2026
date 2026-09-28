@@ -72,7 +72,7 @@
 <header>
   <div>
     <h1>Abu Dhabi Tourism Digital Twin</h1>
-    <div style="font-size: 11px; color: #CBD5E1; margin-top: 2px;">Causal Aviation Conversion Engine &bull; ChallengeON ATP 2026</div>
+    <div style="font-size: 11px; color: #CBD5E1; margin-top: 2px;">Structural Aviation Conversion Engine &bull; ChallengeON ATP 2026</div>
   </div>
   <div class="badge" id="archetype-badge">Direct Leisure</div>
 </header>
@@ -99,7 +99,7 @@
           <option value="ITALY">Italy</option>
           <option value="KAZAKHSTAN">Kazakhstan</option>
           <option value="ISRAEL">Israel</option>
-          <option value="ARMENIA">Armenia</option>
+          <option value="PHILIPPINES">Philippines</option>
           <option value="OMAN">Oman</option>
           <option value="OTHER INTERNATIONAL">Other International</option>
         </optgroup>
@@ -126,7 +126,7 @@
 
     <div class="control-group">
       <label>Additional Weekly Flights: <span class="val" id="val-freq">+2.0</span></label>
-      <input type="range" id="delta-freq" min="0" max="14" step="1" value="2" oninput="updateLabel('val-freq', '+' + this.value); runSimulation();">
+      <input type="range" id="delta-freq" min="-14" max="14" step="1" value="2" oninput="updateLabel('val-freq', (this.value >= 0 ? '+' : '') + this.value); runSimulation();">
     </div>
 
     <div class="control-group">
@@ -166,26 +166,31 @@
     </div>
 
     <!-- KPI Row -->
-    <div class="kpi-row">
+    <div class="kpi-row" style="grid-template-columns: repeat(5, 1fr);">
       <div class="kpi-card">
         <div class="kpi-label">Baseline Weekly Guests</div>
         <div class="kpi-val" id="kpi-base">--</div>
         <div class="kpi-sub">Historical Normal</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Simulated Weekly Guests</div>
-        <div class="kpi-val" id="kpi-sim">--</div>
-        <div class="kpi-sub" id="kpi-sim-sub">--</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Net Guest Impact</div>
+        <div class="kpi-label">Structural Net Lift</div>
         <div class="kpi-val pos" id="kpi-lift">--</div>
         <div class="kpi-sub" id="kpi-lift-pct">--</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Conservative P10 &ndash; P90</div>
+        <div class="kpi-label">Hybrid ML Net Lift</div>
+        <div class="kpi-val pos" id="kpi-hyb-lift" style="color: var(--blue);">--</div>
+        <div class="kpi-sub" id="kpi-hyb-sub">Residual ML</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Conformal Range</div>
         <div class="kpi-val" id="kpi-unc">--</div>
-        <div class="kpi-sub" id="kpi-cov">68.4% Holdout Coverage</div>
+        <div class="kpi-sub" id="kpi-cov">66.7% Holdout Coverage</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Simulated Total</div>
+        <div class="kpi-val" id="kpi-sim">--</div>
+        <div class="kpi-sub" id="kpi-sim-sub">--</div>
       </div>
     </div>
 
@@ -276,7 +281,18 @@ function renderUI(d) {
   const liftPct = c.guests.base > 0 ? (lift / c.guests.base) * 100 : 0;
   document.getElementById('kpi-lift').textContent = (lift >= 0 ? "+" : "") + fmt(lift);
   document.getElementById('kpi-lift-pct').textContent = (liftPct >= 0 ? "+" : "") + liftPct.toFixed(1) + "% vs Baseline";
-  document.getElementById('kpi-unc').textContent = `+${fmt(d.uncertainty.delta_p10)} to +${fmt(d.uncertainty.delta_p90)}`;
+
+  // Hybrid ML Net Lift
+  if (d.hybrid) {
+    const hybLift = d.hybrid.delta;
+    document.getElementById('kpi-hyb-lift').textContent = (hybLift >= 0 ? "+" : "") + fmt(hybLift);
+    document.getElementById('kpi-hyb-sub').textContent = "ML Res: " + (d.hybrid.residual_adjustment >= 0 ? "+" : "") + fmt(d.hybrid.residual_adjustment, 0);
+  }
+
+  // Calibrated Conformal Range
+  const uncLow = (d.uncertainty.delta_p10 >= 0 ? "+" : "") + fmt(d.uncertainty.delta_p10);
+  const uncHigh = (d.uncertainty.delta_p90 >= 0 ? "+" : "") + fmt(d.uncertainty.delta_p90);
+  document.getElementById('kpi-unc').textContent = `${uncLow} to ${uncHigh}`;
   document.getElementById('kpi-cov').textContent = `${d.uncertainty.coverage_pct}% Demonstrated Coverage`;
 
   // Render Table

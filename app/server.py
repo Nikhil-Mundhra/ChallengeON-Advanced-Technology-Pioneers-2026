@@ -60,6 +60,15 @@ class DigitalTwinHandler(BaseHTTPRequestHandler):
         try:
             market = query.get("market", ["UNITED KINGDOM"])[0]
             season = query.get("season", ["Winter_Peak"])[0]
+
+            valid_seasons = {"Winter_Peak", "Spring_Shoulder", "Summer_Trough", "Autumn_Shoulder"}
+            if season not in valid_seasons:
+                self.send_json(
+                    {"error": f"Invalid season '{season}'. Must be one of: {sorted(list(valid_seasons))}"},
+                    status=400,
+                )
+                return
+
             delta_freq = float(query.get("delta_freq", [0.0])[0])
             gauge = float(query.get("gauge", [250.0])[0])
             delta_seats_pct = float(query.get("delta_seats_pct", [0.0])[0])
@@ -82,6 +91,7 @@ class DigitalTwinHandler(BaseHTTPRequestHandler):
             report = TWIN.run_scenario(market=market, season=season, lever=lever, n_draws=1000)
             s = report.structural_result
             unc = report.uncertainty_bands
+            hyb = report.hybrid_result
 
             response = {
                 "market": report.market,
@@ -108,6 +118,13 @@ class DigitalTwinHandler(BaseHTTPRequestHandler):
                     "los_effect": s.waterfall_los,
                     "total_lift": s.delta_guests,
                 },
+                "hybrid": {
+                    "base": hyb["hybrid_base"],
+                    "sim": hyb["hybrid_sim"],
+                    "delta": hyb["hybrid_delta"],
+                    "residual_adjustment": hyb["residual_correction"],
+                    "is_monotonic": hyb["is_monotonic"],
+                },
                 "uncertainty": {
                     "p10": unc.p10,
                     "p50": unc.p50,
@@ -123,6 +140,7 @@ class DigitalTwinHandler(BaseHTTPRequestHandler):
             self.send_json(response)
         except Exception as e:
             self.send_json({"error": str(e)}, status=400)
+
 
     def handle_benchmark(self):
         if not RESULTS_PATH.exists():

@@ -25,7 +25,14 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+import sys
+
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from engine.simulator import TourismDigitalTwin
+from engine.structural import ScenarioLever
+
 OUTPUT_PDF = ROOT / "output" / "pdf" / "challengeon_solution_report.pdf"
 FIG_DIR = ROOT / "output" / "figures"
 RESULTS_PATH = ROOT / "lake" / "curated" / "evaluation_results.json"
@@ -346,11 +353,14 @@ def build_pdf():
 
     # 6. Uncertainty & Risk Summary
     story.append(Paragraph("6. Honest Uncertainty Profile & Holdout Coverage", styles["h1"]))
+    twin = TourismDigitalTwin()
+    rep = twin.run_scenario("UNITED KINGDOM", "Winter_Peak", ScenarioLever("UNITED KINGDOM", delta_frequency=2.0, aircraft_gauge=290.0, delta_load_factor=0.02))
+    u = rep.uncertainty_bands
     unc_text = (
-        f"<b>Scenario Outcome Range (United Kingdom — Winter Peak):</b><br/>"
-        f"• <b>P10 (Conservative / Downside):</b> +919 incremental weekly guest-days (Total: 13,374)<br/>"
-        f"• <b>P50 (Median Expectation):</b> +1,144 incremental weekly guest-days (Total: 18,874)<br/>"
-        f"• <b>P90 (Optimistic / Upside):</b> +1,378 incremental weekly guest-days (Total: 24,886)<br/>"
+        f"<b>Scenario Outcome Range (United Kingdom — Winter Peak: +2 Weekly Flights, +2% LF):</b><br/>"
+        f"• <b>P10 (Conservative / Downside):</b> {u.delta_p10:+,.0f} incremental weekly guest-days (Total: {u.p10:,.0f})<br/>"
+        f"• <b>P50 (Point Forecast Lift):</b> {u.delta_p50:+,.0f} incremental weekly guest-days (Total: {u.p50:,.0f})<br/>"
+        f"• <b>P90 (Optimistic / Upside):</b> {u.delta_p90:+,.0f} incremental weekly guest-days (Total: {u.p90:,.0f})<br/>"
         f"• <b>Demonstrated Empirical Holdout Coverage:</b> <b>{cov_pct:.1f}%</b> (Target nominal: ~80.0%). "
         f"<i>Coverage shortfall reflects positive 2025 secular market growth (+2.8% to +9.1% YoY) relative to the 2023-2024 base.</i>"
     )

@@ -251,9 +251,16 @@ class StructuralEngine:
             sim_pax = 0.0
             sim_p2p_share = 0.0
             sim_p2p = 0.0
-            sim_mult = base_mult * (1.0 + lever.delta_multiplier_pct)
-            sim_arrivals = max(0.0, base_arrivals * (1.0 + lever.delta_multiplier_pct))
-            sim_los = max(1.0, base_los + lever.delta_los)
+            if lever.delta_multiplier_pct != 0.0:
+                sim_mult = base_mult * (1.0 + lever.delta_multiplier_pct)
+                sim_arrivals = max(0.0, base_arrivals * (1.0 + lever.delta_multiplier_pct))
+            else:
+                sim_mult = base_mult
+                sim_arrivals = base_arrivals
+            if lever.delta_los != 0.0:
+                sim_los = max(1.0, base_los + lever.delta_los)
+            else:
+                sim_los = base_los
             sim_guests = sim_arrivals * sim_los
 
             # Waterfall attribution for domestic: purely marketing multiplier and length of stay
@@ -266,13 +273,41 @@ class StructuralEngine:
             # International aviation conversion chain
             added_freq_seats = lever.delta_frequency * lever.aircraft_gauge
             sim_seats = max(0.0, (base_seats + added_freq_seats) * (1.0 + lever.delta_seats_pct))
-            sim_lf = np.clip(base_lf + lever.delta_load_factor, 0.10, 0.99)
+
+            # Preserve baseline invariants when deltas are zero; otherwise clip to valid range
+            if lever.delta_load_factor != 0.0:
+                sim_lf = float(np.clip(base_lf + lever.delta_load_factor, 0.05, 1.0))
+            else:
+                sim_lf = base_lf
             sim_pax = sim_seats * sim_lf
-            sim_p2p_share = np.clip(base_p2p_share + lever.delta_p2p_share, 0.05, 0.99)
+
+            if lever.delta_p2p_share != 0.0:
+                sim_p2p_share = float(np.clip(base_p2p_share + lever.delta_p2p_share, 0.01, 1.0))
+            else:
+                sim_p2p_share = base_p2p_share
             sim_p2p = sim_pax * sim_p2p_share
-            sim_mult = max(0.01, base_mult * (1.0 + lever.delta_multiplier_pct))
-            sim_arrivals = sim_p2p * sim_mult if sim_p2p > 0 else base_arrivals
-            sim_los = max(1.0, base_los + lever.delta_los)
+
+            if lever.delta_multiplier_pct != 0.0:
+                sim_mult = max(0.01, base_mult * (1.0 + lever.delta_multiplier_pct))
+            else:
+                sim_mult = base_mult
+
+            # Route discontinuation / scaling logic:
+            # If the market is an active aviation route (base_seats > 0):
+            # Closing the route (sim_seats == 0) yields sim_p2p = 0 and sim_arrivals = 0.0,
+            # accurately producing full demand loss rather than restoring baseline arrivals.
+            # If the market is unserved / cold-start (base_seats == 0):
+            # It only generates aviation arrivals if new capacity is added (sim_p2p > 0),
+            # otherwise retaining any existing unserved baseline arrivals.
+            if base_seats > 0:
+                sim_arrivals = sim_p2p * sim_mult
+            else:
+                sim_arrivals = sim_p2p * sim_mult if sim_p2p > 0 else base_arrivals
+
+            if lever.delta_los != 0.0:
+                sim_los = max(1.0, base_los + lever.delta_los)
+            else:
+                sim_los = base_los
             sim_guests = sim_arrivals * sim_los
 
             # Exact Waterfall Attribution Decomposition
