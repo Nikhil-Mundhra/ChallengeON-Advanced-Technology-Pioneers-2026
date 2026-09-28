@@ -91,10 +91,20 @@ class ResidualMLEngine:
         structural_engine: StructuralEngine,
         alphas: np.ndarray = np.logspace(-2, 4, 25),
     ) -> "ResidualMLEngine":
-        """Train regularized ridge residual models per market on historical actuals - structural."""
+        """Train regularized ridge residual models per market on historical actuals - structural.
+
+        IMPORTANT — planning-mode parity:
+        The structural prediction must be computed from the same planning-mode inputs
+        that the simulator uses at inference time (seasonal priors, not realized actuals).
+        For markets with zero P2P flights (including DOMESTIC), we fall back to
+        ``p.baseline_weekly_arrivals`` (the calibrated seasonal baseline) rather than
+        the contemporaneous realized ``new_arrivals`` column. Using realized arrivals
+        during training would cause a training–serving mismatch: the residual model
+        would learn to correct a much smaller structural error than it faces in production.
+        """
         train = train_df.copy()
 
-        # Compute structural predictions on training records
+        # Compute structural predictions using planning-mode priors only (no leakage from realized actuals)
         struct_preds = []
         for _, row in train.iterrows():
             m = row["market"]
@@ -102,10 +112,13 @@ class ResidualMLEngine:
             p = structural_engine.params[m][s]
             seats = row["seats"]
             lf = row["load_factor"] if not np.isnan(row["load_factor"]) else p.baseline_load_factor
-            pax = seats * lf if seats > 0 else row["pax"]
+            pax = seats * lf if seats > 0 else 0.0
             p2p_s = row["p2p_share"] if not np.isnan(row["p2p_share"]) else p.baseline_p2p_share
-            p2p = pax * p2p_s if pax > 0 else row["p2p"]
-            arr = p2p * p.effective_response_multiplier if p2p > 0 else row["new_arrivals"]
+            p2p = pax * p2p_s if pax > 0 else 0.0
+            # FIX (P0-A): always use the structural seasonal prior as the arrival baseline.
+            # Previously: `else row["new_arrivals"]` — leaked ex-post realized data into training.
+            # Now: `else p.baseline_weekly_arrivals` — matches the production planning path.
+            arr = p2p * p.effective_response_multiplier if p2p > 0 else p.baseline_weekly_arrivals
             g_struct = arr * p.baseline_los
             struct_preds.append(g_struct)
 

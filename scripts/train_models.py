@@ -97,7 +97,7 @@ def train(
     conformal_dict["_target_alpha"] = alpha
 
     # Read evaluated coverage if already compiled, or default to empirical target
-    eval_json = ROOT_DIR / "lake" / "curated" / "evaluation_results.json"
+    eval_json = Path(__file__).resolve().parents[1] / "lake" / "curated" / "evaluation_results.json"
     if eval_json.exists():
         try:
             with open(eval_json, "r", encoding="utf-8") as f:

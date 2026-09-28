@@ -16,23 +16,28 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
+# --- One-command full rebuild (all metrics + artifacts) ---
+make all
+
+# --- Or run individual steps manually ---
+
 # 1. Build local analytical lake from raw Excel workbooks
 python scripts/build_lake.py
 
 # 2. Build the curated weekly market modeling panel (Jan 2023 - Feb 2026)
 python scripts/build_panels.py
 
-# 3. Deterministically train and calibrate models & uncertainty bounds
+# 3. Run strict forward temporal holdout back-tests (writes evaluation_results.json)
+python scripts/evaluate_models.py
+
+# 4. Deterministically train and calibrate models & uncertainty bounds
 python scripts/train_models.py --max_date 2025-07-27
 
-# 4. Run automated unit and integration tests (5/5 passing)
-python -m unittest tests/test_digital_twin.py
+# 5. Run automated unit and integration tests (14/14 passing)
+pytest tests/ -v
 
-# 5. Run a planner scenario via CLI
+# 6. Run a planner scenario via CLI
 python scripts/run_scenario.py --market "UNITED KINGDOM" --season "Winter_Peak" --delta_freq 2.0 --gauge 290.0 --delta_lf 0.02
-
-# 6. Run strict forward temporal holdout back-tests
-python scripts/evaluate_models.py
 
 # 7. Launch the interactive web application dashboard
 python scripts/run_app.py --port 8080

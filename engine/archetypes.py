@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class MarketArchetype(str, Enum):
@@ -143,7 +143,15 @@ MARKET_ARCHETYPE_MAP: Dict[str, MarketArchetype] = {
     "ISRAEL": MarketArchetype.DIRECT_LEISURE,
     "PHILIPPINES": MarketArchetype.RESIDENT_VFR,
     "OMAN": MarketArchetype.REGIONAL_GCC,
-    "OTHER INTERNATIONAL": MarketArchetype.EMERGING_SPARSE,
+    # FIX (P0-D): Register the 5 regional cluster labels produced by the new panel builder.
+    # The old monolithic 'OTHER INTERNATIONAL' is kept for backward compat with existing PKL models.
+    "OTHER INTERNATIONAL": MarketArchetype.EMERGING_SPARSE,   # legacy — deprecated
+    "OTHER_INTERNATIONAL": MarketArchetype.EMERGING_SPARSE,   # catch-all for unresolved residuals
+    "OTHER_EUROPE": MarketArchetype.DIRECT_LEISURE,           # Nordic/Western EU leisure markets
+    "OTHER_ASIA_PACIFIC": MarketArchetype.HUB_MEDIATED,       # South Korea, Australia, Japan, Pakistan
+    "OTHER_MENA": MarketArchetype.REGIONAL_GCC,               # Jordan, Bahrain, Qatar, Lebanon
+    "OTHER_AMERICAS_AFRICA": MarketArchetype.HUB_MEDIATED,    # Canada, Brazil, South Africa, Mexico, Morocco
+    "OTHER_EURASIA": MarketArchetype.HIGHLY_SEASONAL,         # Uzbekistan, Azerbaijan, Armenia
     "DOMESTIC": MarketArchetype.DOMESTIC_STAYCATION,
 }
 

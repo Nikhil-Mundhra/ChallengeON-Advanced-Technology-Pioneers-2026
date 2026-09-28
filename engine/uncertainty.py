@@ -9,6 +9,7 @@ Replaces naive uncalibrated Gaussian assumptions with:
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -84,12 +85,14 @@ class UncertaintyEngine:
         archetype = get_market_archetype(market_norm)
         profile = get_archetype_profile(archetype)
 
-        # Deterministic RNG per scenario to prevent drift across identical API calls
+        # Deterministic RNG per scenario to prevent drift across identical API calls.
+        # FIX (P0-B): hash() is randomized by PYTHONHASHSEED each process launch (PEP 456).
+        # hashlib.sha256 produces the same digest in every Python process for the same input.
         if seed is not None:
             rng = np.random.default_rng(seed)
         else:
             scenario_key = f"{market_norm}_{season}_{sim_res.sim_seats:.1f}_{sim_res.sim_guests:.1f}_{n_draws}_{self.random_seed}"
-            seed_val = abs(hash(scenario_key)) % (2**31 - 1)
+            seed_val = int(hashlib.sha256(scenario_key.encode()).hexdigest()[:8], 16)
             rng = np.random.default_rng(seed_val)
 
         # 1. Operational uncertainty draws (Beta distribution)

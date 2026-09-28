@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 from pathlib import Path
 
 import duckdb
@@ -204,6 +206,23 @@ def validate(guests: pd.DataFrame, flights: pd.DataFrame) -> dict[str, int | flo
             .abs()
             .max()
         ),
+        # FIX (P1-E): Implement the new_arrivals <= guests invariant gate.
+        # DATA_ISSUES.md asserted this check existed; it was a phantom. Now real.
+        "guest_arrivals_exceeds_guests_violations": int(
+            (
+                guests["is_source_present"]
+                & guests["guests"].notna()
+                & guests["new_arrivals"].notna()
+                & (guests["new_arrivals"] > guests["guests"])
+            ).sum()
+        ),
+        # Non-negativity guard: guests and arrivals must never be negative counts.
+        "guest_negative_guests_count": int(
+            (guests["guests"].notna() & (guests["guests"] < 0)).sum()
+        ),
+        "guest_negative_arrivals_count": int(
+            (guests["new_arrivals"].notna() & (guests["new_arrivals"] < 0)).sum()
+        ),
     }
 
     required_zero_checks = (
@@ -212,6 +231,10 @@ def validate(guests: pd.DataFrame, flights: pd.DataFrame) -> dict[str, int | flo
         "train_rows_missing_guests",
         "test_rows_with_guests",
         "flight_passenger_identity_mismatches",
+        # P1-E gates — must be zero for a clean build
+        "guest_arrivals_exceeds_guests_violations",
+        "guest_negative_guests_count",
+        "guest_negative_arrivals_count",
     )
     failures = {name: checks[name] for name in required_zero_checks if checks[name] != 0}
     if checks["flight_load_factor_max_absolute_error"] > 1e-9:
@@ -224,19 +247,33 @@ def validate(guests: pd.DataFrame, flights: pd.DataFrame) -> dict[str, int | flo
 
 
 def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
+    """Write Parquet files and DuckDB using an atomic two-phase commit.
+
+    FIX (P1-F): The previous implementation called output.unlink() before writing.
+    A crash midway left the lake directory in a destroyed, unrecoverable state.
+
+    New approach:
+    1. Write everything to ``lake/.staging_build/`` (a private scratch space).
+    2. Validate the staged DuckDB can be opened and has the expected tables.
+    3. Atomically swap the staged files over the live files via ``os.rename()``.
+       ``os.rename()`` is atomic on all POSIX filesystems when src and dst are on the
+       same mount point — the live lake is never destroyed before the new build exists.
+    4. On any failure the staging directory is cleaned up; the live lake is untouched.
+    """
     CURATED_DIR.mkdir(parents=True, exist_ok=True)
-    for output in (
-        CURATED_DIR / "guest_daily.parquet",
-        CURATED_DIR / "flight_daily.parquet",
-        CURATED_DIR / "flight_monthly.parquet",
-        DATABASE_PATH,
-    ):
-        output.unlink(missing_ok=True)
+    staging_dir = LAKE_DIR / ".staging_build"
+    staging_curated = staging_dir / "curated"
+    staging_db = staging_dir / "analytics.duckdb"
+
+    # Clean any previous failed staging run
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    staging_curated.mkdir(parents=True)
 
     daily_flights = flights[flights["source_grain"] == "daily"].copy()
     monthly_flights = flights[flights["source_grain"] == "monthly"].copy()
 
-    connection = duckdb.connect(str(DATABASE_PATH))
+    connection = duckdb.connect(str(staging_db))
     try:
         connection.register("guest_source", guests)
         connection.register("flight_daily_source", daily_flights)
@@ -262,7 +299,7 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
                 FROM guest_source
             ) TO ? (FORMAT PARQUET, COMPRESSION ZSTD)
             """,
-            [str(CURATED_DIR / "guest_daily.parquet")],
+            [str(staging_curated / "guest_daily.parquet")],
         )
         connection.execute(
             """
@@ -271,7 +308,7 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
                 FROM flight_daily_source
             ) TO ? (FORMAT PARQUET, COMPRESSION ZSTD)
             """,
-            [str(CURATED_DIR / "flight_daily.parquet")],
+            [str(staging_curated / "flight_daily.parquet")],
         )
         connection.execute(
             """
@@ -280,24 +317,26 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
                 FROM flight_monthly_source
             ) TO ? (FORMAT PARQUET, COMPRESSION ZSTD)
             """,
-            [str(CURATED_DIR / "flight_monthly.parquet")],
+            [str(staging_curated / "flight_monthly.parquet")],
         )
 
         connection.execute(
             "CREATE TABLE guest_daily AS SELECT * FROM read_parquet(?)",
-            [str(CURATED_DIR / "guest_daily.parquet")],
+            [str(staging_curated / "guest_daily.parquet")],
         )
         connection.execute(
             "CREATE TABLE flight_daily AS SELECT * FROM read_parquet(?)",
-            [str(CURATED_DIR / "flight_daily.parquet")],
+            [str(staging_curated / "flight_daily.parquet")],
         )
         connection.execute(
             "CREATE TABLE flight_monthly AS SELECT * FROM read_parquet(?)",
-            [str(CURATED_DIR / "flight_monthly.parquet")],
+            [str(staging_curated / "flight_monthly.parquet")],
         )
         connection.execute(
             """
             CREATE VIEW flight_all AS
+            -- WARNING: This view stacks daily 2023+ records with 2022 monthly aggregates.
+            -- Always filter by source_grain when computing time-bounded aggregates.
             SELECT * FROM flight_daily
             UNION ALL
             SELECT * FROM flight_monthly
@@ -364,8 +403,25 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
             """
         )
         connection.execute("ANALYZE")
+    except Exception:
+        connection.close()
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
     finally:
         connection.close()
+
+    # Atomic swap: move staged files over the live files only after successful build.
+    # os.rename() is atomic on POSIX when src and dst share the same filesystem.
+    for staged, live in [
+        (staging_curated / "guest_daily.parquet", CURATED_DIR / "guest_daily.parquet"),
+        (staging_curated / "flight_daily.parquet", CURATED_DIR / "flight_daily.parquet"),
+        (staging_curated / "flight_monthly.parquet", CURATED_DIR / "flight_monthly.parquet"),
+        (staging_db, DATABASE_PATH),
+    ]:
+        live.unlink(missing_ok=True)   # remove the previous live file right before atomic replace
+        os.rename(staged, live)
+
+    shutil.rmtree(staging_dir, ignore_errors=True)
 
 
 def write_manifest(checks: dict[str, int | float]) -> None:
@@ -393,6 +449,9 @@ def write_manifest(checks: dict[str, int | float]) -> None:
             "guest_daily provides a complete 1,520-date x 45-nationality grid (68,400 intl + 1,520 domestic = 69,920 rows) with is_source_present and missingness flags.",
             "Load factors > 100% are preserved raw with is_load_factor_outlier flag; no silent truncation in curated store.",
             "All partial sums and suppressed records are transparently traceable via is_suppressed_arrival and is_suppressed_same_day.",
+            # P1-E: real gates, enforced in validate()
+            "new_arrivals <= guests for all present source rows (guest_arrivals_exceeds_guests_violations == 0).",
+            "guests and new_arrivals are non-negative for all present source rows.",
         ],
     }
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

@@ -61,8 +61,8 @@ class TestDigitalTwin(unittest.TestCase):
             discrepancy = abs(waterfall_sum - res.delta_guests)
             self.assertLess(
                 discrepancy,
-                1e-5,
-                f"Waterfall discrepancy {discrepancy} exceeded tolerance for {market} in {season}.",
+                1e-9,
+                f"Waterfall discrepancy {discrepancy:.3e} exceeded 1e-9 tolerance for {market} in {season}.",
             )
 
     def test_monotonicity_guarantee(self):

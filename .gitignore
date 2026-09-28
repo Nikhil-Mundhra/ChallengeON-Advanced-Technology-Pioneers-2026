@@ -10,3 +10,9 @@ lake/curated/*.parquet
 lake/curated/*.pkl
 lake/curated/*.json
 *.pdf
+
+# NOTE: "01a - DCT Dataset/" is intentionally tracked.
+# These files are competition-provided data distributed to all participants.
+# They are required for end-to-end reproducibility of all reported metrics.
+# If competition rules prohibit redistribution, remove tracking with:
+#   git rm -r --cached "01a - DCT Dataset/" && git commit -m "Remove raw data"

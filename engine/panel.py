@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 from engine.archetypes import (
+    REGIONAL_CLUSTERS,
     TOP_15_INTERNATIONAL_MARKETS,
     get_market_archetype,
 )
@@ -72,6 +73,27 @@ def assign_season(month: int) -> str:
         return "Autumn_Shoulder"
 
 
+def _build_market_case(top15_tuple: tuple) -> str:
+    """Build a SQL CASE expression mapping departure country / nationality to market label.
+
+    Priority:
+    1. Top-15 individual markets — named directly.
+    2. Regional cluster members — mapped to their cluster label (e.g. 'OTHER_EUROPE').
+    3. Remaining nationalities — catch-all 'OTHER_INTERNATIONAL'.
+
+    FIX (P0-D): The previous single 'OTHER INTERNATIONAL' bucket pooled 30 nationalities
+    with 18 flight corridors into one blended multiplier, creating spurious aviation
+    elasticity (e.g. Turkish capacity changes inflating Australian/Brazilian forecasts).
+    The 5 regional clusters preserve intra-regional coherence.
+    """
+    lines = [f"        WHEN UPPER({{col}}) IN {top15_tuple} THEN UPPER({{col}})"]
+    for cluster_name, members in REGIONAL_CLUSTERS.items():
+        members_tuple = tuple(m.upper() for m in members)
+        lines.append(f"        WHEN UPPER({{col}}) IN {members_tuple} THEN '{cluster_name}'")
+    lines.append("        ELSE 'OTHER_INTERNATIONAL'")
+    return "\n".join(lines)
+
+
 def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
     """Build cleanly matched weekly panel from DuckDB.
 
@@ -82,14 +104,17 @@ def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
     con = duckdb.connect(str(db_path), read_only=True)
     top15_tuple = tuple(TOP_15_INTERNATIONAL_MARKETS)
 
+    # Build parameterised CASE expressions for flight departure country and guest nationality
+    flight_market_case = _build_market_case(top15_tuple).format(col="departure_country_name")
+    guest_market_case = _build_market_case(top15_tuple).format(col="nationality")
+
     # 1. Aggregate daily flights and daily guests at exact daily grain first
     matched_query = f"""
     WITH daily_f AS (
         SELECT 
             date,
             CASE 
-                WHEN UPPER(departure_country_name) IN {top15_tuple} THEN UPPER(departure_country_name)
-                ELSE 'OTHER INTERNATIONAL'
+{flight_market_case}
             END as market,
             SUM(total_seats) as seats,
             SUM(total_pax) as pax,
@@ -109,8 +134,7 @@ def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
             residence_group,
             CASE 
                 WHEN residence_group = 'Domestic' THEN 'DOMESTIC'
-                WHEN UPPER(nationality) IN {top15_tuple} THEN UPPER(nationality)
-                ELSE 'OTHER INTERNATIONAL'
+{guest_market_case}
             END as market,
             SUM(guests) as guests,
             SUM(new_arrivals) as new_arrivals,

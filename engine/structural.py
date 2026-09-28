@@ -331,6 +331,20 @@ class StructuralEngine:
             delta_l = sim_los - base_los
             waterfall_los = sim_arrivals * delta_l
 
+        # FIX (P0-C): Runtime guard — waterfall components must exactly reconcile to delta_guests.
+        # Tolerance of 1e-9 catches the latent defect where base_seats==0 but base_arrivals>0
+        # (12 unserved nationalities) would produce a 100% attribution error.
+        waterfall_total = waterfall_seats + waterfall_lf + waterfall_p2p + waterfall_mult + waterfall_los
+        delta_guests_expected = sim_guests - base_guests
+        waterfall_discrepancy = abs(waterfall_total - delta_guests_expected)
+        if waterfall_discrepancy > 1e-9:
+            raise ArithmeticError(
+                f"Waterfall attribution discrepancy {waterfall_discrepancy:.3e} > 1e-9 "
+                f"for market={market_norm!r}, season={season!r}. "
+                f"waterfall_total={waterfall_total:.6f}, delta_guests={delta_guests_expected:.6f}. "
+                "This indicates a structural bug in the decomposition logic."
+            )
+
         return SimulationResult(
             market=market_norm,
             season=season,
