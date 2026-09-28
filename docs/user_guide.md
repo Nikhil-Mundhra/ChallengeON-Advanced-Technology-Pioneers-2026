@@ -47,7 +47,7 @@ python scripts/run_scenario.py \
 | `--delta_seats_pct` | `float` | `0.0` | Proportional seat capacity shift across existing flights (e.g. `0.15` for $+15\%$). |
 | `--delta_lf` | `float` | `0.0` | Absolute shift in target load factor (e.g. `0.02` for $+2.0\%$ LF). |
 | `--delta_p2p` | `float` | `0.0` | Absolute shift in P2P passenger share (e.g. `0.03` for $+3.0\%$). |
-| `--delta_conv_pct` | `float` | `0.0` | Proportional shift in hotel conversion from marketing campaigns (e.g. `0.05` for $+5\%$). |
+| `--delta_mult_pct` | `float` | `0.0` | Proportional shift in response multiplier from marketing (e.g. `0.05` for $+5\%$). |
 | `--delta_los` | `float` | `0.0` | Shift in average length of stay days (e.g. `0.3` for $+0.3$ days). |
 
 ---
@@ -60,7 +60,7 @@ When you execute a scenario, the Digital Twin outputs five structured sections:
 A concise, non-technical paragraph designed for leadership. It states:
 - Total weekly incremental guest-days.
 - Percentage change relative to the historical baseline.
-- 80% confidence interval (P10 conservative to P90 optimistic).
+- 80% empirical scenario interval (P10 conservative to P90 optimistic).
 - The single highest-leverage driver identified by sensitivity analysis.
 
 ### 2. End-to-End Conversion Chain
@@ -72,8 +72,8 @@ A side-by-side comparison of baseline vs. scenario rates across each operational
 - **Hotel Guests (Guest-Days):** Daily active guest stock multiplied over the week.
 
 ### 3. Exact Waterfall Attribution
-Decomposes total incremental guest-days into 5 independent causal drivers:
-$$\Delta Guests = \Delta G_{Seats} + \Delta G_{LF} + \Delta G_{P2P} + \Delta G_{Conv} + \Delta G_{Stay}$$
+Decomposes total incremental guest-days into 5 independent operational drivers:
+$$\Delta Guests = \Delta G_{Seats} + \Delta G_{LF} + \Delta G_{P2P} + \Delta G_{Mult} + \Delta G_{Stay}$$
 - The sum of components **exactly matches** the total net lift with $0.000000$ discrepancy.
 
 ### 4. Uncertainty Quantification
@@ -145,3 +145,112 @@ print(f"Conservative P10:   {report.uncertainty_bands.delta_p10:+,.0f}")
 print(f"Optimistic P90:     {report.uncertainty_bands.delta_p90:+,.0f}")
 print(f"Executive Summary:  {report.recommendation_summary}")
 ```
+
+---
+
+## 6. Interactive Web Simulator
+
+The solution includes a self-contained, interactive single-page web simulator located in `app/`. It requires no external frontend build tools or internet connection.
+
+### Launching the Web App
+
+```bash
+# Start the web simulator on port 8080
+python scripts/run_app.py --port 8080
+```
+
+Open `http://localhost:8080` in your web browser.
+
+### Key Capabilities
+
+1. **Preset Scenarios:** Instant one-click selection of policy scenarios:
+   - UK Winter Peak (+2 B787 flights, +2% LF)
+   - India Capacity Surge (+5 A320 flights, +3% P2P)
+   - Germany Winter Expansion (+1 A330 flight, +3% LF)
+   - Saudi Summer Campaign (+3 A320 flights, +5% LF)
+   - China Hub Recovery (+2 B787 flights, +5% LF)
+2. **Interactive Levers:** Real-time sliders for market selection, season, weekly flight delta, aircraft gauge, seat capacity shift, load factor, P2P share, response multiplier, and stay duration.
+3. **Live Conversion Chain Visualization:** Visual flow of seats $\rightarrow$ pax $\rightarrow$ P2P $\rightarrow$ arrivals $\rightarrow$ hotel guests with baseline vs. scenario comparisons.
+4. **Waterfall Breakdown:** Dynamic bar chart of exact waterfall attribution components.
+5. **Tornado Sensitivity Chart:** Real-time ranking of operational levers by elasticity.
+6. **Executive Briefing Card:** Auto-generated natural language briefing for tourism executives.
+
+---
+
+## 7. Deterministic Training & Model Retraining
+
+To recalibrate the structural parameters and train the monotonic residual engine from curated data:
+
+```bash
+python scripts/train_models.py
+```
+
+### Generated Artifacts
+
+- `lake/curated/structural_calibration.json`: Calibrated baseline parameters across 17 market archetypes and 4 seasons.
+- `lake/curated/residual_engine.pkl`: Trained scikit-learn RidgeCV model fitted on calendar, seasonal, and lagged demand features with aviation features excluded to protect monotonicity.
+- `lake/curated/conformal_calibrator.json`: Calibrated historical residual distributions used for empirical uncertainty intervals.
+
+---
+
+## 8. Holdout Back-Testing & Model Evaluation
+
+To execute the temporal back-test against the 2025 holdout window (Jan 6, 2025 to Jul 27, 2025, 30 complete ISO weeks, 510 market-weeks):
+
+```bash
+python scripts/evaluate_models.py
+```
+
+### Evaluation Reporting Modes
+
+The evaluation script rigorously separates planning simulations from realized data:
+
+1. **International Planning Mode:** Simulates purely from scheduled aviation capacity and calibrated conversion rates without looking at holdout load factor, P2P mix, or arrival numbers.
+2. **International Realized-Chain Mode:** Uses actual holdout load factors and P2P shares to isolate error in the downstream conversion stages.
+3. **Domestic Forecast Mode:** Pure seasonal prior forecast with zero holdout arrival leakage.
+4. **Combined Diagnostic:** Full territory evaluation across all international markets and domestic demand.
+
+Benchmark metrics are written to `lake/curated/evaluation_results.json`.
+
+---
+
+## 9. Automated Verification & Test Suite
+
+The digital twin includes an automated test suite verifying core mathematical properties:
+
+```bash
+# Run tests with pytest
+pytest tests/test_digital_twin.py -v
+
+# Or run with standard library unittest
+python -m unittest tests/test_digital_twin.py
+```
+
+### Verified Test Cases
+
+1. `test_weekly_market_panel_integrity`: Asserts panel schema, non-negative flight metrics, and valid date bounds.
+2. `test_structural_engine_waterfall_identity`: Verifies that exact waterfall attribution decomposes net guest lift with zero residual ($|\text{sum} - \Delta Guests| < 10^{-6}$).
+3. `test_monotonicity_guarantee`: Confirms that increasing flight frequency or seats strictly increases or maintains guest demand ($\Delta Guests \ge 0$).
+4. `test_cold_start_unmodeled_country`: Tests dynamic fallback to regional priors for unmodeled source markets (e.g. Sweden, Brazil).
+5. `test_artifact_reload_consistency`: Confirms that reloaded calibration artifacts produce deterministic, reproducible scenario predictions.
+
+---
+
+## 10. Publication-Grade PDF & Scenario Chart Generation
+
+To compile the executive PDF dossier and high-resolution figures:
+
+```bash
+# 1. Generate scenario figures dynamically from evaluation results
+python scripts/generate_scenario_charts.py
+
+# 2. Compile publication-grade 3-page PDF dossier
+python scripts/build_solution_report.py
+```
+
+Generated outputs:
+- `output/figures/waterfall_attribution.png`: High-resolution waterfall attribution graphic.
+- `output/figures/tornado_sensitivity.png`: Tornado sensitivity graphic.
+- `output/figures/model_benchmark.png`: Model benchmark comparison graphic.
+- `output/pdf/challengeon_solution_report.pdf`: 3-page publication-grade executive dossier.
+
