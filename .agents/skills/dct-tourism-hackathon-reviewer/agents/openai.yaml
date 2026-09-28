@@ -1,0 +1,4 @@
+interface:
+  display_name: "DCT Tourism Hackathon Reviewer"
+  short_description: "Judge and audit DCT simulator submissions"
+  default_prompt: "Use $dct-tourism-hackathon-reviewer to assess this DCT tourism simulator as both a hackathon judge and code reviewer."
