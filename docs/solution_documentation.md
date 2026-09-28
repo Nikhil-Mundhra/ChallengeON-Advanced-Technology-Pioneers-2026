@@ -199,17 +199,14 @@ For nationality or hotel market `n`:
 HotelArrivals[n,t] = sum over origins o of P2P[o,t] x Conversion[n,o,season]
 ```
 
-The conversion matrix must be non-negative and strongly regularized. A full 45 x 33 unrestricted matrix has 1,485 weights and is not identifiable reliably from highly correlated aggregate time series.
+The conversion matrix must be non-negative and strongly regularized. A full 45 x 33 unrestricted cross-allocation matrix has 1,485 parameters and is mathematically unidentifiable from aggregate weekly time series (highly collinear, rank-deficient system).
 
-The MVP should use:
+In this prototype, the bridge is implemented as an explicit **regularized same-market proxy with calibrated effective multipliers**:
+- Flight departure country $k$ is linked to hotel guest nationality $k$.
+- The market-season-specific effective multiplier $\beta_{k, \text{season}} = \frac{\text{HotelArrivals}_{k, \text{season}}}{\text{P2P}_{k, \text{season}}}$ absorbs non-national travelers on the flight, indirect non-hub connections, and overland ground transport from other UAE airports (e.g., Dubai International Airport DXB).
+- For unmodeled or cold-start routes, hierarchical shrinkage applies regional archetype priors (e.g., Scandinavia, Eastern Europe, South Asia VFR).
+- This structure avoids fabricating unverified 1,485-cell origin-nationality cross-matrices while giving planners a direct, transparent lever to adjust destination conversion.
 
-- The top 10-15 hotel markets plus an `Other` group.
-- A same-country diagonal prior where defensible.
-- A limited set of regional or hub relationships.
-- Partial pooling toward regional or global conversion rates.
-- Visible overrides for planner knowledge.
-
-The weights describe a predictive allocation, not observed individual travel paths.
 
 ### 8.4 Hotel arrivals to daily guests
 
@@ -350,32 +347,33 @@ The models were evaluated strictly on complete 7-day ISO weeks without split-bou
 
 #### 1. Separation of Planning, Realized-Chain, and Domestic Diagnostics
 
-To avoid operational target leakage and prevent domestic staycations from artificially deflating the aviation headline score, evaluations are separated explicitly:
+To avoid operational target leakage and prevent domestic staycations from artificially deflating the aviation headline score, evaluations are separated explicitly across 501 complete-input test market-weeks (calibrated on 1,724 training market-weeks):
 
 | Evaluation Setting | WMAPE | Directional Bias | MAE | RMSE | Operational Scope |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **International Planning Mode** | **25.38%** | **+0.83%** | 2,853.3 | 4,460.8 | Scheduled seats + training priors only (true pre-flight planning). |
-| **International Realized-Chain** | **23.75%** | **-6.65%** | 2,670.5 | 4,022.6 | Downstream conversion holding realized P2P fixed. |
+| **International Planning Mode** | **26.05%** | **+1.80%** | 2,782.0 | 4,400.1 | Scheduled seats + training priors only (true pre-flight planning). |
+| **International Realized-Chain** | **23.49%** | **-5.83%** | 2,509.2 | 3,773.3 | Downstream conversion holding realized P2P fixed. |
 | **Domestic Forecast Mode** | **16.04%** | **+13.05%** | 17,485.2 | 21,078.9 | Dedicated seasonal prior; NO holdout arrival leakage. |
-| **Combined Planning Mode** | **21.85%** | **+5.44%** | 3,714.0 | 6,698.1 | Full territory diagnostic (International + Domestic). |
-| **Combined Realized-Chain** | **20.84%** | **+0.79%** | 3,541.9 | 6,431.6 | Realized aviation P2P across entire territory. |
+| **Combined Planning Mode** | **22.10%** | **+6.24%** | 3,662.5 | 6,693.8 | Full territory diagnostic (International + Domestic). |
+| **Combined Realized-Chain** | **20.55%** | **+1.61%** | 3,405.9 | 6,323.8 | Realized aviation P2P across entire territory. |
 
 #### 2. Model Architecture Benchmark (All Markets)
 
 | Model Architecture | WMAPE | Directional Bias | MAE | RMSE | Model Status |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **1. Historical Seasonal Prior** | 22.62% | -7.05% | 3,845.0 | 7,074.2 | Naive Baseline |
-| **2. Pure ML / Calendar Model** | 22.01% | -8.98% | 3,740.7 | 6,742.6 | Calendar Extrapolation |
-| **3. Structural-Only Engine** | 21.85% | +5.44% | 3,714.0 | 6,698.1 | Pre-Flight Decision Chain |
-| **4. Hybrid Digital Twin (Proposed)** | **20.64%** | **+4.92%** | **3,507.6** | **6,307.5** | **Champion (Lowest WMAPE & RMSE)** |
+| **1. Historical Seasonal Prior** | 22.13% | -5.86% | 3,667.4 | 6,978.7 | Naive Baseline |
+| **2. Pure ML / Calendar Model** | 21.31% | -7.68% | 3,531.6 | 6,624.5 | Calendar Extrapolation |
+| **3. Structural-Only Engine** | 22.10% | +6.24% | 3,662.5 | 6,693.8 | Pre-Flight Decision Chain |
+| **4. Hybrid Digital Twin (Proposed)** | **20.91%** | **+5.84%** | **3,464.1** | **6,311.1** | **Champion (Lowest WMAPE & RMSE)** |
 
-**Demonstrated Empirical Holdout Coverage:** 68.4% (Nominal target: 80.0%).
+**Demonstrated Empirical Holdout Coverage:** 66.7% (Nominal target: 80.0%).
 *Coverage shortfall reflects positive secular tourism growth in Abu Dhabi during 2025 (+2.8% to +9.1% YoY) relative to the 2023–2024 calibration base.*
 
 Key takeaways from the strict evaluation:
-1. When evaluated strictly in pre-flight planning mode (without realized operational data), the international structural conversion engine achieves **25.38% WMAPE** with near-zero bias (**+0.83%**).
-2. The Hybrid Digital Twin achieves the lowest overall error (**20.64% WMAPE**, **6,307.5 RMSE**), outperforming pure calendar ML by 1.37 percentage points and naive seasonal priors by 1.98 percentage points.
+1. When evaluated strictly in pre-flight planning mode (without realized operational data), the international structural conversion engine achieves **26.05% WMAPE** with low directional bias (**+1.80%**).
+2. The Hybrid Digital Twin achieves the lowest overall error (**20.91% WMAPE**, **6,311.1 RMSE**), improving upon pure calendar ML and structural-only models while preserving monotonicity.
 3. Domestic demand achieves 16.04% WMAPE without using any future arrivals, demonstrating that domestic staycations must be kept separate from the international aviation chain.
+
 
 ## 12. Simulator experience
 
@@ -462,11 +460,11 @@ lake/                Curated Parquet files, DuckDB database, manifest
 ### Phase 2: Baselines & Evaluation Harness [COMPLETED & VERIFIED]
 - Implemented seasonal naive, pure ML calendar, structural-only, and hybrid models.
 - Strict 104-week train vs 30-week forward holdout back-test implemented (`scripts/evaluate_models.py`).
-- Explicitly separated International Planning Mode (25.38% WMAPE), Realized-Chain Mode (23.75%), Domestic Forecast Mode (16.04%), and Combined Planning Mode (21.85%).
+- Explicitly separated International Planning Mode (26.05% WMAPE), Realized-Chain Mode (23.49%), Domestic Forecast Mode (16.04%), and Combined Planning Mode (22.10%).
 - Saved all metrics dynamically to `lake/curated/evaluation_results.json`.
 
 ### Phase 3: Structural Simulator [COMPLETED & VERIFIED]
-- Causal conversion chain implemented in `engine/structural.py`.
+- Structural conversion chain implemented in `engine/structural.py`.
 - Exact sequential waterfall attribution decomposition verified ($0.000000$ discrepancy).
 - Cold-start hierarchical regional priors implemented for unmodeled countries (Sweden, Brazil, Poland, etc.).
 - Deterministic training script implemented (`scripts/train_models.py`).
@@ -474,13 +472,14 @@ lake/                Curated Parquet files, DuckDB database, manifest
 ### Phase 4: Residual ML & Uncertainty [COMPLETED & VERIFIED]
 - Monotonic residual ML model (`engine/residual.py`) trained strictly on calendar/event features, excluding flight capacity levers.
 - Beta-distributed operational priors and block-bootstrapped residuals implemented in `engine/uncertainty.py`.
-- Demonstrated holdout coverage verified at 68.4% (with positive secular trend documentation).
+- Demonstrated holdout coverage verified at 66.7% (with positive secular trend documentation).
 
 ### Phase 5: Interactive Product & Submission Assets [COMPLETED & VERIFIED]
 - Interactive web application implemented (`app/server.py` + `app/static/index.html`), runnable via `python scripts/run_app.py --port 8080`.
 - Terminal scenario CLI implemented (`scripts/run_scenario.py`).
-- Automated unit and integration test suite implemented (`tests/test_digital_twin.py`, 5/5 passing).
+- Automated unit and integration test suite implemented (`tests/test_digital_twin.py`, 14/14 passing).
 - Publication-grade 3-page executive PDF report generated dynamically (`scripts/build_solution_report.py` -> `output/pdf/challengeon_solution_report.pdf`).
+
 
 ## 15. Acceptance Criteria Checklist
 

@@ -58,27 +58,31 @@ The **Abu Dhabi Tourism Digital Twin** combines:
 
 ## 3. Strict Forward-Holdout Evaluation Results
 
-Evaluated on 30 complete 7-day holdout weeks (Jan 2025 – Jul 2025, 510 market-weeks) calibrated on 104 complete weeks (Jan 2023 – Dec 2024, 1,768 market-weeks):
+Evaluated on 30 complete 7-day holdout weeks with complete guest inputs (Jan 2025 – Jul 2025, 501 market-weeks) calibrated on 104 complete weeks (Jan 2023 – Dec 2024, 1,724 market-weeks):
 
 ### Diagnostic Separation
 
 | Evaluation Setting | WMAPE | Directional Bias | MAE | RMSE | Operational Scope |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **International Planning Mode** | **24.89%** | **+0.68%** | 2,798.1 | 4,433.5 | Scheduled seats + training priors only (true pre-flight planning). |
-| **International Realized-Chain** | **23.59%** | **-6.73%** | 2,652.6 | 4,016.4 | Downstream conversion holding realized P2P fixed. |
+| **International Planning Mode** | **26.05%** | **+1.80%** | 2,782.0 | 4,400.1 | Scheduled seats + training priors only (true pre-flight planning). |
+| **International Realized-Chain** | **23.49%** | **-5.83%** | 2,509.2 | 3,773.3 | Downstream conversion holding realized P2P fixed. |
 | **Domestic Forecast Mode** | **16.04%** | **+13.05%** | 17,485.2 | 21,078.9 | Dedicated seasonal prior; NO holdout arrival leakage. |
-| **Combined Planning Mode** | **21.55%** | **+5.35%** | 3,662.1 | 6,681.0 | Full territory diagnostic (International + Domestic). |
+| **Combined Planning Mode** | **22.10%** | **+6.24%** | 3,662.5 | 6,693.8 | Full territory diagnostic (International + Domestic). |
+| **Combined Realized-Chain** | **20.55%** | **+1.61%** | 3,405.9 | 6,323.8 | Realized aviation P2P across entire territory. |
 
 ### Model Benchmark (All Markets)
 
 | Model Architecture | WMAPE | Directional Bias | MAE | RMSE | Model Status |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **1. Historical Seasonal Prior** | 22.44% | -7.05% | 3,813.3 | 7,137.3 | Naive Baseline |
-| **2. Pure ML / Calendar Model** | 21.93% | -8.93% | 3,726.9 | 6,843.6 | Calendar Extrapolation |
-| **3. Structural-Only Engine** | 21.55% | +5.35% | 3,662.1 | 6,681.0 | Pre-Flight Decision Chain |
-| **4. Hybrid Digital Twin (Proposed)** | **20.52%** | **+4.83%** | **3,488.0** | **6,306.2** | **Champion (Lowest WMAPE & RMSE)** |
+| **1. Historical Seasonal Prior** | 22.13% | -5.86% | 3,667.4 | 6,978.7 | Naive Baseline |
+| **2. Pure ML / Calendar Model** | 21.31% | -7.68% | 3,531.6 | 6,624.5 | Calendar Extrapolation |
+| **3. Structural-Only Engine** | 22.10% | +6.24% | 3,662.5 | 6,693.8 | Pre-Flight Decision Chain |
+| **4. Hybrid Digital Twin (Proposed)** | **20.91%** | **+5.84%** | **3,464.1** | **6,311.1** | **Champion (Lowest WMAPE & RMSE)** |
 
-*Demonstrated Empirical Holdout Coverage: 66.9% (Nominal target: 80.0%, reflecting positive 2025 secular trend drift relative to 2023–2024 base).*
+*Demonstrated Empirical Holdout Coverage: 66.7% (Nominal target: 80.0%, reflecting positive 2025 secular trend drift relative to 2023–2024 base).*
+
+> **Market Bridge Specification:** The challenge dataset does not contain individual passenger manifests or booking PNRs linking guest nationality to flight origin. An unrestricted cross-allocation matrix ($45 \times 33 = 1,485$ parameters) is unidentifiable from aggregate weekly time series. The digital twin deploys a regularized same-market operational proxy where departure country is linked to guest nationality, and market-season-specific effective multipliers $\beta_{m,s} = \frac{\text{arrivals}_{m,s}}{\text{P2P}_{m,s}}$ empirically absorb non-national travelers, non-hub transit, and overland transit into Abu Dhabi.
+
 
 ---
 
