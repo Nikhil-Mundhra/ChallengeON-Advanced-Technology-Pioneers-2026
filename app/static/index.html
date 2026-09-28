@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Abu Dhabi Tourism Digital Twin — Scenario Simulator</title>
+  <style>
+    :root {
+      --navy: #102A43;
+      --blue: #2563EB;
+      --teal: #0F766E;
+      --sky: #EAF2FF;
+      --mint: #E8F5F2;
+      --amber: #D97706;
+      --ink: #243B53;
+      --muted: #627D98;
+      --line: #D9E2EC;
+      --pale: #F5F7FA;
+      --white: #FFFFFF;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background: var(--pale); color: var(--ink); line-height: 1.5; font-size: 14px; }
+    header { background: var(--navy); color: var(--white); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--blue); }
+    header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+    header .badge { background: var(--teal); color: var(--white); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    
+    .container { display: flex; max-width: 1440px; margin: 0 auto; padding: 20px; gap: 20px; }
+    .sidebar { width: 360px; flex-shrink: 0; background: var(--white); border-radius: var(--radius); border: 1px solid var(--line); padding: 20px; height: fit-content; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .content { flex-grow: 1; display: flex; flex-direction: column; gap: 20px; }
+    
+    .section-title { font-size: 14px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+    .control-group { margin-bottom: 14px; }
+    .control-group label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+    .control-group label span.val { color: var(--blue); font-weight: 700; }
+    select, input[type="range"], input[type="number"] { width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; }
+    input[type="range"] { padding: 0; cursor: pointer; accent-color: var(--blue); }
+    .btn { display: inline-block; width: 100%; padding: 8px; background: var(--navy); color: var(--white); border: none; border-radius: 4px; font-weight: 600; cursor: pointer; text-align: center; margin-top: 10px; transition: background 0.2s; }
+    .btn:hover { background: var(--blue); }
+    .btn-secondary { background: var(--pale); color: var(--ink); border: 1px solid var(--line); margin-top: 6px; }
+    .btn-secondary:hover { background: var(--line); }
+
+    .card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--line); padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .callout { background: var(--sky); border-left: 4px solid var(--blue); padding: 14px 18px; border-radius: 0 var(--radius) var(--radius) 0; }
+    .callout-title { font-size: 12px; font-weight: 700; color: var(--blue); text-transform: uppercase; margin-bottom: 4px; }
+    .callout-body { font-size: 13.5px; color: var(--navy); font-weight: 500; }
+
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .kpi-card { background: var(--pale); padding: 12px 16px; border-radius: 6px; border: 1px solid var(--line); }
+    .kpi-card .kpi-label { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    .kpi-card .kpi-val { font-size: 22px; font-weight: 700; color: var(--navy); margin-top: 2px; }
+    .kpi-card .kpi-sub { font-size: 11px; color: var(--teal); font-weight: 600; margin-top: 2px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+    th { background: var(--pale); color: var(--navy); text-align: left; padding: 8px 12px; font-weight: 600; border-bottom: 2px solid var(--line); }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+    tr:hover { background: #FAFBFD; }
+    .num { text-align: right; }
+    .pos { color: var(--teal); font-weight: 600; }
+    .neg { color: #DC2626; font-weight: 600; }
+
+    .chart-container { width: 100%; overflow: hidden; margin-top: 10px; }
+    svg { width: 100%; height: auto; display: block; }
+    
+    .tabs { display: flex; border-bottom: 1px solid var(--line); gap: 8px; }
+    .tab { padding: 8px 16px; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; }
+    .tab.active { color: var(--blue); border-bottom: 2px solid var(--blue); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Abu Dhabi Tourism Digital Twin</h1>
+    <div style="font-size: 11px; color: #CBD5E1; margin-top: 2px;">Causal Aviation Conversion Engine &bull; ChallengeON ATP 2026</div>
+  </div>
+  <div class="badge" id="archetype-badge">Direct Leisure</div>
+</header>
+
+<div class="container">
+  <!-- Sidebar Controls -->
+  <div class="sidebar">
+    <div class="section-title">Scenario Levers</div>
+
+    <div class="control-group">
+      <label>Source Market</label>
+      <select id="market-select" onchange="runSimulation()">
+        <optgroup label="Top 15 Historical Markets">
+          <option value="UNITED KINGDOM" selected>United Kingdom</option>
+          <option value="INDIA">India</option>
+          <option value="RUSSIAN FEDERATION">Russian Federation</option>
+          <option value="GERMANY">Germany</option>
+          <option value="CHINA">China</option>
+          <option value="SAUDI ARABIA">Saudi Arabia</option>
+          <option value="UNITED STATES OF AMERICA">United States</option>
+          <option value="KUWAIT">Kuwait</option>
+          <option value="FRANCE">France</option>
+          <option value="EGYPT">Egypt</option>
+          <option value="ITALY">Italy</option>
+          <option value="KAZAKHSTAN">Kazakhstan</option>
+          <option value="ISRAEL">Israel</option>
+          <option value="ARMENIA">Armenia</option>
+          <option value="OMAN">Oman</option>
+          <option value="OTHER INTERNATIONAL">Other International</option>
+        </optgroup>
+        <optgroup label="Cold-Start Regional Priors (New Routes)">
+          <option value="SWEDEN">Sweden (Scandinavia)</option>
+          <option value="NORWAY">Norway (Scandinavia)</option>
+          <option value="BRAZIL">Brazil (Long-Haul)</option>
+          <option value="AUSTRALIA">Australia (Long-Haul)</option>
+          <option value="PAKISTAN">Pakistan (South Asia VFR)</option>
+          <option value="POLAND">Poland (Eastern Europe)</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Season</label>
+      <select id="season-select" onchange="runSimulation()">
+        <option value="Winter_Peak" selected>Winter Peak (Nov – Mar)</option>
+        <option value="Spring_Shoulder">Spring Shoulder (Apr – May)</option>
+        <option value="Summer_Trough">Summer Trough (Jun – Aug)</option>
+        <option value="Autumn_Shoulder">Autumn Shoulder (Sep – Oct)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Additional Weekly Flights: <span class="val" id="val-freq">+2.0</span></label>
+      <input type="range" id="delta-freq" min="0" max="14" step="1" value="2" oninput="updateLabel('val-freq', '+' + this.value); runSimulation();">
+    </div>
+
+    <div class="control-group">
+      <label>Aircraft Gauge (Seats/Flight): <span class="val" id="val-gauge">290</span></label>
+      <input type="range" id="gauge" min="150" max="450" step="10" value="290" oninput="updateLabel('val-gauge', this.value); runSimulation();">
+    </div>
+
+    <div class="control-group">
+      <label>Load Factor Shift (%): <span class="val" id="val-lf">+2.0%</span></label>
+      <input type="range" id="delta-lf" min="-10" max="10" step="1" value="2" oninput="updateLabel('val-lf', (this.value >= 0 ? '+' : '') + this.value + '%'); runSimulation();">
+    </div>
+
+    <div class="control-group">
+      <label>P2P Passenger Mix Shift (%): <span class="val" id="val-p2p">+0.0%</span></label>
+      <input type="range" id="delta-p2p" min="-10" max="10" step="1" value="0" oninput="updateLabel('val-p2p', (this.value >= 0 ? '+' : '') + this.value + '%'); runSimulation();">
+    </div>
+
+    <div class="control-group">
+      <label>Response Multiplier Shift (%): <span class="val" id="val-mult">+0.0%</span></label>
+      <input type="range" id="delta-mult" min="-20" max="20" step="1" value="0" oninput="updateLabel('val-mult', (this.value >= 0 ? '+' : '') + this.value + '%'); runSimulation();">
+    </div>
+
+    <div class="control-group">
+      <label>Length of Stay Shift (days): <span class="val" id="val-los">+0.0d</span></label>
+      <input type="range" id="delta-los" min="-1.0" max="2.0" step="0.1" value="0" oninput="updateLabel('val-los', (this.value >= 0 ? '+' : '') + this.value + 'd'); runSimulation();">
+    </div>
+
+    <button class="btn" onclick="resetControls()">Reset to Baseline</button>
+  </div>
+
+  <!-- Content Area -->
+  <div class="content">
+    <!-- Executive Briefing Callout -->
+    <div class="callout">
+      <div class="callout-title">Non-Technical Executive Recommendation</div>
+      <div class="callout-body" id="rec-summary">Loading scenario analysis...</div>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Baseline Weekly Guests</div>
+        <div class="kpi-val" id="kpi-base">--</div>
+        <div class="kpi-sub">Historical Normal</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Simulated Weekly Guests</div>
+        <div class="kpi-val" id="kpi-sim">--</div>
+        <div class="kpi-sub" id="kpi-sim-sub">--</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Net Guest Impact</div>
+        <div class="kpi-val pos" id="kpi-lift">--</div>
+        <div class="kpi-sub" id="kpi-lift-pct">--</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Conservative P10 &ndash; P90</div>
+        <div class="kpi-val" id="kpi-unc">--</div>
+        <div class="kpi-sub" id="kpi-cov">68.4% Holdout Coverage</div>
+      </div>
+    </div>
+
+    <!-- Waterfall & Tornado Visualization -->
+    <div class="card">
+      <div class="section-title">Exact Sequential Waterfall Attribution</div>
+      <div style="font-size: 11.5px; color: var(--muted); margin-bottom: 10px;">Decomposes total incremental guest-days into 5 independent operational levers. Discrepancy: 0.000000.</div>
+      <div class="chart-container" id="waterfall-chart"></div>
+    </div>
+
+    <!-- Conversion Chain Table -->
+    <div class="card">
+      <div class="section-title">End-to-End Operational Conversion Chain</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Operational Metric</th>
+            <th class="num">Historical Baseline</th>
+            <th class="num">Simulated Scenario</th>
+            <th class="num">Net Shift</th>
+          </tr>
+        </thead>
+        <tbody id="chain-body">
+          <tr><td colspan="4">Loading data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Tornado Ranking -->
+    <div class="card">
+      <div class="section-title">Tornado Sensitivity Ranking (Decision Lever Elasticity)</div>
+      <div class="chart-container" id="tornado-chart"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function updateLabel(id, text) {
+  document.getElementById(id).textContent = text;
+}
+
+function resetControls() {
+  document.getElementById('delta-freq').value = 0; updateLabel('val-freq', '+0.0');
+  document.getElementById('gauge').value = 250; updateLabel('val-gauge', '250');
+  document.getElementById('delta-lf').value = 0; updateLabel('val-lf', '+0.0%');
+  document.getElementById('delta-p2p').value = 0; updateLabel('val-p2p', '+0.0%');
+  document.getElementById('delta-mult').value = 0; updateLabel('val-mult', '+0.0%');
+  document.getElementById('delta-los').value = 0; updateLabel('val-los', '+0.0d');
+  runSimulation();
+}
+
+async function runSimulation() {
+  const market = document.getElementById('market-select').value;
+  const season = document.getElementById('season-select').value;
+  const delta_freq = document.getElementById('delta-freq').value;
+  const gauge = document.getElementById('gauge').value;
+  const delta_lf = parseFloat(document.getElementById('delta-lf').value) / 100.0;
+  const delta_p2p = parseFloat(document.getElementById('delta-p2p').value) / 100.0;
+  const delta_mult_pct = parseFloat(document.getElementById('delta-mult').value) / 100.0;
+  const delta_los = parseFloat(document.getElementById('delta-los').value);
+
+  const url = `/api/simulate?market=${encodeURIComponent(market)}&season=${season}&delta_freq=${delta_freq}&gauge=${gauge}&delta_lf=${delta_lf}&delta_p2p=${delta_p2p}&delta_mult_pct=${delta_mult_pct}&delta_los=${delta_los}`;
+  
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    renderUI(data);
+  } catch (err) {
+    console.error("Simulation error:", err);
+  }
+}
+
+function fmt(n, decimals = 0) {
+  if (isNaN(n) || n === null) return "--";
+  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function renderUI(d) {
+  document.getElementById('archetype-badge').textContent = d.archetype + (d.is_cold_start ? " (Cold Start)" : "");
+  document.getElementById('rec-summary').textContent = d.recommendation_summary;
+
+  const c = d.conversion_chain;
+  document.getElementById('kpi-base').textContent = fmt(c.guests.base);
+  document.getElementById('kpi-sim').textContent = fmt(c.guests.sim);
+  document.getElementById('kpi-sim-sub').textContent = `${d.market} (${d.season})`;
+  
+  const lift = c.guests.delta;
+  const liftPct = c.guests.base > 0 ? (lift / c.guests.base) * 100 : 0;
+  document.getElementById('kpi-lift').textContent = (lift >= 0 ? "+" : "") + fmt(lift);
+  document.getElementById('kpi-lift-pct').textContent = (liftPct >= 0 ? "+" : "") + liftPct.toFixed(1) + "% vs Baseline";
+  document.getElementById('kpi-unc').textContent = `+${fmt(d.uncertainty.delta_p10)} to +${fmt(d.uncertainty.delta_p90)}`;
+  document.getElementById('kpi-cov').textContent = `${d.uncertainty.coverage_pct}% Demonstrated Coverage`;
+
+  // Render Table
+  const rows = [
+    { name: "Weekly Seat Capacity", b: fmt(c.seats.base), s: fmt(c.seats.sim), d: (c.seats.delta >= 0 ? "+" : "") + fmt(c.seats.delta) },
+    { name: "Flight Passengers (Pax)", b: fmt(c.pax.base), s: fmt(c.pax.sim), d: (c.pax.delta >= 0 ? "+" : "") + fmt(c.pax.delta) },
+    { name: "Point-to-Point Passengers (P2P)", b: fmt(c.p2p.base), s: fmt(c.p2p.sim), d: (c.p2p.delta >= 0 ? "+" : "") + fmt(c.p2p.delta) },
+    { name: "Hotel New Arrivals", b: fmt(c.arrivals.base), s: fmt(c.arrivals.sim), d: (c.arrivals.delta >= 0 ? "+" : "") + fmt(c.arrivals.delta) },
+    { name: "Hotel Guests (Active Guest-Days)", b: fmt(c.guests.base), s: fmt(c.guests.sim), d: (c.guests.delta >= 0 ? "+" : "") + fmt(c.guests.delta) },
+    { name: "Route Load Factor (LF)", b: (c.load_factor.base * 100).toFixed(1) + "%", s: (c.load_factor.sim * 100).toFixed(1) + "%", d: (c.load_factor.delta >= 0 ? "+" : "") + (c.load_factor.delta * 100).toFixed(1) + "%" },
+    { name: "P2P Passenger Share", b: (c.p2p_share.base * 100).toFixed(1) + "%", s: (c.p2p_share.sim * 100).toFixed(1) + "%", d: (c.p2p_share.delta >= 0 ? "+" : "") + (c.p2p_share.delta * 100).toFixed(1) + "%" },
+    { name: "Effective Response Multiplier", b: c.multiplier.base.toFixed(3), s: c.multiplier.sim.toFixed(3), d: (c.multiplier.delta >= 0 ? "+" : "") + c.multiplier.delta.toFixed(3) },
+    { name: "Average Length of Stay (days)", b: c.los.base.toFixed(2), s: c.los.sim.toFixed(2), d: (c.los.delta >= 0 ? "+" : "") + c.los.delta.toFixed(2) },
+  ];
+
+  let tbody = "";
+  rows.forEach(r => {
+    const isPos = r.d.startsWith("+") && r.d !== "+0" && r.d !== "+0.0%" && r.d !== "+0.000";
+    tbody += `<tr>
+      <td><b>${r.name}</b></td>
+      <td class="num">${r.b}</td>
+      <td class="num">${r.s}</td>
+      <td class="num ${isPos ? 'pos' : ''}">${r.d}</td>
+    </tr>`;
+  });
+  document.getElementById('chain-body').innerHTML = tbody;
+
+  // Render SVG Waterfall Chart
+  renderWaterfall(d.waterfall);
+  // Render SVG Tornado Chart
+  renderTornado(d.tornado);
+}
+
+function renderWaterfall(w) {
+  const items = [
+    { label: "1. Added Seats", val: w.seats_effect, color: "#2563EB" },
+    { label: "2. Load Factor", val: w.load_factor_effect, color: "#0F766E" },
+    { label: "3. P2P Mix", val: w.p2p_effect, color: "#D97706" },
+    { label: "4. Multiplier", val: w.multiplier_effect, color: "#7C3AED" },
+    { label: "5. Stay Duration", val: w.los_effect, color: "#EC4899" },
+    { label: "TOTAL LIFT", val: w.total_lift, color: "#102A43" },
+  ];
+
+  const maxVal = Math.max(...items.map(i => Math.abs(i.val)), 100);
+  const width = 680, height = 180, barW = 80, gap = 24;
+
+  let svg = `<svg viewBox="0 0 ${width} ${height}">`;
+  svg += `<line x1="20" y1="${height - 35}" x2="${width - 20}" y2="${height - 35}" stroke="#D9E2EC" stroke-width="1.5" />`;
+
+  items.forEach((item, idx) => {
+    const x = 30 + idx * (barW + gap);
+    const barH = Math.max(2, (Math.abs(item.val) / maxVal) * 110);
+    const y = height - 35 - barH;
+
+    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${item.color}" rx="3" />`;
+    svg += `<text x="${x + barW / 2}" y="${y - 6}" font-size="11" font-weight="700" fill="#102A43" text-anchor="middle">${(item.val >= 0 ? '+' : '') + fmt(item.val)}</text>`;
+    svg += `<text x="${x + barW / 2}" y="${height - 18}" font-size="9.5" font-weight="600" fill="#627D98" text-anchor="middle">${item.label}</text>`;
+  });
+
+  svg += `</svg>`;
+  document.getElementById('waterfall-chart').innerHTML = svg;
+}
+
+function renderTornado(t) {
+  const width = 680, height = 170, rowH = 26;
+  const maxSwing = Math.max(...t.map(i => i.swing_spread), 100);
+
+  let svg = `<svg viewBox="0 0 ${width} ${height}">`;
+  t.forEach((item, idx) => {
+    const y = 15 + idx * (rowH + 6);
+    const w = (item.swing_spread / maxSwing) * 360;
+    const name = item.lever_name.split(" (")[0];
+
+    svg += `<text x="20" y="${y + 14}" font-size="11" font-weight="600" fill="#243B53">${name}</text>`;
+    svg += `<rect x="220" y="${y}" width="${w}" height="18" fill="#0F766E" rx="3" />`;
+    svg += `<text x="${228 + w}" y="${y + 13}" font-size="10.5" font-weight="700" fill="#102A43">${fmt(item.swing_spread)} swing (${(item.relative_sensitivity * 100).toFixed(1)}%)</text>`;
+  });
+  svg += `</svg>`;
+  document.getElementById('tornado-chart').innerHTML = svg;
+}
+
+// Initial load
+window.onload = runSimulation;
+</script>
+</body>
+</html>

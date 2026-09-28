@@ -1,0 +1,75 @@
+{
+  "evaluation_window": {
+    "train_weeks": 104,
+    "test_weeks": 30,
+    "train_range": [
+      "2023-01-02",
+      "2024-12-23"
+    ],
+    "test_range": [
+      "2024-12-30",
+      "2025-07-21"
+    ],
+    "observations_train": 1768,
+    "observations_test": 510
+  },
+  "diagnostics": {
+    "international_planning_mode": {
+      "wmape": 0.25378968432359233,
+      "bias": 0.008273442107702388,
+      "mae": 2853.2738817457257,
+      "rmse": 4460.7884395475085
+    },
+    "international_realized_chain": {
+      "wmape": 0.23753199362877267,
+      "bias": -0.06649624199496132,
+      "mae": 2670.4940167537216,
+      "rmse": 4022.5700733110148
+    },
+    "domestic_forecast_mode": {
+      "wmape": 0.16035008059675837,
+      "bias": 0.13053402207448078,
+      "mae": 17485.17142857143,
+      "rmse": 21078.865022051938
+    },
+    "combined_planning_mode": {
+      "wmape": 0.2185246449206212,
+      "bias": 0.05441580570936201,
+      "mae": 3713.973737441355,
+      "rmse": 6698.0975642179255
+    },
+    "combined_realized_chain": {
+      "wmape": 0.20840276902046,
+      "bias": 0.007864946931948438,
+      "mae": 3541.9456292135865,
+      "rmse": 6431.61159262702
+    }
+  },
+  "benchmark": {
+    "1. Historical Seasonal Prior": {
+      "wmape": 0.22623270660879768,
+      "bias": -0.07053827923278669,
+      "mae": 3844.977444995092,
+      "rmse": 7074.190527461506
+    },
+    "2. Pure ML / Calendar Model": {
+      "wmape": 0.22009771380678972,
+      "bias": -0.08977615400636375,
+      "mae": 3740.709104212174,
+      "rmse": 6742.600127914947
+    },
+    "3. Structural-Only Engine (WMAPE Champion)": {
+      "wmape": 0.2185246449206212,
+      "bias": 0.05441580570936158,
+      "mae": 3713.973737441355,
+      "rmse": 6698.0975642179255
+    },
+    "4. Hybrid Digital Twin (Bias/RMSE Trade-off)": {
+      "wmape": 0.20638163597372172,
+      "bias": 0.04919239821142118,
+      "mae": 3507.5951098102146,
+      "rmse": 6307.54726324004
+    }
+  },
+  "demonstrated_coverage_pct": 68.4
+}
