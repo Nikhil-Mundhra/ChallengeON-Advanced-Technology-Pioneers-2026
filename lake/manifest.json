@@ -1,0 +1,49 @@
+{
+  "format_version": 1,
+  "raw_location": "01a - DCT Dataset",
+  "curated_tables": {
+    "guest_daily": "lake/curated/guest_daily.parquet",
+    "flight_daily": "lake/curated/flight_daily.parquet"
+  },
+  "database": "lake/analytics.duckdb",
+  "sources": {
+    "data domestic_train.xlsx": {
+      "bytes": 51710,
+      "sha256": "8aade22d507d92ded353de395c6ea413536fb0a0741efc2c4653f6ea804a5208"
+    },
+    "data domestic_test.xlsx": {
+      "bytes": 14356,
+      "sha256": "3eb97c30bf25a84cfe7ffb2df76af8fed57785c2bc4c16a229974e7e9b513e37"
+    },
+    "data international_train.xlsx": {
+      "bytes": 1935490,
+      "sha256": "beaa3c39d3f9bf891667fdb50a2584e56a3b02dc3c459b17ea312022415fad44"
+    },
+    "data international_test.xlsx": {
+      "bytes": 255860,
+      "sha256": "9e0379f5798c8b861bf11b2694ed911c3f8dd4530713ee94523a4b3f8fbbb931"
+    },
+    "flight_data.xlsx": {
+      "bytes": 15722937,
+      "sha256": "5520c0a95126636ee90084209c8e4110bd0b0b095d64cc9dbac37356ae00a9f8"
+    },
+    "Data_Dictionary.pdf": {
+      "bytes": 338446,
+      "sha256": "a059e4fbec0079fe5722ff007883a8a031c1989827e439b732fe64ffcc0c2c67"
+    }
+  },
+  "checks": {
+    "guest_rows": 69344,
+    "flight_rows": 117608,
+    "guest_duplicate_candidate_keys": 0,
+    "flight_duplicate_candidate_keys": 0,
+    "train_rows_missing_guests": 0,
+    "test_rows_with_guests": 0,
+    "flight_passenger_identity_mismatches": 0,
+    "flight_load_factor_max_absolute_error": 1.1102230246251565e-16
+  },
+  "notes": [
+    "Missing same_day_guests values remain NULL because the dictionary combines zero, suppressed, unavailable, and not-applicable meanings.",
+    "The flight workbook is treated as daily because it contains daily dates from 2023 onward, despite the dictionary describing monthly data."
+  ]
+}
