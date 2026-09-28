@@ -265,6 +265,14 @@ def make_styles() -> dict[str, ParagraphStyle]:
             "Subtitle", parent=base["Normal"], fontName="Helvetica", fontSize=11,
             leading=16, textColor=colors.HexColor("#D9EAF7"), spaceAfter=8,
         ),
+        "cover_label": ParagraphStyle(
+            "CoverLabel", parent=base["Normal"], fontName="Helvetica", fontSize=7.5,
+            leading=10, textColor=colors.HexColor("#9FB3C8"),
+        ),
+        "cover_value": ParagraphStyle(
+            "CoverValue", parent=base["Normal"], fontName="Helvetica", fontSize=8.8,
+            leading=11, textColor=WHITE,
+        ),
         "h1": ParagraphStyle(
             "H1", parent=base["Heading1"], fontName="Helvetica-Bold", fontSize=17,
             leading=21, textColor=NAVY, spaceBefore=0, spaceAfter=8,
@@ -295,8 +303,7 @@ def make_styles() -> dict[str, ParagraphStyle]:
         ),
         "code": ParagraphStyle(
             "Code", parent=base["Code"], fontName="Courier", fontSize=7.2,
-            leading=10, textColor=colors.HexColor("#DCE8F5"), backColor=NAVY,
-            borderPadding=8, leftIndent=0, rightIndent=0, spaceBefore=4, spaceAfter=8,
+            leading=10, textColor=WHITE, leftIndent=0, rightIndent=0,
         ),
     }
 
@@ -310,6 +317,19 @@ def section_header(number: str, title: str, styles: dict[str, ParagraphStyle]) -
 
 
 def standard_table(data: list[list], widths: list[float], header: bool = True) -> Table:
+    if header:
+        header_style = ParagraphStyle(
+            "InlineTableHeader", fontName="Helvetica-Bold", fontSize=7.2,
+            leading=9.4, textColor=WHITE,
+        )
+        data = [
+            [
+                Paragraph(cell.getPlainText(), header_style)
+                if isinstance(cell, Paragraph)
+                else Paragraph(str(cell), header_style)
+                for cell in data[0]
+            ]
+        ] + data[1:]
     table = Table(data, colWidths=widths, repeatRows=1 if header else 0, hAlign="LEFT")
     style = [
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -374,6 +394,23 @@ def callout(text: str, styles: dict[str, ParagraphStyle], warning: bool = False)
                 ("BOX", (0, 0), (-1, -1), 0.8, stroke),
                 ("LEFTPADDING", (0, 0), (-1, -1), 9),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+    return table
+
+
+def code_block(text: str, styles: dict[str, ParagraphStyle]) -> Table:
+    table = Table([[Preformatted(text, styles["code"])]], colWidths=[176 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), NAVY),
+                ("BOX", (0, 0), (-1, -1), 0.6, NAVY),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
                 ("TOPPADDING", (0, 0), (-1, -1), 7),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
             ]
@@ -455,9 +492,9 @@ def build_story(data: dict, styles: dict[str, ParagraphStyle]) -> list:
         Spacer(1, 67 * mm),
         Table(
             [
-                [p("DATABASE", styles["small"]), p("analytics.duckdb", styles["body"])],
-                [p("DATA WINDOW", styles["small"]), p("01 Jan 2022 - 28 Feb 2026", styles["body"])],
-                [p("REPORT DATE", styles["small"]), p(date.today().strftime("%d %b %Y"), styles["body"])],
+                [p("DATABASE", styles["cover_label"]), p("analytics.duckdb", styles["cover_value"])],
+                [p("DATA WINDOW", styles["cover_label"]), p("01 Jan 2022 - 28 Feb 2026", styles["cover_value"])],
+                [p("REPORT DATE", styles["cover_label"]), p(date.today().strftime("%d %b %Y"), styles["cover_value"])],
             ],
             colWidths=[35 * mm, 90 * mm],
             style=TableStyle(
@@ -673,24 +710,24 @@ def build_story(data: dict, styles: dict[str, ParagraphStyle]) -> list:
     story += section_header("07", "Query and operating guide", styles)
     story += [
         p("Rebuild the lake", styles["h2"]),
-        Preformatted(
+        code_block(
             "source .venv/bin/activate\npython scripts/build_lake.py",
-            styles["code"],
+            styles,
         ),
         p("Query the safe daily guest-flight view", styles["h2"]),
-        Preformatted(
+        code_block(
             ".venv/bin/python scripts/query_lake.py \\\n  \"SELECT date, guests, total_pax, flight_load_factor\n   FROM guest_flight_daily\n   ORDER BY date DESC LIMIT 10\"",
-            styles["code"],
+            styles,
         ),
         p("International training history", styles["h2"]),
-        Preformatted(
+        code_block(
             "SELECT date, nationality, guests, new_arrivals\nFROM guest_actuals\nWHERE nationality = 'INDIA'\nORDER BY date;",
-            styles["code"],
+            styles,
         ),
         p("Monthly flight demand", styles["h2"]),
-        Preformatted(
+        code_block(
             "SELECT date_trunc('month', date) AS month,\n       SUM(total_pax) AS total_pax,\n       SUM(total_seats) AS total_seats,\n       SUM(total_pax)::DOUBLE / NULLIF(SUM(total_seats), 0) AS load_factor\nFROM flight_daily\nGROUP BY month\nORDER BY month;",
-            styles["code"],
+            styles,
         ),
         Spacer(1, 3 * mm),
         p("Operating principles", styles["h2"]),
