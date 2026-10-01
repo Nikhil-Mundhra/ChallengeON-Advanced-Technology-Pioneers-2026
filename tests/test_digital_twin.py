@@ -220,7 +220,7 @@ class TestDigitalTwin(unittest.TestCase):
             self.assertAlmostEqual(wf_sum, res.delta_guests, places=6)
 
     def test_zero_lever_invariance_across_all_markets(self):
-        """Verify zero-lever scenario strictly preserves baseline across all 17 markets and 4 seasons (68 tests)."""
+        """Verify zero-lever scenario strictly preserves baseline across all 21 unified markets and 4 seasons (84 tests)."""
         markets = self.df_panel["market"].unique()
         seasons = ["Winter_Peak", "Spring_Shoulder", "Summer_Trough", "Autumn_Shoulder"]
 

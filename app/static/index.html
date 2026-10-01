@@ -85,7 +85,7 @@
     <div class="control-group">
       <label>Source Market</label>
       <select id="market-select" onchange="runSimulation()">
-        <optgroup label="Top 15 Historical Markets">
+        <optgroup label="Top 15 International Markets">
           <option value="UNITED KINGDOM" selected>United Kingdom</option>
           <option value="INDIA">India</option>
           <option value="RUSSIAN FEDERATION">Russian Federation</option>
@@ -101,7 +101,16 @@
           <option value="ISRAEL">Israel</option>
           <option value="PHILIPPINES">Philippines</option>
           <option value="OMAN">Oman</option>
-          <option value="OTHER INTERNATIONAL">Other International</option>
+        </optgroup>
+        <optgroup label="Regional Market Clusters">
+          <option value="OTHER_EUROPE">Other Europe (Poland, Netherlands, Spain...)</option>
+          <option value="OTHER_ASIA_PACIFIC">Other Asia-Pacific (South Korea, Australia...)</option>
+          <option value="OTHER_MENA">Other MENA (Jordan, Bahrain, Qatar...)</option>
+          <option value="OTHER_AMERICAS_AFRICA">Other Americas & Africa (Canada, Brazil...)</option>
+          <option value="OTHER_EURASIA">Other Eurasia (Uzbekistan, Azerbaijan, Turkey...)</option>
+        </optgroup>
+        <optgroup label="Domestic Territory">
+          <option value="DOMESTIC">Domestic UAE Staycation</option>
         </optgroup>
         <optgroup label="Cold-Start Regional Priors (New Routes)">
           <option value="SWEDEN">Sweden (Scandinavia)</option>
@@ -185,7 +194,7 @@
       <div class="kpi-card">
         <div class="kpi-label">Conformal Range</div>
         <div class="kpi-val" id="kpi-unc">--</div>
-        <div class="kpi-sub" id="kpi-cov">66.7% Holdout Coverage</div>
+        <div class="kpi-sub" id="kpi-cov">65.2% Demonstrated Coverage</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Simulated Total</div>

@@ -40,7 +40,7 @@ python scripts/run_scenario.py \
 
 | Argument | Type | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `--market` | `str` | `"UNITED KINGDOM"` | Source market name (must match one of the 15 top markets, or `OTHER INTERNATIONAL`, `DOMESTIC`). |
+| `--market` | `str` | `"UNITED KINGDOM"` | Source market name (must match one of the 15 top markets, 5 regional clusters, `DOMESTIC`, or an unmodeled country name like `SWEDEN` for cold-start priors). |
 | `--season` | `str` | `"Winter_Peak"` | Season: `Winter_Peak` (Nov–Mar), `Spring_Shoulder` (Apr–May), `Summer_Trough` (Jun–Aug), `Autumn_Shoulder` (Sep–Oct). |
 | `--delta_freq` | `float` | `0.0` | Additional weekly round-trip flights (e.g. `+2.0` flights/week). |
 | `--gauge` | `float` | `290.0` | Seat capacity per added flight (e.g. `290` for Boeing 787-9, `180` for Airbus A320). |
@@ -214,25 +214,37 @@ Benchmark metrics are written to `lake/curated/evaluation_results.json`.
 
 ---
 
+## 8.1 Operational Guidance: Domestic Staycation Decoupling & Secular Drift
+
+1. **Aviation Decoupling Invariant:**  
+   Domestic UAE residents do not arrive on international flights entering AUH. When simulating the `DOMESTIC` market, aviation levers (`--delta_freq`, `--gauge`, `--delta_seats_pct`, `--delta_lf`, `--delta_p2p`) are strictly decoupled and inactive. Changes in domestic demand are driven solely by marketing multipliers (`--delta_mult_pct`) and length-of-stay (`--delta_los`).
+
+2. **Secular Trend Adjustment for 2025+:**  
+   On the strict 2025 forward holdout, domestic demand exhibited +13.05% directional growth over the 2023–2024 training baseline. For strategic planning horizons beyond 12 months, planners should factor in this secular expansion (recommended: +3.5% to +5.0% annual drift factor) to avoid under-forecasting baseline room night requirements.
+
+---
+
 ## 9. Automated Verification & Test Suite
 
-The digital twin includes an automated test suite verifying core mathematical properties:
+The digital twin includes an automated test suite verifying core mathematical properties (38/38 passing tests):
 
 ```bash
-# Run tests with pytest
-pytest tests/test_digital_twin.py -v
+# Run full test suite with pytest
+pytest tests/ -v
 
 # Or run with standard library unittest
-python -m unittest tests/test_digital_twin.py
+python -m unittest discover tests/
 ```
 
-### Verified Test Cases
+### Key Verified Invariants
 
-1. `test_weekly_market_panel_integrity`: Asserts panel schema, non-negative flight metrics, and valid date bounds.
-2. `test_structural_engine_waterfall_identity`: Verifies that exact waterfall attribution decomposes net guest lift with zero residual ($|\text{sum} - \Delta Guests| < 10^{-6}$).
+1. `test_panel_integrity`: Asserts panel schema, non-negative flight metrics, complete 7-day ISO weeks, and candidate-key uniqueness across all 21 unified markets.
+2. `test_waterfall_exact_identity`: Verifies that exact waterfall attribution decomposes net guest lift with zero residual ($|\text{sum} - \Delta Guests| < 10^{-9}$).
 3. `test_monotonicity_guarantee`: Confirms that increasing flight frequency or seats strictly increases or maintains guest demand ($\Delta Guests \ge 0$).
-4. `test_cold_start_unmodeled_country`: Tests dynamic fallback to regional priors for unmodeled source markets (e.g. Sweden, Brazil).
-5. `test_artifact_reload_consistency`: Confirms that reloaded calibration artifacts produce deterministic, reproducible scenario predictions.
+4. `test_route_closure_demand_loss_and_waterfall`: Verifies that route discontinuation produces 100% demand loss with exact waterfall reconciliation.
+5. `test_domestic_domain_decoupling`: Verifies domestic staycations ignore aviation levers while preserving exact waterfall accounting.
+6. `test_cold_start_fallback`: Tests dynamic fallback to regional priors for unmodeled source markets (e.g. Sweden, Brazil, Pakistan).
+7. `test_load_factor_outliers_preserved_and_flagged`: Confirms raw load factor anomalies (>100%) are auditable and tagged rather than silently lost.
 
 ---
 

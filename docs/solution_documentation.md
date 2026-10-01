@@ -343,36 +343,37 @@ The hybrid model is justified only if it improves held-out accuracy without prod
 
 ### Empirical Forward-Holdout Results (Jan 2025 – Jul 2025)
 
-The models were evaluated strictly on complete 7-day ISO weeks without split-boundary contamination (104 complete calibration weeks, Jan 2023 – Dec 2024, 1,768 market-weeks; and 30 complete forward holdout weeks, Jan 2025 – Jul 2025, 510 market-weeks).
+The models were evaluated strictly on complete 7-day ISO weeks without split-boundary contamination (104 complete calibration weeks, Jan 2023 – Dec 2024, 2,132 market-weeks; and 30 complete forward holdout weeks, Jan 2025 – Jul 2025, 621 market-weeks across all 21 unified markets: Top 15 international, 5 regional clusters, and Domestic).
 
 #### 1. Separation of Planning, Realized-Chain, and Domestic Diagnostics
 
-To avoid operational target leakage and prevent domestic staycations from artificially deflating the aviation headline score, evaluations are separated explicitly across 501 complete-input test market-weeks (calibrated on 1,724 training market-weeks):
+To avoid operational target leakage and prevent domestic staycations from artificially deflating the aviation headline score, evaluations are separated explicitly across 621 complete-input test market-weeks (calibrated on 2,132 training market-weeks):
 
 | Evaluation Setting | WMAPE | Directional Bias | MAE | RMSE | Operational Scope |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **International Planning Mode** | **26.05%** | **+1.80%** | 2,782.0 | 4,400.1 | Scheduled seats + training priors only (true pre-flight planning). |
-| **International Realized-Chain** | **23.49%** | **-5.83%** | 2,509.2 | 3,773.3 | Downstream conversion holding realized P2P fixed. |
+| **International Planning Mode** | **27.52%** | **+1.52%** | 2,466.5 | 3,920.7 | Scheduled seats + training priors only (true pre-flight planning). |
+| **International Realized-Chain** | **24.54%** | **-5.67%** | 2,199.9 | 3,308.7 | Downstream conversion holding realized P2P fixed. |
 | **Domestic Forecast Mode** | **16.04%** | **+13.05%** | 17,485.2 | 21,078.9 | Dedicated seasonal prior; NO holdout arrival leakage. |
-| **Combined Planning Mode** | **22.10%** | **+6.24%** | 3,662.5 | 6,693.8 | Full territory diagnostic (International + Domestic). |
-| **Combined Realized-Chain** | **20.55%** | **+1.61%** | 3,405.9 | 6,323.8 | Realized aviation P2P across entire territory. |
+| **Combined Planning Mode** | **23.14%** | **+5.93%** | 3,192.1 | 6,007.8 | Full territory diagnostic (International + Domestic). |
+| **Combined Realized-Chain** | **21.30%** | **+1.48%** | 2,938.3 | 5,646.6 | Realized aviation P2P across entire territory. |
 
 #### 2. Model Architecture Benchmark (All Markets)
 
 | Model Architecture | WMAPE | Directional Bias | MAE | RMSE | Model Status |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **1. Historical Seasonal Prior** | 22.13% | -5.86% | 3,667.4 | 6,978.7 | Naive Baseline |
-| **2. Pure ML / Calendar Model** | 21.31% | -7.68% | 3,531.6 | 6,624.5 | Calendar Extrapolation |
-| **3. Structural-Only Engine** | 22.10% | +6.24% | 3,662.5 | 6,693.8 | Pre-Flight Decision Chain |
-| **4. Hybrid Digital Twin (Proposed)** | **20.91%** | **+5.84%** | **3,464.1** | **6,311.1** | **Champion (Lowest WMAPE & RMSE)** |
+| **1. Historical Seasonal Prior** | 23.00% | -6.60% | 3,172.8 | 6,156.5 | Naive Baseline |
+| **2. Pure ML / Calendar Model** | 22.00% | -8.50% | 3,035.6 | 5,839.0 | Calendar Extrapolation |
+| **3. Structural-Only Engine** | 23.14% | +5.93% | 3,192.1 | 6,007.8 | Pre-Flight Decision Chain |
+| **4. Hybrid Digital Twin (Proposed)** | **21.73%** | **+5.37%** | **2,998.8** | **5,673.5** | **Champion (Lowest MAE & RMSE)** |
 
-**Demonstrated Empirical Holdout Coverage:** 66.7% (Nominal target: 80.0%).
+**Demonstrated Empirical Holdout Coverage:** 65.2% (Nominal target: 80.0%).  
 *Coverage shortfall reflects positive secular tourism growth in Abu Dhabi during 2025 (+2.8% to +9.1% YoY) relative to the 2023–2024 calibration base.*
 
 Key takeaways from the strict evaluation:
-1. When evaluated strictly in pre-flight planning mode (without realized operational data), the international structural conversion engine achieves **26.05% WMAPE** with low directional bias (**+1.80%**).
-2. The Hybrid Digital Twin achieves the lowest overall error (**20.91% WMAPE**, **6,311.1 RMSE**), improving upon pure calendar ML and structural-only models while preserving monotonicity.
-3. Domestic demand achieves 16.04% WMAPE without using any future arrivals, demonstrating that domestic staycations must be kept separate from the international aviation chain.
+1. When evaluated strictly in pre-flight planning mode (without realized operational data), the international structural conversion engine achieves **27.52% WMAPE** with minimal directional bias (**+1.52%**).
+2. The Hybrid Digital Twin achieves the lowest overall error (**21.73% WMAPE**, **5,673.5 RMSE**), improving upon pure calendar ML and structural-only models while mathematically guaranteeing monotonicity.
+3. Domestic demand achieves **16.04% WMAPE** without using any future arrivals, demonstrating that domestic staycations must be kept separate from the international aviation chain.
+4. **Domestic Secular Trend & Planning Guidance:** Domestic staycation volume expanded substantially in 2025 (+13.05% directional bias vs historical training baseline). Because domestic guests represent the single largest share of total hotel room nights in Abu Dhabi, planners projecting beyond 12 months should apply an explicit secular annual growth drift factor (recommended +3.5% to +5.0% annually) to historical domestic seasonal baselines.
 
 
 ## 12. Simulator experience
@@ -454,13 +455,13 @@ lake/                Curated Parquet files, DuckDB database, manifest
 
 ### Phase 1: Data foundation [COMPLETED & VERIFIED]
 - Curated lake verified (`lake/analytics.duckdb`).
-- Documented weekly panel produced (`lake/curated/weekly_market_panel.parquet`, 2,839 rows, complete weeks isolated, daily flight/guest matching).
-- Top 15 international markets + `OTHER INTERNATIONAL` + `DOMESTIC` segmented cleanly.
+- Documented weekly panel produced (`lake/curated/weekly_market_panel.parquet`, 3,507 rows, complete weeks isolated, daily flight/guest matching).
+- Top 15 international markets + 5 regional clusters + `DOMESTIC` segmented cleanly across 21 unified markets.
 
 ### Phase 2: Baselines & Evaluation Harness [COMPLETED & VERIFIED]
 - Implemented seasonal naive, pure ML calendar, structural-only, and hybrid models.
 - Strict 104-week train vs 30-week forward holdout back-test implemented (`scripts/evaluate_models.py`).
-- Explicitly separated International Planning Mode (26.05% WMAPE), Realized-Chain Mode (23.49%), Domestic Forecast Mode (16.04%), and Combined Planning Mode (22.10%).
+- Explicitly separated International Planning Mode (27.52% WMAPE), Realized-Chain Mode (24.54%), Domestic Forecast Mode (16.04%), and Combined Planning Mode (23.14%).
 - Saved all metrics dynamically to `lake/curated/evaluation_results.json`.
 
 ### Phase 3: Structural Simulator [COMPLETED & VERIFIED]
@@ -472,12 +473,12 @@ lake/                Curated Parquet files, DuckDB database, manifest
 ### Phase 4: Residual ML & Uncertainty [COMPLETED & VERIFIED]
 - Monotonic residual ML model (`engine/residual.py`) trained strictly on calendar/event features, excluding flight capacity levers.
 - Beta-distributed operational priors and block-bootstrapped residuals implemented in `engine/uncertainty.py`.
-- Demonstrated holdout coverage verified at 66.7% (with positive secular trend documentation).
+- Demonstrated holdout coverage verified at 65.2% (with positive secular trend documentation).
 
 ### Phase 5: Interactive Product & Submission Assets [COMPLETED & VERIFIED]
 - Interactive web application implemented (`app/server.py` + `app/static/index.html`), runnable via `python scripts/run_app.py --port 8080`.
 - Terminal scenario CLI implemented (`scripts/run_scenario.py`).
-- Automated unit and integration test suite implemented (`tests/test_digital_twin.py`, 14/14 passing).
+- Automated unit and integration test suite implemented (`tests/test_digital_twin.py` & `tests/test_audit_agent.py`, 38/38 passing).
 - Publication-grade 3-page executive PDF report generated dynamically (`scripts/build_solution_report.py` -> `output/pdf/challengeon_solution_report.pdf`).
 
 
