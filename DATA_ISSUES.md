@@ -1,6 +1,8 @@
 # Data issues and remediation plan
 
 Audit date: 2026-09-28
+Last verified: 2026-10-01 (all counts re-derived from `01a - DCT Dataset/` and a
+fresh `engine.panel.build_weekly_panel()` run against `lake/analytics.duckdb`)
 
 Scope:
 
@@ -20,12 +22,14 @@ different populations and cannot be treated as a direct join key.
 
 | Priority | Issue | Consequence |
 |---|---|---|
+| Critical | The committed weekly panel is stale (17 markets) versus current engine logic (22 markets) | Every fitted artifact, evaluation number, and published benchmark is built on a superseded market definition |
 | Critical | Guest nationality is joined to flight departure country | Market-level conversion rates and aviation effects are not reliably identified |
 | Critical | Flight data changes from monthly in 2022 to daily in 2023 | The `flight_daily` table can misrepresent 2022 monthly totals as single-day observations |
 | High | Missing guest inputs are silently aggregated | Weekly totals can look complete while omitting missing `new_arrivals` or `same_day_guests` values |
 | High | Missing nationality-date rows have no defined meaning | Absent combinations are implicitly treated as zero even though they may be missing reports |
-| High | The configured top 15 is not the observed top 15 | Philippines is pooled into `OTHER INTERNATIONAL`; lower-ranked Armenia is modeled separately |
-| High | Domestic demand has no aviation counterpart | Domestic aviation metrics are zero, so aviation levers are not meaningful for this segment |
+| High | Holiday and event flags are hardcoded through 2025 | All 2026 panel rows carry zero event flags, dropping real 2026 effects |
+| Medium | One market falls through the segmentation into a residual catch-all | `OTHER_INTERNATIONAL` still exists as an unclustered bucket rather than a defined segment |
+| Medium | Domestic demand has no aviation counterpart | Domestic aviation metrics are zero, so aviation levers are not meaningful for this segment |
 | Medium | Load factors above 100% are clipped in the panel | Genuine source behavior and possible quality problems are hidden |
 | Medium | Route-level frequency is averaged across routes | The resulting market metric is not total weekly flight frequency |
 | Medium | Test targets are unavailable | Performance after July 2025 cannot be evaluated |
@@ -48,6 +52,10 @@ These checks passed and should remain in the automated quality gate:
 | Load-factor arithmetic mismatches | 0 beyond floating-point tolerance |
 | Domestic date coverage | 1,308 train days followed by 212 test days, with no gaps |
 | Flight date coverage from 2023 onward | Complete daily dates through 2026-02-28 |
+| Source workbook SHA-256 vs `lake/manifest.json` | All 6 files match, including `Data_Dictionary.pdf` |
+| Guest source rows vs `guest_daily` (`is_source_present`) | 69,344 = 69,344, no loss or duplication |
+| Flight source rows vs `flight_all` | 117,608 = 117,608 rows; seats 48,138,787 and PAX 40,279,493 match exactly |
+| Grain split of flight data | `flight_daily` holds 0 rows before 2023; `flight_monthly` holds 1,213 monthly rows for 2022 |
 
 ## Detailed findings
 
@@ -97,6 +105,12 @@ but the general curated table remains unsafe for unrestricted daily analysis.
 Required action: split the monthly and daily observations into separate tables,
 or add an explicit grain field and prevent 2022 rows from entering daily joins.
 
+The exposure is not limited to `flight_daily`. The `guest_flight_daily` view
+left-joins guests to `flight_daily`, so all 365 guest dates in 2022 return NULL
+seats, PAX, and P2P instead of 2022 capacity. That 2022 capacity does exist, but
+only in `flight_monthly`, so any consumer of the joined view silently loses a
+full year of aviation context unless it knows to re-join the monthly table.
+
 ### 3. Missing guest values become understated aggregates
 
 International `new_arrivals` contains 264 missing values:
@@ -135,20 +149,27 @@ The dictionary does not say whether a missing row means zero activity or a
 missing report. This must be resolved with the data owner. Until then, absence
 must not be silently converted to zero.
 
-### 5. The configured top 15 is not the actual top 15
+### 5. Market segmentation: the top 15 is now correct in code, but the committed panel still uses the old definition
 
-The hard-coded list in [`engine/archetypes.py`](engine/archetypes.py) includes
-Armenia, ranked 18th by international training guest volume, while excluding
-the Philippines, ranked 14th.
+The hard-coded list in [`engine/archetypes.py`](engine/archetypes.py) is now
+exactly the empirical top 15 by international training guest volume. Ranked from
+`guest_daily`, ranks 1-15 are India, United Kingdom, Russian Federation, United
+States, Germany, China, Saudi Arabia, France, Egypt, Kuwait, Italy, Kazakhstan,
+Israel, Philippines, and Oman. The Philippines (rank 14) is included and Armenia
+(rank 18) is not, so the earlier mis-ranking has been fixed in code.
 
-The resulting `OTHER INTERNATIONAL` segment contains 30 nationalities and
-25.9% of international training guests. It also pools different regions,
-flight-connectivity patterns, lengths of stay, and travel purposes into one
-archetype. This is too heterogeneous for a single conversion parameter.
+The problem has moved downstream. The committed
+`lake/curated/weekly_market_panel.parquet` was built from the previous definition
+and still contains 17 markets and 2,839 rows, including a single pooled
+`OTHER INTERNATIONAL` label covering 30 nationalities and 25.9% of international
+training guests. A fresh build from the same lake database with the current code
+returns 22 markets and 3,674 rows, splitting that pool into `OTHER_EUROPE`,
+`OTHER_ASIA_PACIFIC`, `OTHER_MENA`, `OTHER_AMERICAS_AFRICA`, and
+`OTHER_EURASIA`. See finding 12.
 
-Required action: define the ranking metric and calibration window, derive the
-market list programmatically, and split the remainder by region or a validated
-behavioral segmentation.
+Required action: rebuild and recommit the panel, then re-run every downstream
+calibration and evaluation step. Until then, no reported number describes the
+market definition that the code actually produces.
 
 ### 6. Domestic observations cannot support aviation scenarios
 
@@ -240,6 +261,79 @@ reproducible from the current code and artifacts.
 Required action: version the raw-data hashes, panel, code revision, calibration,
 evaluation output, and published metrics as one reproducible release.
 
+### 12. The committed weekly panel is stale relative to the current engine
+
+`lake/curated/weekly_market_panel.parquet` holds 17 markets and 2,839 rows.
+Rebuilding with `engine.panel.build_weekly_panel()` against the same
+`lake/analytics.duckdb` returns 22 markets and 3,674 rows with an identical
+column set. The six markets present only in the fresh build are
+`OTHER_INTERNATIONAL`, `OTHER_EUROPE`, `OTHER_ASIA_PACIFIC`, `OTHER_MENA`,
+`OTHER_AMERICAS_AFRICA`, and `OTHER_EURASIA`; the fresh build drops the old
+pooled `OTHER INTERNATIONAL` label entirely.
+
+This is not a cosmetic drift. Every downstream artifact -
+`structural_calibration.json`, `residual_engine.pkl`, `conformal_calibrator.json`,
+`evaluation_results.json`, and the README benchmark table - is fitted or scored on
+the 17-market panel. Any conclusion about the regional segments is therefore
+untested, because no fitted artifact has ever seen them. The label change from
+`OTHER INTERNATIONAL` to `OTHER_INTERNATIONAL` also means string-keyed joins
+between the committed panel and a fresh build silently miss rather than fail
+loudly.
+
+Required action: rebuild the panel, retrain, re-evaluate, and add a CI assertion
+that fails when the committed parquet's market set or row count differs from a
+fresh build.
+
+### 13. Holiday and event flags are hardcoded and stop before the test window
+
+`HOLIDAY_WEEKS` and `MAJOR_EVENT_WEEKS` in [`engine/panel.py`](engine/panel.py)
+are literal week-start date sets. The latest entries are 2025-12-29 and
+2025-12-01 respectively. The panel extends to 2026-02-23, so all 176
+2026 market-weeks, all of which fall in the test split, are emitted with
+`is_holiday_week = 0` and `is_major_event_week = 0`. Across the full fresh panel
+the flags fire 308 and 132 times, none of them in 2026.
+
+Consequences: any 2026 event effect, such as Eid al-Fitr or ADIPEC, is silently
+absent from the residual features used for hybrid forecasts and for out-of-sample
+scoring, and the flags are not derivable at decision time for 2026 planning.
+
+Required action: derive the flags from a dated event calendar table rather than
+hardcoded constants, and assert that every panel week is classifiable.
+
+### 14. Month and season are derived from the first day of a partial week
+
+The panel sets `representative_month` from `MIN(date)` within the week. For 44 of
+3,674 rows in the fresh panel this disagrees with the month of `week_start`, for
+example the week starting 2022-12-26 is labelled month 1. The rows depend on the
+`is_complete_week` filter to be read correctly.
+
+Required action: anchor the month to `week_start`, or document the partial-week
+labelling convention and keep the completeness filter mandatory.
+
+### 15. One nationality falls through the segmentation into a residual bucket
+
+The top-15 list plus the five regional clusters cover 44 of the 45 nationalities
+in the training data. Turkey is in neither: it is rank 31 with 218,506 training
+guests, 0.86% of international training volume, and it lands in the residual
+`OTHER_INTERNATIONAL` label that the regional decomposition was meant to
+eliminate. In the fresh panel that bucket holds 167 market-weeks.
+
+Required action: place Turkey in a defined segment, or state explicitly that
+`OTHER_INTERNATIONAL` is a defined residual rather than a behavioural
+archetype, and give it a justification and a prior.
+
+## Rejected findings
+
+These were raised in a secondary audit and did not survive verification against
+the current repository. They are listed so they are not re-investigated.
+
+| Claimed finding | Verification result |
+|---|---|
+| `Data_Dictionary.pdf` is missing from the file system and unclaimed by the manifest | False. The file is present in `01a - DCT Dataset/` and its SHA-256 matches `lake/manifest.json`. Its content problems are covered by finding 10. |
+| The `OTHER INTERNATIONAL` segment still pools 30 nationalities including the Philippines and Armenia | Stale. The current code splits this pool into five regional clusters and the top 15 is correctly ranked. The committed panel has not been rebuilt; see finding 12. |
+| DOMESTIC contributes 1,155 unmatched date-market keys to the flight join | Directionally correct, counts do not reproduce. All 167 DOMESTIC panel weeks have zero seats, PAX, and P2P, which is the substance of finding 6. |
+| Only 8 panel weeks fall in 2026 | Understated. There are 176 2026 market-weeks in the fresh panel and 136 in the committed panel; all have zero event flags either way. |
+
 ## Remediation plan
 
 ### Phase 1: Establish a reliable data contract
@@ -247,11 +341,14 @@ evaluation output, and published metrics as one reproducible release.
 1. Regenerate the dictionary for all five source workbooks.
 2. Add explicit fields for source grain, split, target availability, suppression,
    unavailability, and not-applicable status.
-3. Separate 2022 monthly flights from 2023+ daily flights.
+3. Separate 2022 monthly flights from 2023+ daily flights, and state in the
+   joined view that flight metrics are NULL for 2022 by construction.
 4. Record the meaning of an absent nationality-date row with the data owner.
+5. Rebuild `weekly_market_panel.parquet` from the current engine and re-run every
+   downstream calibration and evaluation step (finding 12).
 
 Exit criterion: every field has a defined grain, unit, key, missing-value policy,
-and permitted aggregation.
+and permitted aggregation, and the committed panel matches a fresh build.
 
 ### Phase 2: Make incompleteness visible
 
@@ -269,9 +366,11 @@ Exit criterion: no partial aggregate can appear as a complete observation.
 2. Until then, restrict the structural relationship to a compatible aggregate
    level and label country-level results as proxies.
 3. Recompute the top markets from a versioned calibration window.
-4. Model Philippines separately and reassess Armenia.
+4. Model Philippines separately and reassess Armenia. (Already reflected in the
+   current top-15 list; confirm after the panel rebuild.)
 5. Replace the single `OTHER INTERNATIONAL` group with validated regional or
-   behavioral segments.
+   behavioral segments, and either place Turkey in a segment or define
+   `OTHER_INTERNATIONAL` as an explicit residual (finding 15).
 6. Split domestic forecasting from international aviation scenarios.
 
 Exit criterion: every modeled market has a defensible relationship between the
@@ -282,9 +381,10 @@ aviation population and the hotel-demand population.
 1. Preserve raw and modeling versions of load factor.
 2. Add quality flags instead of silently clipping source values.
 3. Rebuild flight frequency at its native route-period grain before aggregation.
-4. Review the meaning of `guests / new_arrivals`; do not present it as observed
+4. Anchor month and season to `week_start` rather than `MIN(date)` (finding 14).
+5. Review the meaning of `guests / new_arrivals`; do not present it as observed
    average length of stay without validation.
-5. Test partial weeks, split-boundary weeks, missing routes, and zero-service
+6. Test partial weeks, split-boundary weeks, missing routes, and zero-service
    markets explicitly.
 
 Exit criterion: each derived metric has a documented formula and passes
@@ -308,6 +408,8 @@ recorded raw-data hashes with no manual edits.
 
 - Schema and data-type checks for every source file
 - Source hash and row-count reconciliation
+- Committed panel market set and row count versus a fresh build
+- Event-calendar coverage: every panel week must be classifiable
 - Mixed-grain detection
 - Candidate-key uniqueness
 - Complete expected date-grid coverage
@@ -330,3 +432,8 @@ onward if incomplete observations are flagged, domestic is separated, and the
 nationality/departure-country limitation is stated prominently. Resolve the
 semantic bridge and missingness policy before using the results for route,
 capacity, or marketing investment decisions.
+
+The first blocking action is not analytical: the committed panel must be rebuilt
+and every fitted artifact regenerated from it. Until that happens, the repository
+contains two different market definitions and only the older one has been
+evaluated.

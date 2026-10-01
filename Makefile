@@ -26,6 +26,10 @@ charts:
 report:
 	$(PYTHON) scripts/build_solution_report.py
 
+## Step 5 — build DATA_ISSUES.pdf from DATA_ISSUES.md
+data-issues-pdf:
+	$(PYTHON) scripts/build_data_issues_pdf.py
+
 ## Run full test suite
 test:
 	$(PYTEST) tests/ -v
