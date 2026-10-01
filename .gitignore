@@ -6,6 +6,7 @@ lake/*.duckdb
 lake/*.duckdb.wal
 tmp/
 output/
+audit/
 lake/curated/*.parquet
 lake/curated/*.pkl
 lake/curated/*.json

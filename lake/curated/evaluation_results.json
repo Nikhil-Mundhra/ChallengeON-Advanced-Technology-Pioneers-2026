@@ -10,21 +10,21 @@
       "2024-12-30",
       "2025-07-21"
     ],
-    "observations_train": 1768,
-    "observations_test": 510
+    "observations_train": 1724,
+    "observations_test": 501
   },
   "diagnostics": {
     "international_planning_mode": {
-      "wmape": 0.25378968432359233,
-      "bias": 0.008273442107702388,
-      "mae": 2853.2738817457257,
-      "rmse": 4460.7884395475085
+      "wmape": 0.2604908030038084,
+      "bias": 0.018035502829590586,
+      "mae": 2782.0384577264954,
+      "rmse": 4400.069960287737
     },
     "international_realized_chain": {
-      "wmape": 0.23753199362877267,
-      "bias": -0.06649624199496132,
-      "mae": 2670.4940167537216,
-      "rmse": 4022.5700733110148
+      "wmape": 0.2349421351230529,
+      "bias": -0.05825030448483044,
+      "mae": 2509.1790102207638,
+      "rmse": 3773.2553150342665
     },
     "domestic_forecast_mode": {
       "wmape": 0.16035008059675837,
@@ -33,43 +33,204 @@
       "rmse": 21078.865022051938
     },
     "combined_planning_mode": {
-      "wmape": 0.2185246449206212,
-      "bias": 0.05441580570936201,
-      "mae": 3713.973737441355,
-      "rmse": 6698.0975642179255
+      "wmape": 0.22102948237196146,
+      "bias": 0.06236652053970529,
+      "mae": 3662.4655817291855,
+      "rmse": 6693.817938016408
     },
     "combined_realized_chain": {
-      "wmape": 0.20840276902046,
-      "bias": 0.007864946931948438,
-      "mae": 3541.9456292135865,
-      "rmse": 6431.61159262702
+      "wmape": 0.20554848876722143,
+      "bias": 0.016141797564753042,
+      "mae": 3405.945023295654,
+      "rmse": 6323.82911306147
     }
   },
   "benchmark": {
     "1. Historical Seasonal Prior": {
-      "wmape": 0.22623270660879768,
-      "bias": -0.07053827923278669,
-      "mae": 3844.977444995092,
-      "rmse": 7074.190527461506
+      "wmape": 0.22132684967413177,
+      "bias": -0.058644431903951355,
+      "mae": 3667.392967422908,
+      "rmse": 6978.701597950357
     },
     "2. Pure ML / Calendar Model": {
-      "wmape": 0.22009771380678972,
-      "bias": -0.08977615400636375,
-      "mae": 3740.709104212174,
-      "rmse": 6742.600127914947
+      "wmape": 0.21312928075291618,
+      "bias": -0.07683296007838596,
+      "mae": 3531.5589885997574,
+      "rmse": 6624.524119212283
     },
     "3. Structural-Only Engine (WMAPE Champion)": {
-      "wmape": 0.2185246449206212,
-      "bias": 0.05441580570936158,
-      "mae": 3713.973737441355,
-      "rmse": 6698.0975642179255
+      "wmape": 0.22102948237196146,
+      "bias": 0.06236652053970529,
+      "mae": 3662.4655817291855,
+      "rmse": 6693.817938016408
     },
     "4. Hybrid Digital Twin (Bias/RMSE Trade-off)": {
-      "wmape": 0.20638163597372172,
-      "bias": 0.04919239821142118,
-      "mae": 3507.5951098102146,
-      "rmse": 6307.54726324004
+      "wmape": 0.20905965062997486,
+      "bias": 0.05838426626659092,
+      "mae": 3464.125087494392,
+      "rmse": 6311.11542494878
     }
   },
-  "demonstrated_coverage_pct": 68.4
+  "demonstrated_coverage_pct": 66.7,
+  "market_breakdown": {
+    "CHINA": {
+      "archetype": "Hub-Mediated",
+      "observations": 30,
+      "wmape": 0.4308430979488047,
+      "bias": -0.4308430979488047,
+      "mae": 4554.8875929513615,
+      "rmse": 6979.277092824149
+    },
+    "DOMESTIC": {
+      "archetype": "Domestic Staycation",
+      "observations": 30,
+      "wmape": 0.16035008059675837,
+      "bias": 0.13053402207448078,
+      "mae": 17485.17142857143,
+      "rmse": 21078.865022051938
+    },
+    "EGYPT": {
+      "archetype": "Resident / VFR",
+      "observations": 30,
+      "wmape": 0.21011428513603533,
+      "bias": -0.15527624879855031,
+      "mae": 1207.092560487514,
+      "rmse": 1356.5210206943143
+    },
+    "FRANCE": {
+      "archetype": "Direct Leisure",
+      "observations": 30,
+      "wmape": 0.34370993340135586,
+      "bias": 0.20553083336429387,
+      "mae": 1881.7889713768632,
+      "rmse": 2104.229074882968
+    },
+    "GERMANY": {
+      "archetype": "Direct Leisure",
+      "observations": 30,
+      "wmape": 0.37174173846591835,
+      "bias": 0.22171398193419184,
+      "mae": 3058.158194272442,
+      "rmse": 3609.535709265898
+    },
+    "INDIA": {
+      "archetype": "Resident / VFR",
+      "observations": 30,
+      "wmape": 0.1308473474533049,
+      "bias": 0.007343507296192795,
+      "mae": 3217.261494447115,
+      "rmse": 4302.380540102972
+    },
+    "ISRAEL": {
+      "archetype": "Direct Leisure",
+      "observations": 30,
+      "wmape": 0.4467695245512866,
+      "bias": 0.309995775300699,
+      "mae": 1640.0909246277731,
+      "rmse": 1986.4040676195632
+    },
+    "ITALY": {
+      "archetype": "Direct Leisure",
+      "observations": 30,
+      "wmape": 0.3282564902221312,
+      "bias": 0.05788723772246834,
+      "mae": 1584.0235773329089,
+      "rmse": 2156.3896454314854
+    },
+    "KAZAKHSTAN": {
+      "archetype": "Highly Seasonal",
+      "observations": 30,
+      "wmape": 0.4167843546515097,
+      "bias": 0.328447926549912,
+      "mae": 1726.9459734985305,
+      "rmse": 1937.9444692909442
+    },
+    "KUWAIT": {
+      "archetype": "Regional GCC",
+      "observations": 30,
+      "wmape": 0.30088158919939745,
+      "bias": -0.04288487684028902,
+      "mae": 1568.0343727263532,
+      "rmse": 2018.959163066332
+    },
+    "OMAN": {
+      "archetype": "Regional GCC",
+      "observations": 30,
+      "wmape": 0.3887782636130169,
+      "bias": -0.24349877381254706,
+      "mae": 923.244701877285,
+      "rmse": 1225.3670469133388
+    },
+    "OTHER INTERNATIONAL": {
+      "archetype": "Emerging / Sparse",
+      "observations": 21,
+      "wmape": 0.12104806079330009,
+      "bias": -0.027612986958664477,
+      "mae": 5793.579228915444,
+      "rmse": 7083.363391444346
+    },
+    "PHILIPPINES": {
+      "archetype": "Resident / VFR",
+      "observations": 30,
+      "wmape": 0.26156179890788966,
+      "bias": -0.19380700885695742,
+      "mae": 608.1224637342132,
+      "rmse": 733.31982539604
+    },
+    "RUSSIAN FEDERATION": {
+      "archetype": "Direct Leisure",
+      "observations": 30,
+      "wmape": 0.3936089970968488,
+      "bias": 0.301208263470597,
+      "mae": 8243.038339001627,
+      "rmse": 9953.877094683985
+    },
+    "SAUDI ARABIA": {
+      "archetype": "Regional GCC",
+      "observations": 30,
+      "wmape": 0.395109777884341,
+      "bias": -0.03169389050230242,
+      "mae": 3480.416670775724,
+      "rmse": 4322.1268348921185
+    },
+    "UNITED KINGDOM": {
+      "archetype": "Direct Leisure",
+      "observations": 30,
+      "wmape": 0.2263663387667234,
+      "bias": -0.0831728206564702,
+      "mae": 4203.434272282415,
+      "rmse": 6459.361555097917
+    },
+    "UNITED STATES OF AMERICA": {
+      "archetype": "Hub-Mediated",
+      "observations": 30,
+      "wmape": 0.19850388736679234,
+      "bias": 0.0294603386605634,
+      "mae": 1725.9582166730315,
+      "rmse": 2090.8490189914387
+    }
+  },
+  "season_breakdown": {
+    "Winter_Peak": {
+      "observations": 236,
+      "wmape": 0.26536272337709826,
+      "bias": 0.09817924809703142,
+      "mae": 4423.980025343141,
+      "rmse": 8182.571894429517
+    },
+    "Spring_Shoulder": {
+      "observations": 136,
+      "wmape": 0.20116053861053718,
+      "bias": 0.049880510856757584,
+      "mae": 3514.5216228345253,
+      "rmse": 5791.499821407122
+    },
+    "Summer_Trough": {
+      "observations": 129,
+      "wmape": 0.157134635180165,
+      "bias": 0.006498207334030568,
+      "mae": 2425.2793004639175,
+      "rmse": 4020.787655688613
+    }
+  }
 }
