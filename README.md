@@ -63,28 +63,28 @@ The **Abu Dhabi Tourism Digital Twin** combines:
 
 ## 3. Strict Forward-Holdout Evaluation Results
 
-Evaluated on 30 complete 7-day holdout weeks with complete guest inputs (Jan 2025 – Jul 2025, 501 market-weeks) calibrated on 104 complete weeks (Jan 2023 – Dec 2024, 1,724 market-weeks):
+Evaluated on 30 complete 7-day holdout weeks with complete guest inputs (Jan 2025 – Jul 2025, 621 market-weeks across all 21 markets) calibrated on 104 complete weeks (Jan 2023 – Dec 2024, 2,132 market-weeks):
 
 ### Diagnostic Separation
 
 | Evaluation Setting | WMAPE | Directional Bias | MAE | RMSE | Operational Scope |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **International Planning Mode** | **26.05%** | **+1.80%** | 2,782.0 | 4,400.1 | Scheduled seats + training priors only (true pre-flight planning). |
-| **International Realized-Chain** | **23.49%** | **-5.83%** | 2,509.2 | 3,773.3 | Downstream conversion holding realized P2P fixed. |
+| **International Planning Mode** | **27.52%** | **+1.52%** | 2,466.5 | 3,920.7 | Scheduled seats + training priors only (true pre-flight planning). |
+| **International Realized-Chain** | **24.54%** | **-5.67%** | 2,199.9 | 3,308.7 | Downstream conversion holding realized P2P fixed. |
 | **Domestic Forecast Mode** | **16.04%** | **+13.05%** | 17,485.2 | 21,078.9 | Dedicated seasonal prior; NO holdout arrival leakage. |
-| **Combined Planning Mode** | **22.10%** | **+6.24%** | 3,662.5 | 6,693.8 | Full territory diagnostic (International + Domestic). |
-| **Combined Realized-Chain** | **20.55%** | **+1.61%** | 3,405.9 | 6,323.8 | Realized aviation P2P across entire territory. |
+| **Combined Planning Mode** | **23.14%** | **+5.93%** | 3,192.1 | 6,007.8 | Full territory diagnostic (International + Domestic). |
+| **Combined Realized-Chain** | **21.30%** | **+1.48%** | 2,938.3 | 5,646.6 | Realized aviation P2P across entire territory. |
 
 ### Model Benchmark (All Markets)
 
 | Model Architecture | WMAPE | Directional Bias | MAE | RMSE | Model Status |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **1. Historical Seasonal Prior** | 22.13% | -5.86% | 3,667.4 | 6,978.7 | Naive Baseline |
-| **2. Pure ML / Calendar Model** | 21.31% | -7.68% | 3,531.6 | 6,624.5 | Calendar Extrapolation |
-| **3. Structural-Only Engine** | 22.10% | +6.24% | 3,662.5 | 6,693.8 | Pre-Flight Decision Chain |
-| **4. Hybrid Digital Twin (Proposed)** | **20.91%** | **+5.84%** | **3,464.1** | **6,311.1** | **Champion (Lowest WMAPE & RMSE)** |
+| **1. Historical Seasonal Prior** | 23.00% | -6.60% | 3,172.8 | 6,156.5 | Naive Baseline |
+| **2. Pure ML / Calendar Model** | 22.00% | -8.50% | 3,035.6 | 5,839.0 | Calendar Extrapolation |
+| **3. Structural-Only Engine** | 23.14% | +5.93% | 3,192.1 | 6,007.8 | Pre-Flight Decision Chain |
+| **4. Hybrid Digital Twin (Proposed)** | **21.73%** | **+5.37%** | **2,998.8** | **5,673.5** | **Champion (Lowest MAE & RMSE)** |
 
-*Demonstrated Empirical Holdout Coverage: 66.7% (Nominal target: 80.0%, reflecting positive 2025 secular trend drift relative to 2023–2024 base).*
+*Demonstrated Empirical Holdout Coverage: 65.2% (Nominal target: 80.0%, reflecting positive 2025 secular trend drift relative to 2023–2024 base).*
 
 > **Market Bridge Specification:** The challenge dataset does not contain individual passenger manifests or booking PNRs linking guest nationality to flight origin. An unrestricted cross-allocation matrix ($45 \times 33 = 1,485$ parameters) is unidentifiable from aggregate weekly time series. The digital twin deploys a regularized same-market operational proxy where departure country is linked to guest nationality, and market-season-specific effective multipliers $\beta_{m,s} = \frac{\text{arrivals}_{m,s}}{\text{P2P}_{m,s}}$ empirically absorb non-national travelers, non-hub transit, and overland transit into Abu Dhabi.
 
@@ -98,10 +98,10 @@ Evaluated on 30 complete 7-day holdout weeks with complete guest inputs (Jan 202
 | `lake/curated/guest_daily.parquet` | Daily | 69,920 | Complete date-nationality grid with presence & suppression flags |
 | `lake/curated/flight_daily.parquet` | Daily | 116,395 | True daily operating metrics (2023+) with outlier quality flags |
 | `lake/curated/flight_monthly.parquet` | Monthly | 1,213 | Isolated 2022 monthly records on distinct month-start dates |
-| `lake/curated/weekly_market_panel.parquet` | Weekly | 2,839 | Cleanly matched panel with complete week & input isolation |
-| `lake/curated/structural_calibration.json` | JSON | 17 markets | Calibrated seasonal parameters ($M, L, LF, P2P$) |
-| `lake/curated/residual_engine.pkl` | Pickle | 17 models | Trained regularized RidgeCV residual models |
-| `lake/curated/conformal_calibrator.json` | JSON | 17 markets | Non-conformity margins and holdout coverage metrics |
+| `lake/curated/weekly_market_panel.parquet` | Weekly | 3,507 | Cleanly matched panel with 21 unified markets (Top 15 + 5 regional clusters + Domestic) |
+| `lake/curated/structural_calibration.json` | JSON | 21 markets | Calibrated seasonal parameters ($M, L, LF, P2P$) |
+| `lake/curated/residual_engine.pkl` | Pickle | 21 models | Trained regularized RidgeCV residual models |
+| `lake/curated/conformal_calibrator.json` | JSON | 21 markets | Non-conformity margins and holdout coverage metrics |
 | `lake/curated/evaluation_results.json` | JSON | — | Structured output from strict forward back-test |
 | `lake/analytics.duckdb` | DuckDB | — | Local query database with analytical views |
 

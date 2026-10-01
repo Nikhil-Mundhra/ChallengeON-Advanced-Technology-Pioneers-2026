@@ -192,7 +192,7 @@ REGIONAL_CLUSTERS: Dict[str, List[str]] = {
         "CANADA", "BRAZIL", "SOUTH AFRICA", "MEXICO", "MOROCCO",
     ],
     "OTHER_EURASIA": [
-        "UZBEKISTAN", "AZERBAIJAN", "ARMENIA",
+        "UZBEKISTAN", "AZERBAIJAN", "ARMENIA", "TURKEY",
     ],
 }
 
@@ -224,6 +224,7 @@ COUNTRY_TO_REGION_MAP: Dict[str, MarketArchetype] = {
     "AZERBAIJAN": MarketArchetype.HIGHLY_SEASONAL,
     "UZBEKISTAN": MarketArchetype.HIGHLY_SEASONAL,
     "ROMANIA": MarketArchetype.HIGHLY_SEASONAL,
+    "TURKEY": MarketArchetype.HIGHLY_SEASONAL,
     # Long-Haul
     "AUSTRALIA": MarketArchetype.HUB_MEDIATED,
     "CANADA": MarketArchetype.HUB_MEDIATED,

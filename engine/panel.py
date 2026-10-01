@@ -47,6 +47,16 @@ HOLIDAY_WEEKS = {
     "2024-01-01",
     "2024-12-30",
     "2025-12-29",
+    "2026-01-05",
+    # 2026 Lunar New Year / Spring Festival & Ramadan Start
+    "2026-02-16",
+    # 2026 Eid al-Fitr weeks
+    "2026-03-16",
+    "2026-03-23",
+    # 2026 Eid al-Adha weeks
+    "2026-05-25",
+    # 2026 UAE National Day week
+    "2026-11-30",
 }
 
 MAJOR_EVENT_WEEKS = {
@@ -54,10 +64,12 @@ MAJOR_EVENT_WEEKS = {
     "2023-10-02",
     "2024-11-04",
     "2025-11-03",
+    "2026-11-02",
     # Formula 1 Etihad Airways Abu Dhabi Grand Prix (Yas Marina)
     "2023-11-20",
     "2024-12-02",
     "2025-12-01",
+    "2026-12-07",
 }
 
 
@@ -153,7 +165,7 @@ def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
         COUNT(DISTINCT g.date) as days_in_week,
         MIN(g.date) as min_date,
         MAX(g.date) as max_date,
-        EXTRACT(month FROM MIN(g.date)) as representative_month,
+        EXTRACT(month FROM DATE_TRUNC('week', g.date)) as representative_month,
         SUM(COALESCE(f.seats, 0.0)) as seats,
         SUM(COALESCE(f.pax, 0.0)) as pax,
         SUM(COALESCE(f.p2p, 0.0)) as p2p,
