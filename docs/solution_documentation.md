@@ -220,7 +220,7 @@ Findings:
 | Single forward split | One holdout period; no Autumn_Shoulder weeks | Season breakdown reported |
 | Observational data | No causal identification | Results described as planning estimates |
 
-**Planned: stock-flow guest model.** Model daily guests as a convolution of past new arrivals, $\text{Guests}_t = \sum_{k=0}^{K} w_k \cdot \text{Arrivals}_{t-k}$, with $w_k$ the share of arrivals still in a hotel after $k$ nights. `daily_market_panel.parquet` supplies the lag inputs. Not implemented.
+**Planned: stock-flow guest model.** Model daily guests as a convolution of past new arrivals, $\text{Guests}_t = \sum_{k=0}^{K} w_k \cdot \text{Arrivals}_{t-k}$, with $w_k$ the share of arrivals still in a hotel after $k$ nights. `daily_market_panel.parquet` supplies the lag inputs. Not implemented. Design, measured results and proposed code structure: [model design](model_design.md).
 
 ## 12. Open questions for the organizers
 

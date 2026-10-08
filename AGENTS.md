@@ -2,7 +2,7 @@
 
 Rules for coding agents in this repository. If this file disagrees with the code, trust the code and fix this file.
 
-Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, web UI/JSON API, PDF reports. Human docs: `README.md`, `docs/`.
+Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, web UI/JSON API, PDF reports. Human docs: `README.md`, `docs/`; model design (implemented vs. measured vs. proposed): `docs/model_design.md`.
 
 ## Setup
 
