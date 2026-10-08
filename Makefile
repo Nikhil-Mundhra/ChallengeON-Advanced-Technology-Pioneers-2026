@@ -2,10 +2,15 @@ PYTHON := .venv/bin/python
 PYTEST  := .venv/bin/pytest
 TWIN    := .venv/bin/twin
 
-.PHONY: all install evaluate train charts report test clean
+# Same overrides the code honours (see src/tourism_twin/config.py).
+LAKE_DIR   := $(or $(TWIN_LAKE_DIR),lake)
+OUTPUT_DIR := $(or $(TWIN_OUTPUT_DIR),output)
 
-## Rebuild every metric and artifact from raw data (one-command reproducibility)
-all: evaluate train charts report test
+.PHONY: all install lake panel evaluate train charts report data-issues-pdf test clean
+
+## Rebuild every metric and artifact from the raw workbooks (one-command reproducibility).
+## Needs the organizer-provided dataset in '01a - DCT Dataset/' (or TWIN_SOURCE_DIR).
+all: lake panel evaluate train charts report test
 	@echo ""
 	@echo "=========================================="
 	@echo " All artifacts rebuilt successfully."
@@ -16,23 +21,31 @@ install:
 	python3 -m venv .venv
 	.venv/bin/pip install -e ".[report,dev]"
 
-## Step 1 — evaluate models, write evaluation_results.json + sync calibrator
+## Step 1 — raw workbooks -> Parquet tables + DuckDB lake
+lake:
+	$(TWIN) build-lake
+
+## Step 2 — lake -> curated weekly market panel
+panel:
+	$(TWIN) build-panel
+
+## Step 3 — evaluate models, write evaluation_results.json + sync calibrator
 evaluate:
 	$(TWIN) evaluate
 
-## Step 2 — re-calibrate structural params, residual ML, conformal bounds
+## Step 4 — re-calibrate structural params, residual ML, conformal bounds
 train:
 	$(TWIN) train
 
-## Step 3 — regenerate scenario charts (waterfall, tornado, benchmark)
+## Step 5 — regenerate scenario charts (waterfall, tornado, benchmark)
 charts:
 	$(TWIN) charts
 
-## Step 4 — build final PDF solution report
+## Step 6 — build final PDF solution report
 report:
 	$(TWIN) report solution
 
-## Step 5 — build DATA_ISSUES.pdf from DATA_ISSUES.md
+## Build DATA_ISSUES.pdf from DATA_ISSUES.md
 data-issues-pdf:
 	$(PYTHON) scripts/build_data_issues_pdf.py
 
@@ -40,12 +53,9 @@ data-issues-pdf:
 test:
 	$(PYTEST) tests/ -v
 
-## Remove all generated artifacts (keeps source + raw data)
+## Remove generated files that are not committed: figures, PDFs, the DuckDB database, and
+## staging leftovers. Committed lake artifacts are left alone (rebuild them with `make all`).
 clean:
-	rm -rf output/figures/ output/pdf/
-	rm -f lake/curated/evaluation_results.json \
-	       lake/curated/conformal_calibrator.json \
-	       lake/curated/structural_calibration.json \
-	       lake/curated/residual_engine.pkl \
-	       lake/curated/*.parquet
-	@echo "Cleaned generated artifacts."
+	rm -rf $(OUTPUT_DIR)/figures $(OUTPUT_DIR)/pdf $(LAKE_DIR)/.staging_build
+	rm -f $(LAKE_DIR)/analytics.duckdb $(LAKE_DIR)/analytics.duckdb.wal
+	@echo "Cleaned generated artifacts in $(OUTPUT_DIR)/ and $(LAKE_DIR)/."
