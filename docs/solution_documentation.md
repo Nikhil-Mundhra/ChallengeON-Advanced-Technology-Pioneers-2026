@@ -239,6 +239,8 @@ Candidate residual-model features include:
 - Lagged residuals or demand state.
 - Route and airline composition.
 
+In the implementation, the residual target is actual guests minus the planning-mode structural prediction (`StructuralEngine.planning_guests`: scheduled seats × calibrated seasonal load factor, P2P share, response multiplier and length of stay; `DOMESTIC` uses its calibrated seasonal prior), the same prediction the simulator produces at inference time; realized load factor and P2P share are never used, so training and serving see the same structural error.
+
 The residual model must not silently double-count the same flight effect already represented by the structural layer. Structural and residual contributions should be displayed separately, and simulated demand should pass monotonicity and reasonableness checks.
 
 ### 8.6 Domestic demand
@@ -343,7 +345,7 @@ The hybrid model is justified only if it improves held-out accuracy without prod
 
 ### Empirical Forward-Holdout Results (Jan 2025 – Jul 2025)
 
-The models were evaluated strictly on complete 7-day ISO weeks without split-boundary contamination (104 complete calibration weeks, Jan 2023 – Dec 2024, 2,132 market-weeks; and 30 complete forward holdout weeks, Jan 2025 – Jul 2025, 621 market-weeks across all 21 unified markets: Top 15 international, 5 regional clusters, and Domestic).
+The models were evaluated strictly on complete 7-day ISO weeks without split-boundary contamination (104 complete calibration weeks, Jan 2023 – Dec 2024, 2,132 market-weeks; and 30 complete forward holdout weeks, Jan 2025 – Jul 2025, 621 market-weeks across all 21 unified markets: Top 15 international, 5 regional clusters, and Domestic). The back-test fits the shipped components with their production trainers (`StructuralEngine.calibrate`, `ResidualMLEngine.fit`, `calibrate_conformal`) on the calibration window only, and every planning-mode prediction (residual training, conformal calibration, scoring) comes from the same `StructuralEngine.planning_guests` chain the simulator serves, so the benchmark measures the deployed model rather than a reimplementation.
 
 #### 1. Separation of Planning, Realized-Chain, and Domestic Diagnostics
 
@@ -364,14 +366,14 @@ To avoid operational target leakage and prevent domestic staycations from artifi
 | **1. Historical Seasonal Prior** | 23.00% | -6.60% | 3,172.8 | 6,156.5 | Naive Baseline |
 | **2. Pure ML / Calendar Model** | 22.00% | -8.50% | 3,035.6 | 5,839.0 | Calendar Extrapolation |
 | **3. Structural-Only Engine** | 23.14% | +5.93% | 3,192.1 | 6,007.8 | Pre-Flight Decision Chain |
-| **4. Hybrid Digital Twin (Proposed)** | **21.73%** | **+5.37%** | **2,998.8** | **5,673.5** | **Champion (Lowest MAE & RMSE)** |
+| **4. Hybrid Digital Twin** | **21.74%** | **+5.36%** | **2,999.2** | **5,673.6** | **Lowest WMAPE, \|Bias\|, MAE & RMSE** |
 
 **Demonstrated Empirical Holdout Coverage:** 65.2% (Nominal target: 80.0%).  
 *Coverage shortfall reflects positive secular tourism growth in Abu Dhabi during 2025 (+2.8% to +9.1% YoY) relative to the 2023–2024 calibration base.*
 
 Key takeaways from the strict evaluation:
 1. When evaluated strictly in pre-flight planning mode (without realized operational data), the international structural conversion engine achieves **27.52% WMAPE** with minimal directional bias (**+1.52%**).
-2. The Hybrid Digital Twin achieves the lowest overall error (**21.73% WMAPE**, **5,673.5 RMSE**), improving upon pure calendar ML and structural-only models while mathematically guaranteeing monotonicity.
+2. The Hybrid Digital Twin leads every benchmark metric (`benchmark_leaders`): **21.74% WMAPE**, **+5.36%** bias, **2,999.2 MAE**, **5,673.6 RMSE**, ahead of the seasonal prior, pure calendar ML and structural-only models while mathematically guaranteeing monotonicity. The margins are modest (0.26 pp WMAPE over pure calendar ML), and the structural-only engine on its own (23.14% WMAPE) does not beat the historical seasonal prior (23.00%).
 3. Domestic demand achieves **16.04% WMAPE** without using any future arrivals, demonstrating that domestic staycations must be kept separate from the international aviation chain.
 4. **Domestic Secular Trend & Planning Guidance:** Domestic staycation volume expanded substantially in 2025 (+13.05% directional bias vs historical training baseline). Because domestic guests represent the single largest share of total hotel room nights in Abu Dhabi, planners projecting beyond 12 months should apply an explicit secular annual growth drift factor (recommended +3.5% to +5.0% annually) to historical domestic seasonal baselines.
 

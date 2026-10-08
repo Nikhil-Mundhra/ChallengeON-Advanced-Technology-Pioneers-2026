@@ -39,8 +39,9 @@ One console command, `twin` (equivalently `python -m tourism_twin`):
 | `twin serve [--port 8080]` | Interactive web UI + JSON API |
 | `twin query "SQL" [--database ...] [--limit N]` | SQL against the analytics DuckDB |
 
-Use `twin <cmd> --help` for options. The `Makefile` wraps these (`make evaluate`,
-`make train`, `make charts`, `make report`, `make test`, `make all`).
+Use `twin <cmd> --help` for options. The `Makefile` wraps these (`make lake`,
+`make panel`, `make evaluate`, `make train`, `make charts`, `make report`, `make test`,
+`make all`).
 
 Tests: `.venv/bin/pytest -q` (or `make test`). Known failure on a clean checkout:
 `test_data_contract_and_grain_separation`, because `lake/curated/flight_monthly.parquet`
@@ -83,16 +84,18 @@ read once at import: `TWIN_ROOT`, `TWIN_SOURCE_DIR`, `TWIN_LAKE_DIR`, `TWIN_OUTP
 - `lake/`: `analytics.duckdb` is gitignored, but `lake/manifest.json` and the files in
   `lake/curated/` (parquet, json, `residual_engine.pkl`) ARE committed despite the
   `.gitignore` patterns. `build-lake`, `build-panel`, `train`, `evaluate`, `charts`,
-  `report` and `make all`/`make clean` overwrite or delete them with default settings —
-  don't run them casually against the checkout.
+  `report` and `make all` overwrite them with default settings — don't run them casually
+  against the checkout. `make clean` removes only uncommitted generated files (output
+  figures/PDFs, `lake/analytics.duckdb`, staging leftovers) and leaves committed lake
+  artifacts alone.
 - `output/` (figures, PDFs) is gitignored and regenerable.
 - `residual_engine.pkl` pickles a plain dict of scikit-learn estimators, not a project
   class, so it survives module moves. Keep it that way.
-- Scratch rebuild without touching committed artifacts — point both dirs elsewhere
-  and build the lake and panel first (`make all` does not run them):
+- Scratch rebuild without touching committed artifacts — `make all` runs lake → panel →
+  evaluate → train → charts → report → test from the raw workbooks, and the Makefile honours
+  the same dir overrides (as does `make clean`):
   ```bash
-  export TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/out
-  .venv/bin/twin build-lake && .venv/bin/twin build-panel && make all
+  TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/out make all
   ```
 
 ## Change discipline

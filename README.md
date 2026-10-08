@@ -19,7 +19,8 @@ pip install -e ".[report,dev]"   # editable install of src/; 'report' adds repor
 # The raw competition workbooks are not redistributed in this repository: place the
 # organizer-provided files in '01a - DCT Dataset/' (or set TWIN_SOURCE_DIR) before 'twin build-lake'.
 
-# --- One-command full rebuild (all metrics + artifacts) ---
+# --- One-command full rebuild from the raw workbooks (lake → panel → evaluate → train → charts → report → test) ---
+# With default settings this overwrites the committed lake artifacts; see Configuration for a scratch rebuild.
 make all
 
 # --- Or run individual steps manually (also available as: python -m tourism_twin <command>) ---
@@ -67,10 +68,10 @@ Every file location is defined once in [`src/tourism_twin/config.py`](src/touris
 | `TWIN_OUTPUT_DIR` | `output/` | Generated figures and PDF reports |
 
 ```bash
-export TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/output
-twin build-lake && twin build-panel   # `make all` starts from an existing lake and panel
-make all
+TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/output make all
 ```
+
+`make clean` removes only uncommitted generated files (figures, PDFs, `analytics.duckdb`, staging leftovers) and honours the same two variables; it never deletes committed lake artifacts.
 
 ---
 
@@ -95,7 +96,7 @@ The **Abu Dhabi Tourism Digital Twin** combines:
 1. **Structural Conversion Engine (`src/tourism_twin/models/structural.py`)**: A visible conversion chain mapping aviation decisions to hotel demand:
    $$\text{Aviation Levers} \to \text{Total Pax} \to \text{P2P Traffic} \xrightarrow{M_{m, s}} \text{Hotel Arrivals} \xrightarrow{L_{m, s}} \text{Hotel Guests}$$
    Includes **Exact Waterfall Attribution Decomposition** with $0.000000$ verified discrepancy and cold-start support for unmodeled source markets.
-2. **Regularized ML Residual Layer (`src/tourism_twin/models/residual.py`)**: Captures calendar harmonics, Islamic lunar holidays (Eid al-Fitr, Eid al-Adha), UAE National Day, and major events (ADIPEC, Formula 1) without touching flight variables, mathematically guaranteeing **monotonicity**.
+2. **Regularized ML Residual Layer (`src/tourism_twin/models/residual.py`)**: Captures calendar harmonics, Islamic lunar holidays (Eid al-Fitr, Eid al-Adha), UAE National Day, and major events (ADIPEC, Formula 1) without touching flight variables, mathematically guaranteeing **monotonicity**. It is fitted on the residual against the planning-mode structural prediction (`StructuralEngine.planning_guests`: scheduled seats × calibrated seasonal priors, the same chain the simulator serves), never against realized load factor or P2P share.
 3. **Market Archetype Profiling (`src/tourism_twin/domain/archetypes.py`)**: Categorizes source markets into 6 defensible behavioral archetypes (*Direct Leisure, Resident/VFR, Regional GCC, Hub-Mediated, Highly Seasonal, Emerging/Sparse*) with hierarchical regional shrinkage for cold-start markets.
 4. **Uncertainty & Sensitivity Engine (`src/tourism_twin/models/uncertainty.py` & `src/tourism_twin/services/sensitivity.py`)**: Beta-distributed sampling for bounded operational ratios, parameter shocks, time-block bootstrap residuals, and Tornado sensitivity ranking.
 
@@ -103,7 +104,7 @@ The **Abu Dhabi Tourism Digital Twin** combines:
 
 ## 3. Strict Forward-Holdout Evaluation Results
 
-Evaluated on 30 complete 7-day holdout weeks with complete guest inputs (Jan 2025 – Jul 2025, 621 market-weeks across all 21 markets) calibrated on 104 complete weeks (Jan 2023 – Dec 2024, 2,132 market-weeks):
+Evaluated on 30 complete 7-day holdout weeks with complete guest inputs (Jan 2025 – Jul 2025, 621 market-weeks across all 21 markets) calibrated on 104 complete weeks (Jan 2023 – Dec 2024, 2,132 market-weeks). The back-test trains the shipped structural, residual and conformal components with their production trainers on the calibration window only, so the Hybrid row measures the model the simulator serves:
 
 ### Diagnostic Separation
 
@@ -122,7 +123,7 @@ Evaluated on 30 complete 7-day holdout weeks with complete guest inputs (Jan 202
 | **1. Historical Seasonal Prior** | 23.00% | -6.60% | 3,172.8 | 6,156.5 | Naive Baseline |
 | **2. Pure ML / Calendar Model** | 22.00% | -8.50% | 3,035.6 | 5,839.0 | Calendar Extrapolation |
 | **3. Structural-Only Engine** | 23.14% | +5.93% | 3,192.1 | 6,007.8 | Pre-Flight Decision Chain |
-| **4. Hybrid Digital Twin (Proposed)** | **21.73%** | **+5.37%** | **2,998.8** | **5,673.5** | **Champion (Lowest MAE & RMSE)** |
+| **4. Hybrid Digital Twin** | **21.74%** | **+5.36%** | **2,999.2** | **5,673.6** | **Lowest WMAPE, \|Bias\|, MAE & RMSE** |
 
 *Demonstrated Empirical Holdout Coverage: 65.2% (Nominal target: 80.0%, reflecting positive 2025 secular trend drift relative to 2023–2024 base).*
 

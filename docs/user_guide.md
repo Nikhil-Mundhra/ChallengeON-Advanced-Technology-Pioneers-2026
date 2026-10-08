@@ -187,15 +187,15 @@ twin train                          # or: make train
 
 ### Generated Artifacts
 
-- `lake/curated/structural_calibration.json`: Calibrated baseline parameters across 17 market archetypes and 4 seasons.
-- `lake/curated/residual_engine.pkl`: Trained scikit-learn RidgeCV model fitted on calendar, seasonal, and lagged demand features with aviation features excluded to protect monotonicity.
+- `lake/curated/structural_calibration.json`: Calibrated baseline parameters for 21 markets (15 individual markets, 5 regional clusters, and Domestic) across 4 seasons.
+- `lake/curated/residual_engine.pkl`: Trained scikit-learn RidgeCV models (one per market) fitted on calendar-harmonic, quarter, season, holiday and event features with aviation features excluded to protect monotonicity. The target is actual guests minus the planning-mode structural prediction (scheduled seats × calibrated seasonal priors, exactly what the simulator computes), not a prediction built from realized load factor or P2P share.
 - `lake/curated/conformal_calibrator.json`: Calibrated historical residual distributions used for empirical uncertainty intervals.
 
 ---
 
 ## 8. Holdout Back-Testing & Model Evaluation
 
-To execute the temporal back-test against the 2025 holdout window (Jan 6, 2025 to Jul 27, 2025, 30 complete ISO weeks, 510 market-weeks):
+To execute the temporal back-test against the 2025 holdout window (Dec 30, 2024 to Jul 27, 2025, 30 complete ISO weeks, 621 market-weeks; calibrated on the preceding 104 weeks, 2,132 market-weeks):
 
 ```bash
 twin evaluate                       # or: make evaluate
@@ -210,7 +210,7 @@ The evaluation script rigorously separates planning simulations from realized da
 3. **Domestic Forecast Mode:** Pure seasonal prior forecast with zero holdout arrival leakage.
 4. **Combined Diagnostic:** Full territory evaluation across all international markets and domestic demand.
 
-Benchmark metrics are written to `lake/curated/evaluation_results.json`.
+The back-test trains the shipped structural, residual and conformal components with the same trainers as `twin train`, restricted to the 104 calibration weeks, so the Hybrid Digital Twin benchmark row measures the model the simulator serves. Benchmark metrics, including the best model per metric (`benchmark_leaders`), are written to `lake/curated/evaluation_results.json`.
 
 ---
 
