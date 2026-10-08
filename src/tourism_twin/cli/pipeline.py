@@ -38,6 +38,7 @@ def build_lake(args: argparse.Namespace) -> None:
 
 def build_panel(args: argparse.Namespace) -> None:
     from tourism_twin.data.panel import save_weekly_panel
+    from tourism_twin.features import PANEL_FEATURES
 
     print(f"Building weekly market panel...")
     saved_path = save_weekly_panel()
@@ -52,32 +53,24 @@ def build_panel(args: argparse.Namespace) -> None:
     # Print sample metrics for top 5 markets in train split
     train_df = df[df["dataset_split"] == "train"]
     print("\n=== TRAIN SPLIT SUMMARY BY MARKET (Top 5 + Domestic) ===")
-    # FIX (P1-A): Ratio metrics (LOS, multiplier, LF) must be computed as ratio-of-sums,
-    # not mean-of-ratios. Using mean() violates Jensen's inequality: in low-volume weeks,
-    # implied_los and effective_response_multiplier blow up, biasing the arithmetic mean
-    # far above the capacity-weighted average. Correct form: sum(numerator) / sum(denominator).
-    summary_raw = (
-        train_df.groupby("market")
-        .agg(
-            total_guests=("guests", "sum"),
-            total_arrivals=("new_arrivals", "sum"),
-            total_p2p=("p2p", "sum"),
-            total_pax=("pax", "sum"),
-            total_seats=("seats", "sum"),
-        )
-        .sort_values("total_guests", ascending=False)
+    # Ratios are recomputed from the summed parts (ratio of sums), never averaged across weeks.
+    totals = (
+        train_df.groupby("market")[["guests", "new_arrivals", "p2p", "pax", "seats"]].sum()
+        .sort_values("guests", ascending=False)
         .head(6)
     )
-    summary_raw["weighted_los"] = summary_raw["total_guests"] / summary_raw["total_arrivals"].replace(0, float("nan"))
-    summary_raw["weighted_multiplier"] = summary_raw["total_arrivals"] / summary_raw["total_p2p"].replace(0, float("nan"))
-    summary_raw["weighted_lf"] = summary_raw["total_pax"] / summary_raw["total_seats"].replace(0, float("nan"))
-    summary = summary_raw[["total_guests", "total_arrivals", "weighted_los", "total_p2p", "weighted_multiplier", "weighted_lf"]]
+    ratios = PANEL_FEATURES.apply(totals, ["implied_los", "effective_response_multiplier", "load_factor_raw"])
+    summary = ratios.rename(columns={
+        "guests": "total_guests", "new_arrivals": "total_arrivals", "p2p": "total_p2p",
+        "implied_los": "weighted_los", "effective_response_multiplier": "weighted_multiplier", "load_factor_raw": "weighted_lf",
+    })[["total_guests", "total_arrivals", "weighted_los", "total_p2p", "weighted_multiplier", "weighted_lf"]]
     print(summary.to_string())
 
 
 
 def build_daily_panel(args: argparse.Namespace) -> None:
-    from tourism_twin.data.daily_panel import DEFAULT_MAX_LAG, save_daily_panel
+    from tourism_twin.data.daily_panel import save_daily_panel
+    from tourism_twin.features.lags import DEFAULT_MAX_LAG
 
     max_lag = DEFAULT_MAX_LAG if args.max_lag is None else args.max_lag
     path = save_daily_panel(max_lag=max_lag)

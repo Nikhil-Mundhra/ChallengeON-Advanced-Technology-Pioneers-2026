@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from tourism_twin.domain.seasons import assign_season
+
 
 def extract_calendar_features(
     iso_week: int,
@@ -24,8 +26,9 @@ def extract_calendar_features(
     q3 = 1.0 if quarter == 3 else 0.0
     q4 = 1.0 if quarter == 4 else 0.0
 
-    winter = 1.0 if month in (11, 12, 1, 2, 3) else 0.0
-    summer = 1.0 if month in (6, 7, 8) else 0.0
+    season = assign_season(month)
+    winter = 1.0 if season == "Winter_Peak" else 0.0
+    summer = 1.0 if season == "Summer_Trough" else 0.0
 
     return np.array([
         sin_w1,

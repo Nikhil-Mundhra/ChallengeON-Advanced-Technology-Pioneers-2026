@@ -16,21 +16,31 @@ Missing-value policy (per nationality-day, before aggregating to markets):
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 import duckdb
 import pandas as pd
 
 from tourism_twin.config import SETTINGS
+from tourism_twin.data.imputation import interpolate_within_series
 from tourism_twin.data.panel import build_market_case
-from tourism_twin.domain.events import HOLIDAY_WEEKS, MAJOR_EVENT_WEEKS
+from tourism_twin.data.repository import LakeRepository
 from tourism_twin.domain.markets import TOP_15_INTERNATIONAL_MARKETS
-from tourism_twin.domain.seasons import assign_season
+from tourism_twin.features import PANEL_FEATURES
+from tourism_twin.features.lags import DEFAULT_MAX_LAG
 
-DEFAULT_MAX_LAG = 21
-
-
-def lag_column(k: int) -> str:
-    return f"arrivals_lag_{k}"
+# Derived columns of the daily panel, in output order (definitions live in tourism_twin.features).
+DAILY_FEATURES = [
+    "arrival_lags",
+    "dow",
+    "iso_week",
+    "month",
+    "quarter",
+    "year",
+    "season",
+    "is_holiday_week",
+    "is_major_event_week",
+]
 
 
 def _with_markets(guests: pd.DataFrame) -> pd.DataFrame:
@@ -52,49 +62,19 @@ def _fill_suppressed_arrivals(rows: pd.DataFrame) -> pd.DataFrame:
     rows = rows.sort_values(["residence_group", "nationality", "date"], na_position="first").copy()
     present = rows["is_source_present"].astype(bool)
     rows["arrivals_interpolated"] = present & rows["new_arrivals"].isna()
-
     series_key = rows["residence_group"] + "|" + rows["nationality"].fillna("")
-    rows["new_arrivals_filled"] = (
-        rows["new_arrivals"]
-        .groupby(series_key)
-        .transform(lambda s: s.interpolate(method="linear", limit_direction="both"))
-    )
+    rows["new_arrivals_filled"] = interpolate_within_series(rows["new_arrivals"], series_key)
     rows["absent_record"] = ~present
     rows["same_day_suppressed"] = present & rows["same_day_guests"].isna()
     return rows
 
 
-def _add_lags(panel: pd.DataFrame, max_lag: int) -> pd.DataFrame:
-    """Lags over each market's concatenated train+test series, so early test days see train days."""
-    panel = panel.sort_values(["market", "date"]).reset_index(drop=True)
-    by_market = panel.groupby("market")["new_arrivals_filled"]
-    lags = {lag_column(k): by_market.shift(k) for k in range(max_lag + 1)}
-    panel = pd.concat([panel, pd.DataFrame(lags)], axis=1)
-    position = panel.groupby("market").cumcount()
-    panel["lag_complete"] = position >= max_lag
-    return panel
-
-
-def _add_calendar(panel: pd.DataFrame) -> pd.DataFrame:
-    dates = panel["date"]
-    week_start = (dates - pd.to_timedelta(dates.dt.dayofweek, unit="D")).dt.strftime("%Y-%m-%d")
-    panel["dow"] = dates.dt.dayofweek
-    panel["iso_week"] = dates.dt.isocalendar().week.astype(int)
-    panel["month"] = dates.dt.month
-    panel["quarter"] = dates.dt.quarter
-    panel["year"] = dates.dt.year
-    panel["season"] = panel["month"].apply(assign_season)
-    panel["is_holiday_week"] = week_start.isin(HOLIDAY_WEEKS).astype(int)
-    panel["is_major_event_week"] = week_start.isin(MAJOR_EVENT_WEEKS).astype(int)
-    return panel
-
-
 def build_daily_panel(
-    guest_path: Path = SETTINGS.guest_daily_path,
+    repository: Optional[LakeRepository] = None,
     max_lag: int = DEFAULT_MAX_LAG,
 ) -> pd.DataFrame:
     """One row per (market, date) across both splits, with arrival lags 0..max_lag."""
-    rows = _with_markets(pd.read_parquet(guest_path))
+    rows = _with_markets((repository or LakeRepository()).guests())
     rows["date"] = pd.to_datetime(rows["date"])
     rows = _fill_suppressed_arrivals(rows)
 
@@ -119,18 +99,19 @@ def build_daily_panel(
     panel["same_day_was_suppressed"] = panel["n_same_day_suppressed"] > 0
     panel["has_absent_records"] = panel["n_absent_records"] > 0
 
-    gaps = panel.sort_values(["market", "date"]).groupby("market")["date"].diff().dt.days.dropna()
+    panel = panel.sort_values(["market", "date"]).reset_index(drop=True)
+    gaps = panel.groupby("market")["date"].diff().dt.days.dropna()
     if (gaps != 1).any():
         raise ValueError("A market's daily series is not contiguous; lags would be misaligned")
 
-    return _add_calendar(_add_lags(panel, max_lag))
+    return PANEL_FEATURES.apply(panel, DAILY_FEATURES, anchor="date", max_lag=max_lag)
 
 
 def save_daily_panel(
     output_path: Path = SETTINGS.daily_panel_path,
-    guest_path: Path = SETTINGS.guest_daily_path,
+    repository: Optional[LakeRepository] = None,
     max_lag: int = DEFAULT_MAX_LAG,
 ) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    build_daily_panel(guest_path=guest_path, max_lag=max_lag).to_parquet(output_path, index=False)
+    build_daily_panel(repository, max_lag=max_lag).to_parquet(output_path, index=False)
     return output_path

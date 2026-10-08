@@ -9,7 +9,9 @@ import pandas as pd
 import pytest
 
 from tourism_twin.config import SETTINGS
-from tourism_twin.data.daily_panel import DEFAULT_MAX_LAG, lag_column
+from tourism_twin.data.panel import build_weekly_panel
+from tourism_twin.features import FeatureRegistry, FeatureSpec, Kind
+from tourism_twin.features.lags import DEFAULT_MAX_LAG, lag_column
 from tourism_twin.domain.archetypes import MarketArchetype, get_market_archetype
 from tourism_twin.domain.markets import REGIONAL_CLUSTERS, TOP_15_INTERNATIONAL_MARKETS
 from tourism_twin.domain.scenario import ScenarioLever
@@ -57,6 +59,35 @@ def test_model_artifacts_exist_and_load():
     assert "_demonstrated_holdout_coverage" in json.loads(SETTINGS.conformal_path.read_text())
 
 
+# --- feature registry ---------------------------------------------------------------------
+
+def _toy_registry() -> FeatureRegistry:
+    registry = FeatureRegistry()
+    registry.register(FeatureSpec("ratio", Kind.RATIO, ("a", "b"), lambda f, **_: f["a"] / f["b"]))
+    registry.register(FeatureSpec("ratio_flag", Kind.FLAG, ("ratio",), lambda f, **_: (f["ratio"] > 1).astype(int)))
+    return registry
+
+
+def test_registry_computes_dependencies_first_and_only_once():
+    frame = pd.DataFrame({"a": [2.0, 1.0], "b": [1.0, 2.0]})
+    out = _toy_registry().apply(frame, ["ratio_flag", "ratio"])
+    assert list(out.columns) == ["a", "b", "ratio", "ratio_flag"]
+    assert out["ratio_flag"].tolist() == [1, 0]
+    assert list(frame.columns) == ["a", "b"]  # input frame is not mutated
+
+
+def test_registry_rejects_missing_inputs_cycles_and_duplicates():
+    registry = _toy_registry()
+    with pytest.raises(KeyError, match="missing column 'b'"):
+        registry.apply(pd.DataFrame({"a": [1.0]}), ["ratio"])
+    with pytest.raises(ValueError, match="already registered"):
+        registry.register(FeatureSpec("ratio", Kind.RATIO, (), lambda f, **_: f))
+    registry.register(FeatureSpec("x", Kind.FLAG, ("y",), lambda f, **_: f))
+    registry.register(FeatureSpec("y", Kind.FLAG, ("x",), lambda f, **_: f))
+    with pytest.raises(ValueError, match="cycle"):
+        registry.apply(pd.DataFrame({"a": [1.0]}), ["x"])
+
+
 # --- panels ---------------------------------------------------------------------------------
 
 def test_weekly_panel_contract(weekly_panel: pd.DataFrame):
@@ -67,6 +98,10 @@ def test_weekly_panel_contract(weekly_panel: pd.DataFrame):
     assert weekly_panel["load_factor_raw"].max() > 1.0
     assert weekly_panel["load_factor"].max() <= 1.0
     assert (weekly_panel["is_load_factor_outlier"] == 1).sum() > 0
+
+
+def test_weekly_panel_rebuilds_from_the_lake_exactly(weekly_panel: pd.DataFrame):
+    assert build_weekly_panel().equals(weekly_panel)
 
 
 def test_daily_panel_contract(daily_panel: pd.DataFrame):

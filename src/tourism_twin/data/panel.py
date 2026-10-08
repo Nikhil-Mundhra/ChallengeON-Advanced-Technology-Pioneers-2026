@@ -10,16 +10,37 @@ Ensures strict daily alignment before weekly aggregation:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
-import duckdb
-import numpy as np
 import pandas as pd
 
 from tourism_twin.config import SETTINGS
-from tourism_twin.domain.archetypes import get_market_archetype
-from tourism_twin.domain.events import HOLIDAY_WEEKS, MAJOR_EVENT_WEEKS
+from tourism_twin.data.repository import LakeRepository
 from tourism_twin.domain.markets import REGIONAL_CLUSTERS, TOP_15_INTERNATIONAL_MARKETS
-from tourism_twin.domain.seasons import assign_season
+from tourism_twin.features import PANEL_FEATURES
+
+# Derived columns of the weekly panel, in output order (definitions live in tourism_twin.features).
+WEEKLY_FEATURES = [
+    "is_complete_week",
+    "is_complete_guest_inputs",
+    "load_factor_raw",
+    "is_load_factor_outlier",
+    "load_factor",
+    "p2p_share",
+    "implied_los",
+    "effective_response_multiplier",
+    "year",
+    "quarter",
+    "month",
+    "iso_week",
+    "season",
+    "is_winter_peak",
+    "is_summer_trough",
+    "is_holiday_week",
+    "is_major_event_week",
+    "archetype",
+    "is_domestic",
+]
 
 # Last complete Monday-Sunday week of the train split; models are calibrated up to here.
 TRAINING_CUTOFF = "2025-07-27"
@@ -56,14 +77,14 @@ def build_market_case(top15_tuple: tuple) -> str:
     return "\n".join(lines)
 
 
-def build_weekly_panel(db_path: Path = SETTINGS.database_path) -> pd.DataFrame:
+def build_weekly_panel(repository: Optional[LakeRepository] = None) -> pd.DataFrame:
     """Build cleanly matched weekly panel from DuckDB.
 
     Filters to Jan 1, 2023 onward. Matches flight operations and guest records
     at the daily grain first to prevent flight total duplication across split boundaries.
     Propagates grid completeness, unclipped raw load factors, and quality flags.
     """
-    con = duckdb.connect(str(db_path), read_only=True)
+    con = (repository or LakeRepository()).sql()
     top15_tuple = tuple(TOP_15_INTERNATIONAL_MARKETS)
 
     # Build parameterised CASE expressions for flight departure country and guest nationality
@@ -141,68 +162,17 @@ def build_weekly_panel(db_path: Path = SETTINGS.database_path) -> pd.DataFrame:
     panel["min_date"] = pd.to_datetime(panel["min_date"]).dt.date
     panel["max_date"] = pd.to_datetime(panel["max_date"]).dt.date
 
-    # Completeness verification
-    panel["is_complete_week"] = (panel["days_in_week"] == 7).astype(int)
-    panel["is_complete_guest_inputs"] = (
-        (panel["present_source_records"] == panel["total_grid_records"])
-        & (panel["missing_arrival_records"] == 0)
-    ).astype(int)
-
-    # Computed operational ratios: preserve unclipped raw load factor alongside bounded version
-    panel["load_factor_raw"] = np.where(
-        panel["seats"] > 0,
-        panel["pax"] / panel["seats"],
-        np.nan,
-    )
-    panel["is_load_factor_outlier"] = (panel["load_factor_raw"] > 1.0).astype(int)
-    panel["load_factor"] = np.clip(panel["load_factor_raw"], 0.0, 1.0)
-
-    panel["p2p_share"] = np.where(
-        panel["pax"] > 0,
-        np.clip(panel["p2p"] / panel["pax"], 0.0, 1.0),
-        np.nan,
-    )
-    panel["implied_los"] = np.where(
-        (panel["new_arrivals"] > 0) & panel["guests"].notnull(),
-        panel["guests"] / panel["new_arrivals"],
-        np.nan,
-    )
-    # Effective response multiplier: macro predictive translation from P2P arrivals to hotel arrivals
-    panel["effective_response_multiplier"] = np.where(
-        panel["p2p"] > 0,
-        panel["new_arrivals"] / panel["p2p"],
-        np.nan,
-    )
-
-    # Calendar enrichment
-    week_start_dt = pd.to_datetime(panel["week_start"])
-    panel["year"] = week_start_dt.dt.year
-    panel["quarter"] = week_start_dt.dt.quarter
-    panel["month"] = panel["representative_month"].astype(int)
-    panel["iso_week"] = week_start_dt.dt.isocalendar().week.astype(int)
-
-    panel["season"] = panel["month"].apply(assign_season)
-    panel["is_winter_peak"] = (panel["season"] == "Winter_Peak").astype(int)
-    panel["is_summer_trough"] = (panel["season"] == "Summer_Trough").astype(int)
-
-    week_str = panel["week_start"].astype(str)
-    panel["is_holiday_week"] = week_str.isin(HOLIDAY_WEEKS).astype(int)
-    panel["is_major_event_week"] = week_str.isin(MAJOR_EVENT_WEEKS).astype(int)
-
-    # Market Archetype tagging
-    panel["archetype"] = panel["market"].apply(lambda m: get_market_archetype(m).value)
-    panel["is_domestic"] = (panel["market"] == "DOMESTIC").astype(int)
-
+    panel = PANEL_FEATURES.apply(panel, WEEKLY_FEATURES, anchor="week_start")
     panel = panel.sort_values(["week_start", "market", "dataset_split"]).reset_index(drop=True)
     return panel
 
 
 def save_weekly_panel(
     output_path: Path = SETTINGS.panel_path,
-    db_path: Path = SETTINGS.database_path,
+    repository: Optional[LakeRepository] = None,
 ) -> Path:
     """Build and save weekly panel to Parquet."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    df = build_weekly_panel(db_path=db_path)
+    df = build_weekly_panel(repository)
     df.to_parquet(output_path, index=False)
     return output_path
