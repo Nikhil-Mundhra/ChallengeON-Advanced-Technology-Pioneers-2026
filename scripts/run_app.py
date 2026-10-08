@@ -2,11 +2,7 @@
 """Run the interactive web application for the Abu Dhabi Tourism Digital Twin."""
 
 import argparse
-import sys
-from pathlib import Path
 
-# Ensure repo root is on sys.path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.server import run_server
 

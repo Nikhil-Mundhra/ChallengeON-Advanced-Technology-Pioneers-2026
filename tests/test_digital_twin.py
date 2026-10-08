@@ -1,12 +1,9 @@
 """Unit and integration test suite for the Abu Dhabi Tourism Digital Twin."""
 
 import json
-import sys
 import unittest
 from pathlib import Path
 
-# Ensure repo root is on sys.path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 import pandas as pd

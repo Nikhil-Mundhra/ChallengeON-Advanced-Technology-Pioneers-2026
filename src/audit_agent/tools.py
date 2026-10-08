@@ -538,7 +538,7 @@ class ReadOnlyTools:
             return "source code"
         if suffix in {".md", ".pdf"}:
             return "documentation"
-        if path.name in {"Makefile", "requirements.txt", ".gitignore"}:
+        if path.name in {"Makefile", "pyproject.toml", ".gitignore"}:
             return "configuration"
         if text.startswith("audit/"):
             return "audit state"

@@ -31,7 +31,7 @@ from engine.archetypes import (
     get_market_archetype,
 )
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_PANEL_PATH = ROOT_DIR / "lake" / "curated" / "weekly_market_panel.parquet"
 DEFAULT_CALIBRATION_PATH = ROOT_DIR / "lake" / "curated" / "structural_calibration.json"
 

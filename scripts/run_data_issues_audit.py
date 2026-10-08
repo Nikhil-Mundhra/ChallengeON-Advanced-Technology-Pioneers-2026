@@ -6,8 +6,6 @@ import json
 import sys
 from pathlib import Path
 
-# Keep the entry point runnable as `python scripts/run_data_issues_audit.py`.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from audit_agent.checklist import load_checklist, validate_checklist
 from audit_agent.dashboard import build_snapshot, render_dashboard, watch_dashboard

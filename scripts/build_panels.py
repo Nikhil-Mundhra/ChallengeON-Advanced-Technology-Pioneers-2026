@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
 """Build and validate the curated weekly market panel from analytics.duckdb."""
 
-import sys
-from pathlib import Path
 
-# Ensure repo root is on sys.path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 from engine.panel import save_weekly_panel, OUTPUT_PANEL_PATH

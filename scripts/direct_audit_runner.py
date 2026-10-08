@@ -15,9 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# Ensure repo root is on sys.path
 ROOT_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT_DIR))
 
 from audit_agent.checklist import load_checklist, next_ready_task, task_map
 from audit_agent.issues import apply_decision, candidate_issues, render_markdown

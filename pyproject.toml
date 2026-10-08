@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "challengeon-tourism-twin"
+version = "0.1.0"
+description = "Abu Dhabi Tourism Digital Twin and DCT analytics lake for the ChallengeON hackathon"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "duckdb==1.5.6",
+    "openpyxl>=3.1,<4",
+    "pandas>=2.2,<3",
+    "scikit-learn>=1.5",
+    "scipy>=1.14",
+    "matplotlib>=3.9",
+    "pyarrow>=15.0",
+]
+
+[project.optional-dependencies]
+# PDF dossiers built by scripts/build_solution_report.py and scripts/build_database_report.py.
+report = ["reportlab>=4.0"]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+app = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

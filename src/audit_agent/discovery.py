@@ -9,7 +9,7 @@ from typing import Any
 from .storage import atomic_write_json, read_json
 
 
-SOURCE_ROOTS = ("engine", "app", "scripts", "tests", "audit_agent")
+SOURCE_ROOTS = ("src", "scripts", "tests")
 DATA_SUFFIXES = {".parquet", ".csv", ".tsv", ".xlsx", ".xls", ".json", ".pkl"}
 
 

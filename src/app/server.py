@@ -6,16 +6,12 @@ import json
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-import sys
-
-# Ensure repo root is on sys.path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from engine.simulator import TourismDigitalTwin
 from engine.structural import ScenarioLever
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
-STATIC_DIR = ROOT_DIR / "app" / "static"
+ROOT_DIR = Path(__file__).resolve().parents[2]
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 RESULTS_PATH = ROOT_DIR / "lake" / "curated" / "evaluation_results.json"
 
 TWIN = TourismDigitalTwin()

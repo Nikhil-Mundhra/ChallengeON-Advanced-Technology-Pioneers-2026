@@ -14,7 +14,7 @@ Every stage of the pipeline is 100% repeatable, deterministic, and self-containe
 # Set up Python virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[report,dev]"   # editable install: src/ packages import without sys.path hacks
 
 # --- One-command full rebuild (all metrics + artifacts) ---
 make all
@@ -52,12 +52,12 @@ python scripts/build_solution_report.py
 ## 2. Core Architecture
 
 The **Abu Dhabi Tourism Digital Twin** combines:
-1. **Structural Conversion Engine (`engine/structural.py`)**: A visible conversion chain mapping aviation decisions to hotel demand:
+1. **Structural Conversion Engine (`src/engine/structural.py`)**: A visible conversion chain mapping aviation decisions to hotel demand:
    $$\text{Aviation Levers} \to \text{Total Pax} \to \text{P2P Traffic} \xrightarrow{M_{m, s}} \text{Hotel Arrivals} \xrightarrow{L_{m, s}} \text{Hotel Guests}$$
    Includes **Exact Waterfall Attribution Decomposition** with $0.000000$ verified discrepancy and cold-start support for unmodeled source markets.
-2. **Regularized ML Residual Layer (`engine/residual.py`)**: Captures calendar harmonics, Islamic lunar holidays (Eid al-Fitr, Eid al-Adha), UAE National Day, and major events (ADIPEC, Formula 1) without touching flight variables, mathematically guaranteeing **monotonicity**.
-3. **Market Archetype Profiling (`engine/archetypes.py`)**: Categorizes source markets into 6 defensible behavioral archetypes (*Direct Leisure, Resident/VFR, Regional GCC, Hub-Mediated, Highly Seasonal, Emerging/Sparse*) with hierarchical regional shrinkage for cold-start markets.
-4. **Uncertainty & Sensitivity Engine (`engine/uncertainty.py` & `engine/simulator.py`)**: Beta-distributed sampling for bounded operational ratios, parameter shocks, time-block bootstrap residuals, and Tornado sensitivity ranking.
+2. **Regularized ML Residual Layer (`src/engine/residual.py`)**: Captures calendar harmonics, Islamic lunar holidays (Eid al-Fitr, Eid al-Adha), UAE National Day, and major events (ADIPEC, Formula 1) without touching flight variables, mathematically guaranteeing **monotonicity**.
+3. **Market Archetype Profiling (`src/engine/archetypes.py`)**: Categorizes source markets into 6 defensible behavioral archetypes (*Direct Leisure, Resident/VFR, Regional GCC, Hub-Mediated, Highly Seasonal, Emerging/Sparse*) with hierarchical regional shrinkage for cold-start markets.
+4. **Uncertainty & Sensitivity Engine (`src/engine/uncertainty.py` & `src/engine/simulator.py`)**: Beta-distributed sampling for bounded operational ratios, parameter shocks, time-block bootstrap residuals, and Tornado sensitivity ranking.
 
 ---
 

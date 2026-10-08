@@ -28,7 +28,7 @@ from engine.structural import (
 )
 from engine.uncertainty import UncertaintyBands, UncertaintyEngine
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_CONFORMAL_PATH = ROOT_DIR / "lake" / "curated" / "conformal_calibrator.json"
 
 

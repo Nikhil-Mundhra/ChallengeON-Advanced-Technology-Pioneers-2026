@@ -18,9 +18,9 @@
       "lake/curated/*.json",
       "lake/curated/residual_engine.pkl",
       "scripts/*.py",
-      "engine/*.py",
-      "app/server.py",
-      "app/static/index.html",
+      "src/engine/*.py",
+      "src/app/server.py",
+      "src/app/static/index.html",
       "tests/test_digital_twin.py",
       "README.md",
       "docs/*.md",
@@ -473,7 +473,7 @@
       "objective": "Are schemas compatible across splits, periods, database tables, Parquet files, JSON consumers, and the residual pickle?",
       "risk": "Stale models or drifted schemas may load yet produce incorrect outputs.",
       "scope": {
-        "files": ["01a - DCT Dataset/*.xlsx", "lake/**/*", "engine/*.py", "app/server.py", "requirements.txt"],
+        "files": ["01a - DCT Dataset/*.xlsx", "lake/**/*", "src/engine/*.py", "src/app/server.py", "requirements.txt"],
         "tables_or_sheets": ["ALL"],
         "fields": ["DISCOVER"],
         "date_or_population": "ALL"
@@ -569,7 +569,7 @@
       "objective": "Do guest-flight and market mappings create one-to-many or many-to-many fan-out?",
       "risk": "Join multiplication can fabricate seats, passengers, arrivals, or demand.",
       "scope": {
-        "files": ["scripts/build_lake.py", "engine/panel.py"],
+        "files": ["scripts/build_lake.py", "src/engine/panel.py"],
         "tables_or_sheets": ["guest_daily", "flight_daily", "guest_flight_daily", "weekly_market_panel"],
         "fields": ["date", "market", "nationality", "departure_country_name", "dataset_split"],
         "date_or_population": "2023 onward"
@@ -601,7 +601,7 @@
       "objective": "Is weekly_market_panel unique by week_start, market, and split, with boundary weeks represented correctly?",
       "risk": "Partial or split-crossing weeks can contaminate evaluation and aggregate totals.",
       "scope": {
-        "files": ["engine/panel.py", "lake/curated/weekly_market_panel.parquet"],
+        "files": ["src/engine/panel.py", "lake/curated/weekly_market_panel.parquet"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["week_start", "market", "dataset_split", "days_in_week", "min_date", "max_date", "is_complete_week"],
         "date_or_population": "ALL"
@@ -665,7 +665,7 @@
       "objective": "Are leap days, year boundaries, month boundaries, ISO weeks, seasons, holidays, and events derived consistently?",
       "risk": "Calendar mistakes can alter splits, seasonal parameters, and scenario outputs.",
       "scope": {
-        "files": ["engine/panel.py", "lake/curated/weekly_market_panel.parquet"],
+        "files": ["src/engine/panel.py", "lake/curated/weekly_market_panel.parquet"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["week_start", "year", "quarter", "month", "iso_week", "season", "is_holiday_week", "is_major_event_week"],
         "date_or_population": "ALL including 2024-02-29 and year boundaries"
@@ -697,7 +697,7 @@
       "objective": "Are all split windows adjacent or intentionally separated, non-overlapping, and reproducible?",
       "risk": "Overlap or mislabeled dates invalidates performance claims.",
       "scope": {
-        "files": ["engine/panel.py", "scripts/train_models.py", "scripts/evaluate_models.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/evaluation_results.json"],
+        "files": ["src/engine/panel.py", "scripts/train_models.py", "scripts/evaluate_models.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/evaluation_results.json"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["date", "week_start", "dataset_split", "target_available"],
         "date_or_population": "2022 through 2026"
@@ -729,7 +729,7 @@
       "objective": "Do lags, rolling values, priors, events, or aggregates use observations later than each row's decision date?",
       "risk": "Future-derived features create temporal leakage even when split labels look correct.",
       "scope": {
-        "files": ["engine/*.py", "scripts/train_models.py", "scripts/evaluate_models.py"],
+        "files": ["src/engine/*.py", "scripts/train_models.py", "scripts/evaluate_models.py"],
         "tables_or_sheets": ["weekly_market_panel", "model inputs"],
         "fields": ["all derived features and fitted parameters"],
         "date_or_population": "Every training and evaluation cutoff"
@@ -825,7 +825,7 @@
       "objective": "How are missing values imputed or propagated, and were imputation statistics fitted without holdout data?",
       "risk": "Leaky imputation and partial aggregates can distort model inputs and performance.",
       "scope": {
-        "files": ["scripts/*.py", "engine/*.py", "lake/curated/weekly_market_panel.parquet"],
+        "files": ["scripts/*.py", "src/engine/*.py", "lake/curated/weekly_market_panel.parquet"],
         "tables_or_sheets": ["weekly_market_panel", "model inputs"],
         "fields": ["all nullable inputs", "is_complete_guest_inputs", "missing_arrival_records"],
         "date_or_population": "train versus holdout versus competition test"
@@ -953,7 +953,7 @@
       "objective": "Which source values are extreme, and are raw and modelling versions both retained when clipping occurs?",
       "risk": "Clipping can conceal operational anomalies and bias model parameters.",
       "scope": {
-        "files": ["scripts/build_lake.py", "engine/panel.py", "engine/structural.py", "lake/curated/*.parquet"],
+        "files": ["scripts/build_lake.py", "src/engine/panel.py", "src/engine/structural.py", "lake/curated/*.parquet"],
         "tables_or_sheets": ["flight_daily", "weekly_market_panel"],
         "fields": ["load_factor_raw", "load_factor", "p2p_share", "implied_los", "effective_response_multiplier", "all volume fields"],
         "date_or_population": "ALL"
@@ -1017,7 +1017,7 @@
       "objective": "Do nationality and departure-country values map deterministically to top-15, regional clusters, OTHER, or DOMESTIC?",
       "risk": "Unmapped or multiply mapped categories alter the central market bridge.",
       "scope": {
-        "files": ["engine/archetypes.py", "engine/panel.py", "01a - DCT Dataset/*.xlsx"],
+        "files": ["src/engine/archetypes.py", "src/engine/panel.py", "01a - DCT Dataset/*.xlsx"],
         "tables_or_sheets": ["guest_daily", "flight_daily", "weekly_market_panel"],
         "fields": ["nationality", "departure_country_name", "market", "TOP_15_INTERNATIONAL_MARKETS", "REGIONAL_CLUSTERS"],
         "date_or_population": "ALL"
@@ -1049,7 +1049,7 @@
       "objective": "Which categories appear or disappear by period/split, and what evidence supports archetype assignments and fallbacks?",
       "risk": "New categories and unsupported classifications create fragile cold-start behavior.",
       "scope": {
-        "files": ["engine/archetypes.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/structural_calibration.json"],
+        "files": ["src/engine/archetypes.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/structural_calibration.json"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["market", "archetype", "dataset_split", "COUNTRY_TO_REGION_MAP"],
         "date_or_population": "ALL"
@@ -1081,7 +1081,7 @@
       "objective": "Does the implementation equate departure country with guest nationality, allocate across entities, or use another bridge?",
       "risk": "False entity equivalence can invalidate market-level demand estimates.",
       "scope": {
-        "files": ["engine/panel.py", "engine/structural.py", "scripts/evaluate_models.py"],
+        "files": ["src/engine/panel.py", "src/engine/structural.py", "scripts/evaluate_models.py"],
         "tables_or_sheets": ["flight_daily", "guest_daily", "weekly_market_panel"],
         "fields": ["departure_country_name", "nationality", "market", "effective_response_multiplier"],
         "date_or_population": "ALL"
@@ -1113,7 +1113,7 @@
       "objective": "Are the allocation or effective multiplier parameters identifiable from available aggregate data?",
       "risk": "Unidentifiable components may be falsely presented as separately measured behavior.",
       "scope": {
-        "files": ["lake/curated/weekly_market_panel.parquet", "lake/curated/structural_calibration.json", "engine/structural.py"],
+        "files": ["lake/curated/weekly_market_panel.parquet", "lake/curated/structural_calibration.json", "src/engine/structural.py"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["p2p", "new_arrivals", "effective_response_multiplier", "market", "season", "historical_weeks"],
         "date_or_population": "training rows"
@@ -1145,7 +1145,7 @@
       "objective": "Are unsupported markets and missing market-season cells handled visibly and consistently?",
       "risk": "Silent defaults can generate precise-looking estimates without local evidence.",
       "scope": {
-        "files": ["engine/archetypes.py", "engine/structural.py", "lake/curated/structural_calibration.json"],
+        "files": ["src/engine/archetypes.py", "src/engine/structural.py", "lake/curated/structural_calibration.json"],
         "tables_or_sheets": ["structural calibration"],
         "fields": ["market", "season", "historical_weeks", "is_cold_start", "default_multiplier", "effective_response_multiplier"],
         "date_or_population": "ALL markets and four seasons"
@@ -1177,7 +1177,7 @@
       "objective": "How materially do results change under diagonal, regional-pooling, and bounded alternative bridge assumptions?",
       "risk": "Central conclusions may depend more on the bridge assumption than on aviation changes.",
       "scope": {
-        "files": ["lake/curated/weekly_market_panel.parquet", "engine/structural.py"],
+        "files": ["lake/curated/weekly_market_panel.parquet", "src/engine/structural.py"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["market", "season", "p2p", "new_arrivals", "guests"],
         "date_or_population": "Representative high-volume, sparse, and hub-mediated markets"
@@ -1209,7 +1209,7 @@
       "objective": "Is each SUM, AVG, weighted mean, MIN, MAX, first/last, count, and deduplication appropriate to native grain?",
       "risk": "A single wrong operator can distort all downstream values.",
       "scope": {
-        "files": ["scripts/build_lake.py", "engine/panel.py", "scripts/train_models.py", "scripts/evaluate_models.py", "sql/*.sql"],
+        "files": ["scripts/build_lake.py", "src/engine/panel.py", "scripts/train_models.py", "scripts/evaluate_models.py", "sql/*.sql"],
         "tables_or_sheets": ["ALL transformed objects"],
         "fields": ["ALL aggregated fields"],
         "date_or_population": "ALL"
@@ -1241,7 +1241,7 @@
       "objective": "Are load factor, P2P share, implied LOS, effective multiplier, bias, and WMAPE computed from correct totals and denominators?",
       "risk": "Averaging row ratios instead of dividing totals can materially change parameters and metrics.",
       "scope": {
-        "files": ["engine/panel.py", "engine/structural.py", "scripts/evaluate_models.py"],
+        "files": ["src/engine/panel.py", "src/engine/structural.py", "scripts/evaluate_models.py"],
         "tables_or_sheets": ["weekly_market_panel", "evaluation results"],
         "fields": ["load_factor", "p2p_share", "implied_los", "effective_response_multiplier", "bias", "wmape"],
         "date_or_population": "ALL relevant groups"
@@ -1273,7 +1273,7 @@
       "objective": "Do OTHER INTERNATIONAL, OTHER_INTERNATIONAL, and five regional clusters preserve source populations and totals consistently?",
       "risk": "Legacy and current labels can split or double-count the same population.",
       "scope": {
-        "files": ["engine/archetypes.py", "engine/panel.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/*.json"],
+        "files": ["src/engine/archetypes.py", "src/engine/panel.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/*.json"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["market", "nationality", "departure_country_name", "guests", "seats", "pax", "p2p"],
         "date_or_population": "ALL"
@@ -1433,7 +1433,7 @@
       "objective": "Do weekly market totals equal independent daily aggregations without join fan-out?",
       "risk": "The modelling panel is the common input to calibration, evaluation, and simulation.",
       "scope": {
-        "files": ["engine/panel.py", "lake/analytics.duckdb", "lake/curated/weekly_market_panel.parquet"],
+        "files": ["src/engine/panel.py", "lake/analytics.duckdb", "lake/curated/weekly_market_panel.parquet"],
         "tables_or_sheets": ["guest_daily", "flight_daily", "weekly_market_panel"],
         "fields": ["seats", "pax", "p2p", "transfer_pax", "transit_pax", "guests", "new_arrivals", "same_day_guests", "days_in_week"],
         "date_or_population": "2023 onward"
@@ -1465,7 +1465,7 @@
       "objective": "Can every structural parameter and residual-model training population be regenerated from eligible panel rows?",
       "risk": "Artifact values may be stale, leaky, or generated from a different population.",
       "scope": {
-        "files": ["scripts/train_models.py", "engine/structural.py", "engine/residual.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/structural_calibration.json", "lake/curated/residual_engine.pkl"],
+        "files": ["scripts/train_models.py", "src/engine/structural.py", "src/engine/residual.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/structural_calibration.json", "lake/curated/residual_engine.pkl"],
         "tables_or_sheets": ["weekly_market_panel", "model training inputs"],
         "fields": ["all parameter fields, features, residuals, market, season, historical_weeks"],
         "date_or_population": "artifact training cutoff"
@@ -1529,7 +1529,7 @@
       "objective": "Do identical scenario inputs produce the same parameters, chain values, waterfall, uncertainty, API response, and UI display?",
       "risk": "Cross-layer drift can make the planner see values not supported by the model artifacts.",
       "scope": {
-        "files": ["engine/*.py", "app/server.py", "app/static/index.html", "lake/curated/*.json", "lake/curated/residual_engine.pkl"],
+        "files": ["src/engine/*.py", "src/app/server.py", "src/app/static/index.html", "lake/curated/*.json", "lake/curated/residual_engine.pkl"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["conversion_chain", "waterfall", "hybrid", "uncertainty", "tornado", "coverage_pct"],
         "date_or_population": "Finite scenarios: default UK winter, domestic, cold-start, closure"
@@ -1561,7 +1561,7 @@
       "objective": "What source, formula, unit, filter, and status semantics produce each API, UI, report, and evaluation field?",
       "risk": "Published fields without lineage cannot be interpreted or independently checked.",
       "scope": {
-        "files": ["scripts/*.py", "engine/*.py", "app/**/*", "docs/*.md", "output/**/*"],
+        "files": ["scripts/*.py", "src/engine/*.py", "src/app/**/*", "docs/*.md", "output/**/*"],
         "tables_or_sheets": ["ALL"],
         "fields": ["all published fields"],
         "date_or_population": "ALL"
@@ -1593,7 +1593,7 @@
       "objective": "How are calendar, event, seasonal, structural, residual, normalization, and encoding features produced and fitted?",
       "risk": "Feature lineage errors and global fitting create hidden leakage.",
       "scope": {
-        "files": ["engine/panel.py", "engine/residual.py", "scripts/train_models.py", "scripts/evaluate_models.py"],
+        "files": ["src/engine/panel.py", "src/engine/residual.py", "scripts/train_models.py", "scripts/evaluate_models.py"],
         "tables_or_sheets": ["weekly_market_panel", "residual model inputs"],
         "fields": ["year", "quarter", "month", "iso_week", "season", "holiday/event flags", "all residual features"],
         "date_or_population": "ALL training and evaluation rows"
@@ -1625,7 +1625,7 @@
       "objective": "Which calculated fields are ignored, and which outputs rely on static defaults rather than learned values?",
       "risk": "Dead or default-driven logic may contradict architectural claims.",
       "scope": {
-        "files": ["engine/*.py", "scripts/*.py", "app/server.py", "app/static/index.html"],
+        "files": ["src/engine/*.py", "scripts/*.py", "src/app/server.py", "src/app/static/index.html"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["all constants, defaults, calculated fields, response fields"],
         "date_or_population": "ALL"
@@ -1657,7 +1657,7 @@
       "objective": "Which row keys enter each fit, calibration, evaluation, and competition-test operation?",
       "risk": "Ambiguous membership makes leakage impossible to exclude.",
       "scope": {
-        "files": ["scripts/train_models.py", "scripts/evaluate_models.py", "engine/structural.py", "engine/residual.py", "lake/curated/weekly_market_panel.parquet"],
+        "files": ["scripts/train_models.py", "scripts/evaluate_models.py", "src/engine/structural.py", "src/engine/residual.py", "lake/curated/weekly_market_panel.parquet"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["week_start", "market", "dataset_split", "is_complete_week", "is_complete_guest_inputs"],
         "date_or_population": "ALL"
@@ -1689,7 +1689,7 @@
       "objective": "Would every planning feature and prior have been known on the planner's decision date?",
       "risk": "Realized PAX, load factor, P2P, arrivals, or guests in planning inputs invalidates the planning claim.",
       "scope": {
-        "files": ["engine/*.py", "scripts/train_models.py", "scripts/evaluate_models.py", "app/server.py"],
+        "files": ["src/engine/*.py", "scripts/train_models.py", "scripts/evaluate_models.py", "src/app/server.py"],
         "tables_or_sheets": ["model and simulator inputs"],
         "fields": ["seats", "pax", "load_factor", "p2p", "p2p_share", "new_arrivals", "guests", "priors"],
         "date_or_population": "planning-mode evaluation and live scenarios"
@@ -1721,7 +1721,7 @@
       "objective": "Do scaling, imputation, feature selection, top-N markets, hyperparameters, or model choice use holdout/test information?",
       "risk": "Indirect leakage inflates reported performance.",
       "scope": {
-        "files": ["engine/*.py", "scripts/*.py", "lake/curated/*.json"],
+        "files": ["src/engine/*.py", "scripts/*.py", "lake/curated/*.json"],
         "tables_or_sheets": ["model inputs and evaluation outputs"],
         "fields": ["all fitted transforms, market lists, parameters, model choices"],
         "date_or_population": "ALL fitting and evaluation windows"
@@ -1753,7 +1753,7 @@
       "objective": "Were uncertainty margins fitted and assessed on temporally distinct observations?",
       "risk": "Using the same residuals for calibration and coverage makes coverage claims circular.",
       "scope": {
-        "files": ["scripts/train_models.py", "scripts/evaluate_models.py", "engine/uncertainty.py", "lake/curated/conformal_calibrator.json"],
+        "files": ["scripts/train_models.py", "scripts/evaluate_models.py", "src/engine/uncertainty.py", "lake/curated/conformal_calibrator.json"],
         "tables_or_sheets": ["calibration and holdout populations"],
         "fields": ["nonconformity scores", "market margins", "_target_alpha", "_demonstrated_holdout_coverage"],
         "date_or_population": "ALL calibration and coverage rows"
@@ -1785,7 +1785,7 @@
       "objective": "Does Guests represent daily stock, guest-days, persons, room nights, or another quantity at each layer?",
       "risk": "A unit or target mismatch makes model outputs unusable for hotel planning.",
       "scope": {
-        "files": ["Data_Dictionary.pdf", "README.md", "docs/*.md", "engine/*.py", "app/static/index.html"],
+        "files": ["Data_Dictionary.pdf", "README.md", "docs/*.md", "src/engine/*.py", "src/app/static/index.html"],
         "tables_or_sheets": ["raw guest files", "weekly_market_panel"],
         "fields": ["Guests", "guests", "new_arrivals", "same_day_guests", "baseline_los", "sim_guests"],
         "date_or_population": "ALL"
@@ -1881,7 +1881,7 @@
       "objective": "Do baseline, calendar, structural, and hybrid models receive comparable information and evaluation rows?",
       "risk": "An unfair benchmark can overstate model improvement.",
       "scope": {
-        "files": ["scripts/evaluate_models.py", "engine/residual.py", "lake/curated/evaluation_results.json"],
+        "files": ["scripts/evaluate_models.py", "src/engine/residual.py", "lake/curated/evaluation_results.json"],
         "tables_or_sheets": ["benchmark populations"],
         "fields": ["baseline features", "calendar features", "structural inputs", "hybrid inputs", "predictions"],
         "date_or_population": "holdout"
@@ -1945,7 +1945,7 @@
       "objective": "Which market-season parameters or residual features are weakly supported or unstable?",
       "risk": "Sparse or collinear inputs can produce brittle estimates and false precision.",
       "scope": {
-        "files": ["lake/curated/weekly_market_panel.parquet", "lake/curated/structural_calibration.json", "engine/residual.py"],
+        "files": ["lake/curated/weekly_market_panel.parquet", "lake/curated/structural_calibration.json", "src/engine/residual.py"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["market", "season", "historical_weeks", "seats", "pax", "p2p", "new_arrivals", "guests", "all residual features"],
         "date_or_population": "training"
@@ -1977,7 +1977,7 @@
       "objective": "Do errors show temporal, market, seasonal, or volume structure, and are results robust to cutoffs, grain, and outlier policies?",
       "risk": "Structured residuals and fragile choices undermine model and uncertainty assumptions.",
       "scope": {
-        "files": ["scripts/evaluate_models.py", "engine/residual.py", "lake/curated/weekly_market_panel.parquet"],
+        "files": ["scripts/evaluate_models.py", "src/engine/residual.py", "lake/curated/weekly_market_panel.parquet"],
         "tables_or_sheets": ["evaluation observations"],
         "fields": ["residual", "market", "season", "week_start", "volume", "archetype"],
         "date_or_population": "training and holdout"
@@ -2009,7 +2009,7 @@
       "objective": "What observations fit uncertainty margins, and do intervals represent levels, incremental effects, parameters, or mixtures?",
       "risk": "An interval calibrated for one quantity cannot support a different claim.",
       "scope": {
-        "files": ["scripts/train_models.py", "scripts/evaluate_models.py", "engine/uncertainty.py", "lake/curated/conformal_calibrator.json"],
+        "files": ["scripts/train_models.py", "scripts/evaluate_models.py", "src/engine/uncertainty.py", "lake/curated/conformal_calibrator.json"],
         "tables_or_sheets": ["calibration observations"],
         "fields": ["market margins", "_target_alpha", "p10", "p50", "p90", "delta_p10", "delta_p50", "delta_p90"],
         "date_or_population": "ALL uncertainty fitting and evaluation rows"
@@ -2073,7 +2073,7 @@
       "objective": "Do load factor, P2P share, multiplier, LOS, and residual draws obey bounds and realistic dependence?",
       "risk": "Independent or clipped draws can distort scenario risk and tail behavior.",
       "scope": {
-        "files": ["engine/uncertainty.py", "engine/archetypes.py"],
+        "files": ["src/engine/uncertainty.py", "src/engine/archetypes.py"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["load factor draws", "P2P draws", "multiplier shocks", "LOS shocks", "residual samples"],
         "date_or_population": "Representative supported and cold-start scenarios"
@@ -2105,7 +2105,7 @@
       "objective": "Does residual sampling preserve market and temporal structure, and do extreme or cold-start scenarios widen or warn appropriately?",
       "risk": "Residual reuse or fixed margins can understate uncertainty exactly where decisions are least supported.",
       "scope": {
-        "files": ["engine/uncertainty.py", "engine/simulator.py", "lake/curated/residual_engine.pkl"],
+        "files": ["src/engine/uncertainty.py", "src/engine/simulator.py", "lake/curated/residual_engine.pkl"],
         "tables_or_sheets": ["residual histories"],
         "fields": ["residual_history", "block_size", "conformal_margin", "is_cold_start", "interval width"],
         "date_or_population": "Supported, sparse, cold-start, closure, and extreme positive scenarios"
@@ -2137,7 +2137,7 @@
       "objective": "Does a zero-lever scenario reproduce baseline exactly, and do international flight levers leave domestic demand unchanged?",
       "risk": "Failure means the simulator changes demand without a planning action or mixes incompatible domains.",
       "scope": {
-        "files": ["engine/structural.py", "engine/simulator.py"],
+        "files": ["src/engine/structural.py", "src/engine/simulator.py"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["all baseline, simulated, delta, and waterfall fields"],
         "date_or_population": "Every calibrated market-season plus DOMESTIC"
@@ -2169,7 +2169,7 @@
       "objective": "Do capacity changes have coherent direction without double-counting frequency, gauge, and direct seat changes?",
       "risk": "Nonsensical directional effects undermine planning use.",
       "scope": {
-        "files": ["engine/structural.py", "engine/simulator.py"],
+        "files": ["src/engine/structural.py", "src/engine/simulator.py"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["delta_frequency", "aircraft_gauge", "delta_seats_pct", "sim_seats", "sim_guests", "hybrid_delta"],
         "date_or_population": "Representative markets in every archetype"
@@ -2201,7 +2201,7 @@
       "objective": "Do all outputs remain physical and do waterfall components exactly reconcile to total lift?",
       "risk": "Invalid shares, negative demand, or unreconciled attribution misleads planners.",
       "scope": {
-        "files": ["engine/structural.py", "engine/simulator.py", "app/server.py"],
+        "files": ["src/engine/structural.py", "src/engine/simulator.py", "src/app/server.py"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["load_factor", "p2p_share", "multiplier", "los", "all counts", "waterfall components", "total_lift"],
         "date_or_population": "Boundary and extreme finite input grid"
@@ -2233,7 +2233,7 @@
       "objective": "Does the API reject malformed, unknown, infinite, NaN, missing, and extreme inputs with safe, visible behavior?",
       "risk": "Weak validation can yield silent fallbacks, invalid JSON, or misleading scenarios.",
       "scope": {
-        "files": ["app/server.py", "engine/structural.py", "engine/uncertainty.py"],
+        "files": ["src/app/server.py", "src/engine/structural.py", "src/engine/uncertainty.py"],
         "tables_or_sheets": ["GET /api/simulate"],
         "fields": ["market", "season", "delta_freq", "gauge", "delta_seats_pct", "delta_lf", "delta_p2p", "delta_mult_pct", "delta_los"],
         "date_or_population": "Finite adversarial request corpus"
@@ -2329,7 +2329,7 @@
       "objective": "Do repeated builds and scenarios remain stable across process starts and valid command orders?",
       "risk": "Hidden randomness or mutable state can change recommendations.",
       "scope": {
-        "files": ["engine/uncertainty.py", "engine/simulator.py", "engine/residual.py", "scripts/*.py"],
+        "files": ["src/engine/uncertainty.py", "src/engine/simulator.py", "src/engine/residual.py", "scripts/*.py"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["random seeds", "model parameters", "scenario outputs", "artifact hashes"],
         "date_or_population": "Repeated finite runs"
@@ -2393,7 +2393,7 @@
       "objective": "Do README, documentation, JSON, reports, figures, API, and UI show identical metrics, populations, and coverage meanings?",
       "risk": "Conflicting headline numbers create immediate credibility failure.",
       "scope": {
-        "files": ["README.md", "docs/*.md", "lake/curated/evaluation_results.json", "lake/curated/conformal_calibrator.json", "app/**/*", "output/**/*", "scripts/build_*report.py", "scripts/generate_scenario_charts.py"],
+        "files": ["README.md", "docs/*.md", "lake/curated/evaluation_results.json", "lake/curated/conformal_calibrator.json", "src/app/**/*", "output/**/*", "scripts/build_*report.py", "scripts/generate_scenario_charts.py"],
         "tables_or_sheets": ["evaluation results"],
         "fields": ["WMAPE", "bias", "MAE", "RMSE", "coverage", "P10", "P90"],
         "date_or_population": "ALL published claims"
@@ -2425,7 +2425,7 @@
       "objective": "Are date ranges, week counts, observation counts, row counts, and market counts consistent across artifacts and documents?",
       "risk": "Conflicting populations indicate stale or mixed-generation evidence.",
       "scope": {
-        "files": ["lake/manifest.json", "lake/curated/evaluation_results.json", "README.md", "docs/*.md", "app/**/*", "output/**/*"],
+        "files": ["lake/manifest.json", "lake/curated/evaluation_results.json", "README.md", "docs/*.md", "src/app/**/*", "output/**/*"],
         "tables_or_sheets": ["ALL"],
         "fields": ["date ranges", "104/30 weeks", "1724/501 observations", "1768/510 observations", "row counts", "market counts"],
         "date_or_population": "ALL claims"
@@ -2457,7 +2457,7 @@
       "objective": "Do code, docs, API, UI, and reports describe origin, nationality, passengers, P2P, arrivals, multiplier, LOS, and guests consistently?",
       "risk": "Semantically inconsistent labels can cause planners to interpret estimates as observed causal quantities.",
       "scope": {
-        "files": ["README.md", "docs/*.md", "engine/*.py", "app/**/*", "output/**/*"],
+        "files": ["README.md", "docs/*.md", "src/engine/*.py", "src/app/**/*", "output/**/*"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["all conversion-chain fields and labels"],
         "date_or_population": "ALL"
@@ -2489,7 +2489,7 @@
       "objective": "Are simulator defaults, supported markets, domestic behavior, cold-start behavior, and planning-versus-realized modes consistent everywhere?",
       "risk": "A correct engine can still mislead if the interface or guide describes different behavior.",
       "scope": {
-        "files": ["scripts/run_scenario.py", "engine/*.py", "app/server.py", "app/static/index.html", "README.md", "docs/*.md"],
+        "files": ["scripts/run_scenario.py", "src/engine/*.py", "src/app/server.py", "src/app/static/index.html", "README.md", "docs/*.md"],
         "tables_or_sheets": ["GET /api/simulate"],
         "fields": ["default market", "season", "gauge", "all lever defaults", "supported markets", "mode labels"],
         "date_or_population": "ALL"
@@ -2553,7 +2553,7 @@
       "objective": "Which tests duplicate implementation logic, and which critical contracts have no independent test?",
       "risk": "Tautological tests can pass while shared logic is wrong.",
       "scope": {
-        "files": ["tests/test_digital_twin.py", "scripts/*.py", "engine/*.py", "app/server.py"],
+        "files": ["tests/test_digital_twin.py", "scripts/*.py", "src/engine/*.py", "src/app/server.py"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["data contracts", "leakage barriers", "conversion identities", "domestic separation", "cold start", "coverage", "metrics", "API", "rebuild"],
         "date_or_population": "ALL"
@@ -2585,7 +2585,7 @@
       "objective": "Does any test trace source evidence through panel, model, scenario, API, and UI without relying only on saved outputs?",
       "risk": "Layer-specific tests may miss integration defects.",
       "scope": {
-        "files": ["tests/test_digital_twin.py", "01a - DCT Dataset/*", "lake/**/*", "engine/*.py", "app/**/*"],
+        "files": ["tests/test_digital_twin.py", "01a - DCT Dataset/*", "lake/**/*", "src/engine/*.py", "src/app/**/*"],
         "tables_or_sheets": ["ALL"],
         "fields": ["representative end-to-end fields"],
         "date_or_population": "At least one international market-week and one adversarial case"
@@ -2617,7 +2617,7 @@
       "objective": "Are raw competition rows or duplicates committed, embedded in history, or copied into generated/static artifacts?",
       "risk": "Restricted-data exposure may violate competition rules.",
       "scope": {
-        "files": [".gitignore", "git tracked files and history", "01a - DCT Dataset/*", "lake/**/*", "output/**/*", "tmp/**/*", "app/static/**/*"],
+        "files": [".gitignore", "git tracked files and history", "01a - DCT Dataset/*", "lake/**/*", "output/**/*", "tmp/**/*", "src/app/static/**/*"],
         "tables_or_sheets": ["ALL"],
         "fields": ["raw rows, extracts, hashes, filenames"],
         "date_or_population": "Current tree and reachable Git history"
@@ -2649,7 +2649,7 @@
       "objective": "Can API endpoints or static paths return raw rows, excessive detail, arbitrary local files, or exception traces?",
       "risk": "A local prototype may unintentionally expose restricted or sensitive data.",
       "scope": {
-        "files": ["app/server.py", "app/static/**/*"],
+        "files": ["src/app/server.py", "src/app/static/**/*"],
         "tables_or_sheets": ["GET /", "GET /static/*", "GET /api/simulate", "GET /api/benchmark"],
         "fields": ["all response fields and path parameters"],
         "date_or_population": "Adversarial local requests"
@@ -2713,7 +2713,7 @@
       "objective": "Which claims are reproduced, inspected, merely claimed, or missing/contradicted?",
       "risk": "Unsupported statements can overstate readiness and model validity.",
       "scope": {
-        "files": ["README.md", "docs/*.md", "app/static/index.html", "output/**/*"],
+        "files": ["README.md", "docs/*.md", "src/app/static/index.html", "output/**/*"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["all material data, modelling, uncertainty, simulator, and test claims"],
         "date_or_population": "ALL"
@@ -2745,7 +2745,7 @@
       "objective": "Are observational relationships, effective multipliers, assumptions, estimates, overrides, and uncertainty described honestly?",
       "risk": "Unsupported causal or observed-fact language can materially mislead policy decisions.",
       "scope": {
-        "files": ["README.md", "docs/*.md", "app/**/*", "output/**/*"],
+        "files": ["README.md", "docs/*.md", "src/app/**/*", "output/**/*"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["causal verbs", "confidence/calibrated language", "observed/estimated/assumed labels", "numeric precision"],
         "date_or_population": "ALL"
@@ -2777,7 +2777,7 @@
       "objective": "Which schemas, commands, screenshots, counts, limitations, and business meanings are stale, absent, or require owner confirmation?",
       "risk": "Users may execute wrong steps or interpret unresolved semantics as settled.",
       "scope": {
-        "files": ["README.md", "docs/*.md", "Makefile", "requirements.txt", "app/**/*", "output/**/*"],
+        "files": ["README.md", "docs/*.md", "Makefile", "requirements.txt", "src/app/**/*", "output/**/*"],
         "tables_or_sheets": ["NOT_APPLICABLE"],
         "fields": ["commands", "paths", "schema", "counts", "screenshots", "limitations", "business definitions"],
         "date_or_population": "ALL"
@@ -2809,7 +2809,7 @@
       "objective": "Can one high-volume market, selected by training guest volume, be traced from raw records to UI without unexplained loss or semantic change?",
       "risk": "A defect in a dominant market materially affects headline totals.",
       "scope": {
-        "files": ["01a - DCT Dataset/*", "lake/**/*", "scripts/*.py", "engine/*.py", "app/**/*"],
+        "files": ["01a - DCT Dataset/*", "lake/**/*", "scripts/*.py", "src/engine/*.py", "src/app/**/*"],
         "tables_or_sheets": ["ALL lifecycle stages"],
         "fields": ["keys, units, statuses, mappings, parameters, outputs"],
         "date_or_population": "Highest-volume international market with one complete holdout week"
@@ -2841,7 +2841,7 @@
       "objective": "How does the full system behave for the supported international market with the fewest eligible training weeks or volume?",
       "risk": "Sparse estimates may appear as precise as well-supported markets.",
       "scope": {
-        "files": ["01a - DCT Dataset/*", "lake/**/*", "scripts/*.py", "engine/*.py", "app/**/*"],
+        "files": ["01a - DCT Dataset/*", "lake/**/*", "scripts/*.py", "src/engine/*.py", "src/app/**/*"],
         "tables_or_sheets": ["ALL lifecycle stages"],
         "fields": ["historical_weeks", "parameters", "fallbacks", "uncertainty", "outputs"],
         "date_or_population": "Reproducibly selected sparse supported market and one complete week"
@@ -2873,7 +2873,7 @@
       "objective": "How does a hub-mediated market traverse the same-label bridge despite indirect or connecting travel risk?",
       "risk": "Departure-country proxies are weakest where travelers arrive through other hubs.",
       "scope": {
-        "files": ["01a - DCT Dataset/*", "lake/**/*", "engine/archetypes.py", "engine/panel.py", "engine/structural.py", "app/**/*"],
+        "files": ["01a - DCT Dataset/*", "lake/**/*", "src/engine/archetypes.py", "src/engine/panel.py", "src/engine/structural.py", "src/app/**/*"],
         "tables_or_sheets": ["ALL lifecycle stages"],
         "fields": ["departure_country_name", "nationality", "transfer", "transit", "p2p", "effective_response_multiplier"],
         "date_or_population": "One supported Hub-Mediated market and one complete holdout week"
@@ -2905,7 +2905,7 @@
       "objective": "Do legacy OTHER, catch-all OTHER_INTERNATIONAL, and regional clusters preserve members, totals, parameters, and runtime compatibility?",
       "risk": "Pooled populations can be omitted, duplicated, or loaded from stale artifacts.",
       "scope": {
-        "files": ["01a - DCT Dataset/*", "engine/archetypes.py", "engine/panel.py", "lake/**/*", "app/**/*"],
+        "files": ["01a - DCT Dataset/*", "src/engine/archetypes.py", "src/engine/panel.py", "lake/**/*", "src/app/**/*"],
         "tables_or_sheets": ["ALL lifecycle stages"],
         "fields": ["nationality", "departure_country_name", "market", "archetype", "parameters", "model keys"],
         "date_or_population": "All pooled-member categories for one complete week and all artifacts"
@@ -2937,7 +2937,7 @@
       "objective": "Is domestic staycation demand kept separate from international aviation inputs and metrics at every stage?",
       "risk": "Domestic volume can contaminate aviation interpretation and headline performance.",
       "scope": {
-        "files": ["01a - DCT Dataset/data domestic_*.xlsx", "lake/**/*", "engine/*.py", "scripts/evaluate_models.py", "app/**/*"],
+        "files": ["01a - DCT Dataset/data domestic_*.xlsx", "lake/**/*", "src/engine/*.py", "scripts/evaluate_models.py", "src/app/**/*"],
         "tables_or_sheets": ["ALL lifecycle stages"],
         "fields": ["residence_group", "market", "is_domestic", "guests", "domestic priors", "aviation fields"],
         "date_or_population": "One complete domestic holdout week and all domestic evaluation rows"
@@ -2969,7 +2969,7 @@
       "objective": "What happens from an unknown market request through fallback parameters, uncertainty, API, and UI?",
       "risk": "Unsupported markets may receive unjustifiably precise estimates.",
       "scope": {
-        "files": ["engine/archetypes.py", "engine/structural.py", "engine/uncertainty.py", "engine/simulator.py", "app/**/*"],
+        "files": ["src/engine/archetypes.py", "src/engine/structural.py", "src/engine/uncertainty.py", "src/engine/simulator.py", "src/app/**/*"],
         "tables_or_sheets": ["GET /api/simulate"],
         "fields": ["market", "archetype", "is_cold_start", "historical_weeks", "fallback parameters", "uncertainty"],
         "date_or_population": "One mapped-but-uncalibrated country and one completely unknown label"
@@ -3001,7 +3001,7 @@
       "objective": "Does a week near the 2024-12-30 training/holdout boundary remain complete, unique, and leakage-free through evaluation?",
       "risk": "Boundary contamination directly invalidates forward-holdout claims.",
       "scope": {
-        "files": ["01a - DCT Dataset/*", "lake/**/*", "engine/panel.py", "scripts/train_models.py", "scripts/evaluate_models.py"],
+        "files": ["01a - DCT Dataset/*", "lake/**/*", "src/engine/panel.py", "scripts/train_models.py", "scripts/evaluate_models.py"],
         "tables_or_sheets": ["ALL data and model stages"],
         "fields": ["date", "week_start", "dataset_split", "days_in_week", "is_complete_week", "model role"],
         "date_or_population": "Weeks immediately before, containing, and after 2024-12-30"
@@ -3033,7 +3033,7 @@
       "objective": "Are missing, absent, and suppressed observations preserved and prevented from becoming complete zero-valued model inputs?",
       "risk": "Status collapse can fabricate demand declines or false complete periods.",
       "scope": {
-        "files": ["01a - DCT Dataset/data *.xlsx", "scripts/build_lake.py", "lake/**/*", "engine/panel.py", "scripts/*.py", "app/**/*"],
+        "files": ["01a - DCT Dataset/data *.xlsx", "scripts/build_lake.py", "lake/**/*", "src/engine/panel.py", "scripts/*.py", "src/app/**/*"],
         "tables_or_sheets": ["ALL lifecycle stages"],
         "fields": ["source markers", "is_source_present", "suppression flags", "missing_arrival_records", "is_complete_guest_inputs", "targets"],
         "date_or_population": "One reproducibly selected missing-row case and one suppressed-value case"

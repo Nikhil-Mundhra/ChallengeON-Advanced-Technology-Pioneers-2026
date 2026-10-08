@@ -20,7 +20,7 @@ from sklearn.linear_model import RidgeCV
 
 from engine.structural import ScenarioLever, SimulationResult, StructuralEngine
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL_PATH = ROOT_DIR / "lake" / "curated" / "residual_engine.pkl"
 
 

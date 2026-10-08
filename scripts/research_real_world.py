@@ -11,7 +11,6 @@ import hashlib
 import ipaddress
 import json
 import re
-import sys
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -20,7 +19,6 @@ from pathlib import Path
 
 import duckdb
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from audit_agent.local_model import OpenAICompatibleClient, parse_json_response
 
 ROOT = Path(__file__).resolve().parents[1]

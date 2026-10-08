@@ -150,7 +150,7 @@ print(f"Executive Summary:  {report.recommendation_summary}")
 
 ## 6. Interactive Web Simulator
 
-The solution includes a self-contained, interactive single-page web simulator located in `app/`. It requires no external frontend build tools or internet connection.
+The solution includes a self-contained, interactive single-page web simulator located in `src/app/`. It requires no external frontend build tools or internet connection.
 
 ### Launching the Web App
 

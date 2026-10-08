@@ -3,12 +3,10 @@ from __future__ import annotations
 import json
 import io
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from audit_agent.checklist import next_ready_task, validate_checklist
 from audit_agent.dashboard import build_snapshot, render_dashboard
@@ -476,9 +474,9 @@ def test_opencode_then_qwen_failure_does_not_repeat_escalation(tmp_path: Path):
 
 
 def test_repository_map_is_versioned_reused_and_scoped(tmp_path: Path):
-    (tmp_path / "engine").mkdir()
+    (tmp_path / "src" / "engine").mkdir(parents=True)
     (tmp_path / "tests").mkdir()
-    (tmp_path / "engine" / "simulator.py").write_text(
+    (tmp_path / "src" / "engine" / "simulator.py").write_text(
         "class TourismDigitalTwin:\n    pass\n", encoding="utf-8"
     )
     (tmp_path / "tests" / "test_simulator.py").write_text(
@@ -490,7 +488,7 @@ def test_repository_map_is_versioned_reused_and_scoped(tmp_path: Path):
     second = ensure_repository_map(tmp_path, audit_dir)
     context = context_for_task(
         first,
-        {"scope": {"files": ["engine/simulator.py"], "tables_or_sheets": []}},
+        {"scope": {"files": ["src/engine/simulator.py"], "tables_or_sheets": []}},
     )
 
     assert first == second

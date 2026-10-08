@@ -1,7 +1,7 @@
 PYTHON := .venv/bin/python
 PYTEST  := .venv/bin/pytest
 
-.PHONY: all evaluate train charts report test clean
+.PHONY: all install evaluate train charts report test clean
 
 ## Rebuild every metric and artifact from raw data (one-command reproducibility)
 all: evaluate train charts report test
@@ -9,6 +9,11 @@ all: evaluate train charts report test
 	@echo "=========================================="
 	@echo " All artifacts rebuilt successfully."
 	@echo "=========================================="
+
+## Create .venv and install the src/ packages in editable mode (run once)
+install:
+	python3 -m venv .venv
+	.venv/bin/pip install -e ".[report,dev]"
 
 ## Step 1 — evaluate models, write evaluation_results.json + sync calibrator
 evaluate:

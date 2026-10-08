@@ -11,11 +11,8 @@ Saves all artifacts deterministically to lake/curated/.
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
-# Ensure repo root is on sys.path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 import pandas as pd

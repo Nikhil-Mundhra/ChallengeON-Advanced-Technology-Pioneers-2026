@@ -465,18 +465,18 @@ lake/                Curated Parquet files, DuckDB database, manifest
 - Saved all metrics dynamically to `lake/curated/evaluation_results.json`.
 
 ### Phase 3: Structural Simulator [COMPLETED & VERIFIED]
-- Structural conversion chain implemented in `engine/structural.py`.
+- Structural conversion chain implemented in `src/engine/structural.py`.
 - Exact sequential waterfall attribution decomposition verified ($0.000000$ discrepancy).
 - Cold-start hierarchical regional priors implemented for unmodeled countries (Sweden, Brazil, Poland, etc.).
 - Deterministic training script implemented (`scripts/train_models.py`).
 
 ### Phase 4: Residual ML & Uncertainty [COMPLETED & VERIFIED]
-- Monotonic residual ML model (`engine/residual.py`) trained strictly on calendar/event features, excluding flight capacity levers.
-- Beta-distributed operational priors and block-bootstrapped residuals implemented in `engine/uncertainty.py`.
+- Monotonic residual ML model (`src/engine/residual.py`) trained strictly on calendar/event features, excluding flight capacity levers.
+- Beta-distributed operational priors and block-bootstrapped residuals implemented in `src/engine/uncertainty.py`.
 - Demonstrated holdout coverage verified at 65.2% (with positive secular trend documentation).
 
 ### Phase 5: Interactive Product & Submission Assets [COMPLETED & VERIFIED]
-- Interactive web application implemented (`app/server.py` + `app/static/index.html`), runnable via `python scripts/run_app.py --port 8080`.
+- Interactive web application implemented (`src/app/server.py` + `src/app/static/index.html`), runnable via `python scripts/run_app.py --port 8080`.
 - Terminal scenario CLI implemented (`scripts/run_scenario.py`).
 - Automated unit and integration test suite implemented (`tests/test_digital_twin.py` & `tests/test_audit_agent.py`, 38/38 passing).
 - Publication-grade 3-page executive PDF report generated dynamically (`scripts/build_solution_report.py` -> `output/pdf/challengeon_solution_report.pdf`).
