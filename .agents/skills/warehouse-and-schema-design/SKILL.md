@@ -5,65 +5,39 @@ description: Guides agents through data warehouse and schema design. Use when de
 
 # Warehouse And Schema Design
 
-## Overview
-
-Use this skill when the primary challenge is how data should be modeled for reliable analytics consumption. It helps agents choose good grain, keys, relationships, and serving patterns so downstream work stays understandable and performant.
-
 ## When to Use
 
-- designing marts, warehouse schemas, or curated serving tables
-- choosing fact and dimension boundaries
-- deciding grain, surrogate keys, or relationship strategy
-- balancing normalization and denormalization
-- restructuring analytics-facing datasets for usability
+- Designing marts, warehouse schemas, or curated serving tables.
+- Choosing fact/dimension boundaries, grain, surrogate keys, relationships.
+- Balancing normalization and denormalization; restructuring analytics datasets.
 
-Do not reduce schema design to column naming alone. Good schema design is about behavior, meaning, and query ergonomics.
+Schema design covers behavior, meaning, and query ergonomics, not just column names.
+
+## In this repo
+
+- Keep grains separate: daily vs monthly flights (`source_grain`), weekly panel (market, week_start, dataset_split), daily panel (market, date).
+- Keep missing, absent, suppressed, imputed, and genuine-zero values distinguishable (existing flag columns such as `is_suppressed_arrival`, `is_source_present`).
 
 ## Workflow
 
-1. Define the business grain first.
-   Clarify:
-   - what one row represents
-   - what the primary analysis questions are
-   - how time and change should be represented
-
-2. Choose the schema pattern intentionally.
-   Common options:
-   - dimensional modeling
-   - data vault-oriented integration layers
-   - normalized serving models for operational analytics
-   - denormalized marts for common consumption patterns
-
-3. Define keys and relationships.
-   Include:
-   - business keys
-   - surrogate keys where needed
-   - slowly changing behavior
-   - null and unknown-member handling
-
-4. Optimize for consumers, not just model purity.
-   A perfect logical model that no analyst can use is not successful.
-
-5. Validate compatibility with performance, governance, and metric use.
-
-## Common Rationalizations
-
-| Rationalization | Reality |
-| --- | --- |
-| "We can figure out grain later." | Grain mistakes spread quickly through metrics and dashboards. |
-| "A wide table is always easier for analysts." | Very wide tables often hide conflicting grains and unclear semantics. |
-| "Normalization is more correct, so we should always prefer it." | Correctness and usability both matter; serving models need intentional trade-offs. |
+1. Define grain first: what one row is, the primary questions, how time and change are represented.
+2. Choose the pattern: dimensional, data-vault integration layer, normalized operational serving, or denormalized marts.
+3. Define keys and relationships: business keys, surrogate keys where needed, slowly changing behavior, null/unknown-member handling.
+4. Optimize for consumers as well as model purity.
+5. Check fit with performance, governance, and metric use.
 
 ## Red Flags
 
-- row grain is undocumented
-- fact tables mix incompatible event types
-- keys are inconsistent across domains
-- schema choices are driven only by current dashboard convenience
+- Grain deferred or undocumented.
+- Wide tables that hide conflicting grains.
+- Normalization (or denormalization) applied by default rather than by trade-off.
+- Fact tables mix incompatible event types.
+- Keys inconsistent across domains.
+- Schema driven only by current dashboard convenience.
 
 ## Verification
 
 - [ ] Row grain and key strategy are explicit
-- [ ] Schema pattern matches the business use case
-- [ ] Consumer usability and performance have been considered
+- [ ] Schema pattern matches the use case
+- [ ] Consumer usability and performance are considered
 - [ ] Change-over-time behavior is documented where relevant

@@ -1,12 +1,12 @@
 # Repository and Model Audit
 
-Use this reference when source code, data products, models, tests, or the live application are in scope. Preserve existing user changes and do not mutate the repository unless the user asks for fixes.
+Use when code, data products, models, tests, or the live app are in scope. Do not modify the repository unless the user asks for fixes.
 
 ## Start with repository instructions
 
-Read applicable `AGENTS.md`, `CLAUDE.md`, or equivalent instructions before acting. Inspect repository status so user changes are not mistaken for generated or committed state.
-
-Prefer existing project commands. Do not install dependencies or rebuild expensive artifacts merely to satisfy a checklist when static inspection answers the question. If execution is feasible, record the exact command and distinguish reproduced results from inspected claims.
+- Read `AGENTS.md` (or equivalent) first; check `git status` so user changes are not mistaken for generated or committed state.
+- Use existing project commands. Do not install dependencies or rebuild artifacts when static inspection answers the question; in this repo, default-dir builds overwrite committed lake artifacts, so rebuild into a scratch `TWIN_LAKE_DIR`/`TWIN_OUTPUT_DIR`.
+- Record every executed command and separate reproduced results from inspected claims.
 
 ## Trace one vertical slice
 
@@ -38,7 +38,7 @@ Check units, grain, key definitions, fallbacks, clipping, and labels at every tr
 
 ## Origin-to-nationality checks
 
-Treat a same-label join between flight country and guest nationality as an assumption, not proof of identity.
+Treat a same-label join of flight country and guest nationality as an assumption, not identity.
 
 Inspect whether the implementation uses:
 
@@ -47,13 +47,13 @@ Inspect whether the implementation uses:
 - an effective response multiplier that absorbs several unidentified stages;
 - planner overrides and uncertainty around weak mappings.
 
-Verify that code, UI, and presentation describe the same method. If an effective multiplier absorbs origin allocation, visitor purpose, hotel capture, and other effects, do not allow the presentation to claim each component was separately measured.
+Verify code, UI, and presentation describe the same method. If an effective multiplier absorbs origin allocation, visitor purpose, hotel capture, and other effects, flag any claim that those were measured separately.
 
 ## Decision-time leakage review
 
-For every input feature or prior, ask: "Would this exact value be known on the date the planner makes the decision?"
+For every feature or prior, ask: "Is this exact value known on the planner's decision date?"
 
-Common leakage paths include:
+Common leakage paths:
 
 - future realized passengers, load factor, P2P, transfer/transit, or hotel arrivals;
 - lags computed before the split and accidentally reaching across it;
@@ -62,7 +62,7 @@ Common leakage paths include:
 - conformal scores computed on the evaluation holdout and then evaluated on the same observations;
 - competition test fields used to support a planning-mode claim.
 
-Allow realized variables for explicitly labeled stage diagnostics or competition forecast mode. Do not conflate those results with planning performance.
+Allow realized variables only in explicitly labeled stage diagnostics or competition forecast mode; never report them as planning performance.
 
 ## Statistical validation
 
@@ -77,7 +77,7 @@ Inspect:
 - residual-model ablations and monotonic scenario behavior;
 - sensitivity to cutoffs, priors, aggregation grain, and outlier handling.
 
-Large domestic volumes can make a combined metric look strong while hiding weaker aviation performance. Require separate international planning results.
+Require separate international planning results; large domestic volumes can mask weak aviation performance in a combined metric.
 
 ## Uncertainty review
 
@@ -131,10 +131,10 @@ Look for tests of:
 - at least one end-to-end scenario;
 - clean rebuild or deterministic artifact production when feasible.
 
-Passing unit tests demonstrate only what they assert. Do not infer statistical validity, UI operability, or reproducibility from a small invariant-only suite.
+Passing tests prove only what they assert; do not infer statistical validity, UI operability, or reproducibility from an invariant-only suite.
 
 ## Consistency sweep
 
-Search for every headline metric and claim across source, JSON, reports, README files, slides, figures, and UI defaults. Treat differences in values, date windows, populations, modes, or units as a credibility finding until reconciled.
-
-The final audit should make clear which items were executed, inspected, claimed, or not verified.
+- Search every headline metric and claim across source, JSON, reports, READMEs, slides, figures, and UI defaults.
+- Treat any difference in value, date window, population, mode, or unit as a credibility finding until reconciled.
+- State which items were executed, inspected, claimed, or not verified.

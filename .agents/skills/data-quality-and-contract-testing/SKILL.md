@@ -5,70 +5,42 @@ description: Drives data implementation with contracts, assertions, and validati
 
 # Data Quality And Contract Testing
 
-## Overview
-
-Data work is not complete when code runs. It is complete when source assumptions, output contracts, and quality checks prove the behavior is correct.
+Data work is done only when contracts and checks prove the output is correct, not when the job runs.
 
 ## When to Use
 
-- new source ingestion
-- schema changes
-- transformation logic updates
-- new or changed published tables
-- bug fixes involving bad data or broken metrics
+- New source ingestion, schema changes, transformation changes.
+- New or changed published tables.
+- Fixes for bad data or broken metrics.
 
-Do not use this only as a final cleanup step. It should guide implementation from the start.
+Apply from the start of implementation, not as final cleanup.
 
 ## Workflow
 
-1. Define the contract before implementation.
-   Capture:
-   - required fields
-   - key constraints
-   - expected types
-   - allowed null behavior
-   - freshness expectations
-   - reconciliation rules
-
-2. Write the validation plan first.
-   Common validations:
-   - uniqueness
-   - non-null thresholds
-   - referential integrity
-   - accepted values
-   - row count deltas
-   - source-to-target totals
-
-3. Reproduce data bugs with a failing check.
-   If an incident or defect exists, write the failing validation or test before changing the pipeline.
-
+1. Define the contract first: required fields, key constraints, types, null behavior, freshness, reconciliation rules.
+2. Write the validation plan first: uniqueness, non-null thresholds, referential integrity, accepted values, row-count deltas, source-to-target totals.
+3. Reproduce every data bug with a failing check before changing the pipeline.
 4. Implement the smallest change that satisfies the contract.
+5. Run the validations and capture evidence: test output, query results, reconciliation output, dry-run logs.
 
-5. Run the relevant validations and capture evidence.
-   Evidence may include:
-   - test output
-   - query results
-   - sample reconciliation output
-   - dry-run logs
+## Bundled examples
 
-## Common Rationalizations
-
-| Rationalization | Reality |
-| --- | --- |
-| "The warehouse query looks right." | Visual inspection does not scale and misses edge cases. |
-| "We will add checks after the model stabilizes." | Unchecked pipelines create low-trust data and harder incident response. |
-| "A successful job means the data is valid." | Jobs succeed while still producing incorrect or incomplete data. |
+- `checks/null_rate.py`, `checks/freshness.py`, `checks/contract_completeness.py`: generic CLI checks (`--help` for usage); `--contract` YAML needs PyYAML, which is not a project dependency.
+- `anti-patterns/no_quality_gate_before_publish.py`: a pipeline that publishes without a quality gate, for diagnosis practice.
 
 ## Red Flags
 
-- no contract exists for a published dataset
-- an incident fix ships without a failing reproduction check
-- only happy-path sample data is validated
-- freshness or completeness expectations are absent
+- A published dataset has no contract.
+- Correctness judged by eyeballing a query.
+- Checks deferred "until the model stabilizes".
+- A successful job treated as proof of valid data.
+- An incident fix ships without a failing reproduction check.
+- Only happy-path sample data is validated.
+- Freshness or completeness expectations are absent.
 
 ## Verification
 
 - [ ] Contracts are written before or alongside implementation
-- [ ] Relevant checks exist for correctness, completeness, and freshness
+- [ ] Checks cover correctness, completeness, and freshness
 - [ ] Defects are reproduced with a failing validation before the fix
-- [ ] Evidence from validation is captured and reviewable
+- [ ] Validation evidence is captured and reviewable

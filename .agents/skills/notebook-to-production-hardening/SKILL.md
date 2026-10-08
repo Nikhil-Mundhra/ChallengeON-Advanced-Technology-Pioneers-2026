@@ -5,59 +5,34 @@ description: Guides agents through converting exploratory notebooks into product
 
 # Notebook To Production Hardening
 
-## Overview
-
-Use this skill when a notebook has outgrown exploration and needs to become a maintainable delivery artifact. It helps agents separate experimentation from production packaging, testing, configuration, and orchestration.
-
 ## When to Use
 
-- moving notebook logic into scheduled jobs
-- hardening `Databricks` or `Jupyter` notebooks for repeated use
-- extracting reusable logic from cells into modules or packages
-- improving testability and deployment discipline
+- Moving notebook logic into scheduled jobs.
+- Hardening Databricks or Jupyter notebooks for repeated use.
+- Extracting cell logic into modules or packages.
 
-Do not treat a manually rerun notebook as production just because it worked once.
+Do not treat a manually rerun notebook as production.
 
 ## Workflow
 
-1. Separate exploratory work from production logic.
-   Identify:
-   - reusable transformation code
-   - parameters
-   - environment assumptions
-   - manual steps
-
-2. Extract logic into versioned, testable units.
-
-3. Replace hidden state with explicit inputs and configuration.
-
-4. Add validation and operational hooks.
-   Include:
-   - contracts
-   - logging
-   - error handling
-   - retry-safe outputs
-
-5. Define how the job is deployed and monitored.
-
-## Common Rationalizations
-
-| Rationalization | Reality |
-| --- | --- |
-| "The notebook already works." | Interactive success does not mean repeatable, testable, or observable production behavior. |
-| "We can keep using widgets and manual edits." | Hidden runtime state makes failures and reproducibility much worse. |
-| "We will modularize later." | Notebook sprawl grows quickly once other teams depend on it. |
+1. Separate exploration from production logic: identify reusable transforms, parameters, environment assumptions, manual steps.
+2. Extract logic into versioned, testable modules.
+3. Replace hidden state (widgets, manual edits, cell order) with explicit inputs and configuration.
+4. Add contracts, logging, error handling, and retry-safe outputs.
+5. Define deployment and monitoring.
 
 ## Red Flags
 
-- business logic depends on cell order
-- configuration is hard-coded in notebook cells
-- outputs are written with no validation or idempotency plan
-- the deployment path is undefined
+- "It already works" interactively, with no tests or observability.
+- Business logic depends on cell order.
+- Configuration hard-coded in cells.
+- Modularization deferred.
+- Outputs written with no validation or idempotency plan.
+- Deployment path undefined.
 
 ## Verification
 
-- [ ] Reusable logic is extracted from the notebook flow
+- [ ] Reusable logic is extracted from the notebook
 - [ ] Inputs, configuration, and outputs are explicit
 - [ ] Validation, logging, and retry-safe behavior exist
-- [ ] The production deployment and monitoring model are defined
+- [ ] Deployment and monitoring are defined

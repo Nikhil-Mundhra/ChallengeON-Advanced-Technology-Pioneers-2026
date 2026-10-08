@@ -1,6 +1,6 @@
 # Detailed 100-Point Scorecard
 
-Use the official category weights. Scores should reflect evidence quality as well as feature presence.
+Use the official category weights. Score evidence quality, not just feature presence.
 
 ## 1. Technical accuracy and modelling rigour — 40 points
 
@@ -111,7 +111,7 @@ Use the official category weights. Scores should reflect evidence quality as wel
 
 ## Credibility gates
 
-Report these separately from the numerical score:
+Report separately from the numerical score:
 
 1. **Functional prototype:** scenario inputs materially change computed outputs.
 2. **Decision-time-valid evidence:** central planning claims survive leakage review.
@@ -120,7 +120,7 @@ Report these separately from the numerical score:
 5. **Reproducible evidence:** the principal results can be regenerated and agree across deliverables.
 6. **Data compliance:** restricted competition data is not exposed or used outside its permitted context.
 
-Rate each gate `pass`, `partial`, `fail`, or `not verified`. A failed gate should materially reduce confidence even when the weighted score is otherwise high.
+Rate each gate `pass`, `partial`, `fail`, or `not verified`. A failed gate materially lowers confidence even when the weighted score is high.
 
 ## Scoring calibration
 
@@ -130,4 +130,4 @@ Rate each gate `pass`, `partial`, `fail`, or `not verified`. A failed gate shoul
 - **60–69:** conceptually sound but not yet sufficiently validated or operational.
 - **Below 60:** central claims, prototype functionality, or challenge alignment are not demonstrated.
 
-Do not convert this calibration into a prediction of the actual panel's decision.
+Never present this calibration as a prediction of the panel's decision.

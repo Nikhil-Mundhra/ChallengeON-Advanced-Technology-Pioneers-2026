@@ -1,118 +1,92 @@
 # AGENTS.md
 
-Instructions for coding agents working in this repository. Code is the source of
-truth; if this file disagrees with the code, trust the code and fix this file.
+Rules for coding agents in this repository. If this file disagrees with the code, trust the code and fix this file.
 
-## What this is
-
-An Abu Dhabi Tourism Digital Twin for the ChallengeON / Advanced Technology Pioneers
-2026 DCT challenge: it turns aviation scenarios (frequency, gauge, seats, load factor,
-P2P share, marketing, length of stay) into hotel-demand effects by source market and
-season. A DuckDB/Parquet lake is built from the raw DCT workbooks, a structural
-seats → passengers → P2P passengers → hotel arrivals → hotel guests chain is calibrated with a residual ML
-layer and conformal intervals, and the result is served as a CLI, a web UI/JSON API,
-and PDF reports. Human-facing documentation lives in `README.md` and `docs/`.
+Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, web UI/JSON API, PDF reports. Human docs: `README.md`, `docs/`.
 
 ## Setup
 
-```bash
-make install                        # creates .venv and runs: pip install -e ".[report,dev]"
-```
-
-Packaging is `pyproject.toml` only (there is no `requirements.txt`). Extras: `report`
-(reportlab, needed for PDFs) and `dev` (pytest). The editable install is required for
-the default repo-relative paths to resolve; otherwise set `TWIN_ROOT`.
+- Install with `make install` (creates `.venv`, runs `pip install -e ".[report,dev]"`).
+- Use an editable install; otherwise set `TWIN_ROOT` so default paths resolve.
+- Declare dependencies only in `pyproject.toml` (no `requirements.txt`). Extras: `report` (reportlab, PDFs), `dev` (pytest).
 
 ## Commands
 
-One console command, `twin` (equivalently `python -m tourism_twin`):
+Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` for options.
 
-| Command | Purpose |
-|---|---|
-| `twin build-lake` | Raw workbooks → Parquet tables + DuckDB lake |
-| `twin build-panel` | Lake → curated weekly market panel |
-| `twin train [--max-date D] [--panel-path P]` | Calibrate structural, residual, conformal artifacts |
-| `twin evaluate` | Forward-holdout back-test → `evaluation_results.json` |
-| `twin simulate --market M --season S [--delta-freq ...]` | Run a planner scenario, print the briefing |
-| `twin charts` | Waterfall, tornado, benchmark figures |
-| `twin report {solution,database}` | Build a PDF report (needs the `report` extra) |
-| `twin serve [--port 8080]` | Interactive web UI + JSON API |
-| `twin query "SQL" [--database ...] [--limit N]` | SQL against the analytics DuckDB |
+| Command | Does | Writes |
+|---|---|---|
+| `twin build-lake` | Raw workbooks → curated Parquet + `analytics.duckdb` + manifest | lake |
+| `twin build-panel` | Curated Parquet → weekly market panel | lake |
+| `twin build-daily-panel [--max-lag K]` | Daily (market, date) panel with arrival lags 0..K (default 21) | lake |
+| `twin train [--max-date D] [--panel-path P]` | Structural, residual, conformal artifacts | lake |
+| `twin evaluate` | Forward-holdout back-test → `evaluation_results.json`; syncs coverage into `conformal_calibrator.json` | lake |
+| `twin simulate --market M --season S [levers]` | Print a scenario briefing | — |
+| `twin charts` | Waterfall, tornado, benchmark figures | output |
+| `twin report {solution,database}` | PDF report (needs `report` extra) | output |
+| `twin serve [--port 8080]` | Web UI + JSON API | — |
+| `twin query "SQL" [--database P] [--limit N]` | Read-only SQL on `analytics.duckdb` | — |
 
-Use `twin <cmd> --help` for options. The `Makefile` wraps these (`make lake`,
-`make panel`, `make evaluate`, `make train`, `make charts`, `make report`, `make test`,
-`make all`).
+- `twin query` and `twin report database` need `lake/analytics.duckdb` (gitignored; built by `twin build-lake`).
+- Makefile targets: `install`, `lake`, `panel` (weekly + daily), `evaluate`, `train`, `charts`, `report` (solution), `data-issues-pdf`, `test`, `all` (lake → panel → evaluate → train → charts → report → test), `clean`.
 
-Tests: `.venv/bin/pytest -q` (or `make test`). Known failure on a clean checkout:
-`test_data_contract_and_grain_separation`, because `lake/curated/flight_monthly.parquet`
-was never committed.
+## Tests
 
-## Code layout and layering
+- Run `.venv/bin/pytest -q` (or `make test`). If you report counts, run pytest and quote its actual output.
+- `test_monthly_flights_are_isolated_to_2022` skips when `lake/curated/flight_monthly.parquet` is not built (it is not committed).
+- Product suite is one file: `tests/test_tourism_twin.py`; shared fixtures in `tests/conftest.py`. Audit-tool tests: `tests/test_audit_agent.py`.
+- Add product tests to `test_tourism_twin.py` in the matching pipeline-order section: domain, lake, feature registry, panels, simulator, API. Never create a new product test file.
 
-`src/` layout with three packages: `tourism_twin` (the model and pipeline), `app`
-(`server.py` HTTP server + `static/index.html`), `audit_agent` (internal LLM data
-audit tool, driven by `scripts/run_data_issues_audit.py`).
+## Layout and layering
 
-`src/tourism_twin/` is layered; imports only point downward:
+Packages under `src/`: `tourism_twin` (pipeline and model), `app` (`server.py` + `static/index.html`), `audit_agent` (LLM data-audit tool, run via `scripts/run_data_issues_audit.py`).
+
+`src/tourism_twin/`, lowest layer first; a module imports only from its own layer or layers above it in this list:
 
 ```text
 config.py   all filesystem paths (stdlib only)
-domain/     markets, archetypes, seasons, events, scenario types — imports nothing from the package
-data/       ingest, validation, lake_writer, manifest, lake, panel
+domain/     markets, archetypes, seasons, events, scenario types
+features/   registry + ratios, flags, calendar, lags (imports domain only)
+data/       ingest, validation, lake_writer, manifest, lake, repository, imputation, panel, daily_panel
 models/     structural, features, residual, uncertainty, conformal, training, evaluation
 services/   simulator, sensitivity, briefing
-reporting/  charts, solution_report, database_report/, palettes     cli/  the `twin` command
+reporting/  charts, solution_report, database_report/, palette, pdf_palette
+cli/        the `twin` command
 ```
 
-Where new code goes: pure business vocabulary/constants → `domain/`; reading or
-writing raw/lake data → `data/`; fitting or scoring → `models/`; scenario use cases
-that compose models → `services/`; figures/PDFs → `reporting/`; argument parsing and
-printing only → `cli/` (keep logic out of it). A lower layer must never import a
-higher one. New CLI subcommands register in `tourism_twin/cli/`.
+- Place code by role: vocabulary/constants → `domain/`; derived columns → `features/`; reading/writing raw or lake data → `data/`; fitting/scoring → `models/`; scenario use cases → `services/`; figures/PDFs → `reporting/`.
+- Keep `cli/` to argument parsing and printing; register new subcommands in `tourism_twin/cli/`.
+- Never import a later layer from an earlier one (e.g. `features/` must not import `data/`).
 
-## Paths and configuration
+## Data access and features
 
-Never hard-code paths. Use `tourism_twin.config.SETTINGS` (`SETTINGS.lake_dir`,
-`SETTINGS.curated_dir`, `SETTINGS.panel_path`, `SETTINGS.output_dir`, ...). Overrides,
-read once at import: `TWIN_ROOT`, `TWIN_SOURCE_DIR`, `TWIN_LAKE_DIR`, `TWIN_OUTPUT_DIR`.
+- Read lake data in new code only through `tourism_twin.data.repository.LakeRepository`; do not add new `pd.read_parquet`/`duckdb.connect` calls on lake paths elsewhere.
+- Never hard-code paths; use `tourism_twin.config.SETTINGS` (`lake_dir`, `curated_dir`, `panel_path`, `daily_panel_path`, `output_dir`, ...). Overrides, read once at import: `TWIN_ROOT`, `TWIN_SOURCE_DIR`, `TWIN_LAKE_DIR`, `TWIN_OUTPUT_DIR`.
+- Define every derived column once in `tourism_twin/features` with `@PANEL_FEATURES.feature(kind, requires=[...])` and request it by name via `PANEL_FEATURES.apply(frame, [names])`.
+- Never recompute a ratio inline. Recompute ratios from summed parts at each grain; never sum or average a ratio.
+- Lags shift within one market's series only; never across markets.
 
-## Data and artifact rules
+## Data and artifacts
 
-- `01a - DCT Dataset/` holds the raw competition workbooks. It is gitignored (not
-  redistributed): place the organizer-provided files there locally, or point
-  `TWIN_SOURCE_DIR` at them. Immutable — never edit, never commit.
-- `lake/`: `analytics.duckdb` is gitignored, but `lake/manifest.json` and the files in
-  `lake/curated/` (parquet, json, `residual_engine.pkl`) ARE committed despite the
-  `.gitignore` patterns. `build-lake`, `build-panel`, `train`, `evaluate`, `charts`,
-  `report` and `make all` overwrite them with default settings — don't run them casually
-  against the checkout. `make clean` removes only uncommitted generated files (output
-  figures/PDFs, `lake/analytics.duckdb`, staging leftovers) and leaves committed lake
-  artifacts alone.
-- `output/` (figures, PDFs) is gitignored and regenerable.
-- `residual_engine.pkl` pickles a plain dict of scikit-learn estimators, not a project
-  class, so it survives module moves. Keep it that way.
-- Scratch rebuild without touching committed artifacts — `make all` runs lake → panel →
-  evaluate → train → charts → report → test from the raw workbooks, and the Makefile honours
-  the same dir overrides (as does `make clean`):
-  ```bash
-  TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/out make all
-  ```
+- `01a - DCT Dataset/` holds the raw workbooks: gitignored, supplied locally (or via `TWIN_SOURCE_DIR`). Never edit or commit them.
+- Committed despite `.gitignore`: `lake/manifest.json` and tracked files in `lake/curated/` (check with `git ls-files lake`). `build-lake`, `build-panel`, `build-daily-panel`, `train`, `evaluate`, and `make all` overwrite lake artifacts with default dirs; `charts`/`report` overwrite `output/`.
+- Do not run those commands against the checkout casually; rebuild into scratch: `TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/out make all`.
+- `make clean` removes only uncommitted generated files (figures, PDFs, `analytics.duckdb`, staging leftovers); it honours the same dir overrides.
+- `residual_engine.pkl` must pickle a plain dict of scikit-learn estimators, never a project class (survives module moves).
 
 ## Change discipline
 
-- No silent behaviour or metric changes. Refactors must be verified by byte-identical
-  outputs (rebuild into a scratch dir and diff against the committed artifacts).
-- Dated audit and research records keep their historical paths on purpose:
-  `DATA_ISSUES*.md`, `research/real_world_validation/*.md`, and evidence strings in
-  `scripts/direct_audit_runner.py`. Do not "fix" old paths in them.
+- Refactors must prove unchanged outputs: rebuild into a scratch dir and compare against the committed artifacts.
+- Ship metric or behaviour changes as a separate change and report them explicitly; never silently.
+- Dated records keep historical paths; do not "fix" them: `DATA_ISSUES*.md`, `research/real_world_validation/*.md`, evidence strings in `scripts/direct_audit_runner.py`.
 
 ## Agent skills (`.agents/skills/`)
 
 | Skill | Use for |
 |---|---|
-| `dct-tourism-hackathon-reviewer` | Judging, scoring, and auditing this DCT flight-to-hotel-demand submission |
+| `dct-tourism-hackathon-reviewer` | Review, score, and improve submissions for this DCT flight-to-hotel-demand challenge |
 | `data-lake-and-zone-architecture` | Raw/refined/curated/publish zones, storage layout, retention |
-| `data-quality-and-contract-testing` | Contracts, assertions, validation evidence for data changes |
+| `data-quality-and-contract-testing` | Contracts, assertions, and validation evidence for data changes |
 | `data-reconciliation-and-financial-controls` | Source-to-target totals, control balances, exception tracking |
 | `duckdb-local-analytics-and-dev` | DuckDB-based local prototyping and validation |
 | `feature-store-and-ml-data-pipelines` | Feature generation, training-serving parity, point-in-time correctness |
@@ -123,5 +97,4 @@ read once at import: `TWIN_ROOT`, `TWIN_SOURCE_DIR`, `TWIN_LAKE_DIR`, `TWIN_OUTP
 | `semantic-layer-and-metric-governance` | Governed metric definitions and shared dimensions |
 | `warehouse-and-schema-design` | Fact/dimension models, keys, grain, serving schemas |
 
-`.opencode/agents/audit-escalation.md` is the read-only escalation agent used by the
-data-issues audit.
+`.opencode/agents/audit-escalation.md`: read-only escalation agent used by the data-issues audit (`src/audit_agent/escalation.py`).

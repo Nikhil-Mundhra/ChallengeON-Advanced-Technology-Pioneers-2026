@@ -5,58 +5,30 @@ description: Guides agents through reconciliation and control design for busines
 
 # Data Reconciliation And Financial Controls
 
-## Overview
-
-Use this skill when correctness must be proven with control evidence, not only tests. It helps agents design reconciliations, control totals, exception workflows, and audit-friendly validation for high-trust datasets.
-
 ## When to Use
 
-- finance, billing, or revenue pipelines
-- audit-sensitive operational datasets
-- month-end or close-process data products
-- source-to-target control validations
-- exception-based review flows
+- Finance, billing, revenue, or other audit-sensitive pipelines.
+- Month-end or close-process data products.
+- Source-to-target control validation and exception-based review.
 
-Do not rely on a few spot queries when the business requires reconciled numbers.
+Do not substitute spot queries for reconciled numbers.
 
 ## Workflow
 
-1. Define the control objective.
-   Clarify:
-   - what must reconcile
-   - acceptable variance
-   - reconciliation frequency
-   - owner of exceptions
-
-2. Choose the reconciliation pattern.
-   Common patterns:
-   - row-count reconciliation
-   - control totals
-   - aggregate balance checks
-   - record-level exception matching
-
-3. Make timing and cutoff rules explicit.
-   Reconciliation often depends on accounting windows or source close timing.
-
-4. Capture and route exceptions.
-
-5. Preserve evidence.
-   Control systems need reviewable records, not only ephemeral job output.
-
-## Common Rationalizations
-
-| Rationalization | Reality |
-| --- | --- |
-| "The transformation logic is simple enough to trust." | Critical numbers still need independent validation evidence. |
-| "A small variance is probably fine." | Acceptable variance must be defined, not guessed after a miss. |
-| "The warehouse total matches once, so we are done." | Control reliability requires repeatable evidence over time. |
+1. Define the control objective: what must reconcile, acceptable variance, frequency, exception owner.
+2. Choose the pattern: row counts, control totals, aggregate balances, record-level exception matching.
+3. Make timing and cutoff rules explicit (accounting windows, source close times).
+4. Capture exceptions and route them to the owner.
+5. Retain reviewable evidence, not only ephemeral job output.
 
 ## Red Flags
 
-- no explicit acceptable variance exists
-- cutoff timing is undocumented
-- exceptions are noticed manually and inconsistently
-- control evidence cannot be reproduced later
+- "Simple" transformation logic trusted without independent validation.
+- No defined acceptable variance; small variances waved through after the fact.
+- A one-time match treated as an ongoing control.
+- Cutoff timing undocumented.
+- Exceptions found manually and inconsistently.
+- Control evidence cannot be reproduced later.
 
 ## Verification
 
