@@ -14,7 +14,9 @@ from tourism_twin.features import PANEL_FEATURES, FeatureRegistry, FeatureSpec, 
 from tourism_twin.domain.events import DEFAULT_KERNEL_EVENTS, load_event_calendar
 from tourism_twin.features.events import offset_column
 from tourism_twin.models.components import EventKernel, LinearRegressors, LinearTrend
+from tourism_twin.models.backtest import RollingOrigin, backtest
 from tourism_twin.models.composite import AdditiveLogModel
+from tourism_twin.models.evaluation import evaluate
 from tourism_twin.models.fitters import Backfitting, JointLinear
 from tourism_twin.features.lags import DEFAULT_MAX_LAG, lag_column
 from tourism_twin.domain.archetypes import MarketArchetype, get_market_archetype
@@ -341,6 +343,46 @@ def test_event_offsets_on_the_daily_panel(daily_panel: pd.DataFrame):
     ramadan = offsets[offset_column("ramadan")]
     assert ramadan.loc["2026-02-18"] == 0 and ramadan.loc["2026-02-13"] == -5 and np.isnan(ramadan.loc["2026-02-12"])
     assert offsets.loc["2025-12-02", offset_column("national_day")] == 0
+
+
+# --- back-test harness ---------------------------------------------------------------------
+
+def test_benchmarks_through_the_harness_reproduce_the_committed_evaluation():
+    assert evaluate() == json.loads(SETTINGS.evaluation_results_path.read_text())
+
+
+class _LastTrainDate:
+    """Records the latest training date it saw; predicts the training mean."""
+    seen: list = []
+
+    def fit(self, panel):
+        _LastTrainDate.seen.append(pd.to_datetime(panel["date"]).max())
+        self.mean = panel["guests"].mean()
+        return self
+
+    def predict(self, panel):
+        return pd.Series(self.mean, index=panel.index)
+
+
+def test_rolling_origin_never_trains_on_the_future_and_scores_segments():
+    frame = pd.concat([_synthetic(market="DOMESTIC"), _synthetic(market="UNITED KINGDOM", seed=1)], ignore_index=True)
+    _LastTrainDate.seen = []
+    result = backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2024-03-01", "2024-05-01", horizon_months=2))
+    folds = result.predictions.groupby("fold")["date"].agg(["min", "max"])
+    assert list(folds.index) == ["origin_2024-03-01", "origin_2024-04-01", "origin_2024-05-01"]
+    for last_train, (fold, row) in zip(_LastTrainDate.seen, folds.iterrows()):
+        assert last_train < row["min"] == pd.Timestamp(fold.removeprefix("origin_"))
+        assert row["max"] == row["min"] + pd.DateOffset(months=2) - np.timedelta64(1, "D")
+    assert set(result.metrics["segment"]) == {"all", "domestic", "international"}
+
+
+def test_models_package_has_no_row_loops():
+    from pathlib import Path
+
+    import tourism_twin.models as models_package
+
+    offenders = [p.name for p in Path(models_package.__file__).parent.rglob("*.py") if ".iterrows(" in p.read_text()]
+    assert offenders == []
 
 
 # --- simulator ------------------------------------------------------------------------------

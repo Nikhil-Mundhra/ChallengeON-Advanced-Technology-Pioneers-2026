@@ -60,3 +60,12 @@ FEATURE_NAMES = [
     "is_winter",
     "is_summer",
 ]
+
+
+CALENDAR_COLUMNS = ("iso_week", "quarter", "month", "is_holiday_week", "is_major_event_week")
+
+
+def calendar_feature_matrix(frame) -> np.ndarray:
+    """extract_calendar_features for every row of `frame` (one row per observation)."""
+    columns = [frame[c].to_numpy() for c in CALENDAR_COLUMNS]
+    return np.stack([extract_calendar_features(*values) for values in zip(*columns)])

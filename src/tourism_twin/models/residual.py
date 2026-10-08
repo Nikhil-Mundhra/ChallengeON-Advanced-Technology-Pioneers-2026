@@ -17,7 +17,7 @@ from sklearn.linear_model import RidgeCV
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import SimulationResult
-from tourism_twin.models.features import extract_calendar_features
+from tourism_twin.models.features import calendar_feature_matrix, extract_calendar_features
 from tourism_twin.models.structural import StructuralEngine
 
 
@@ -44,12 +44,7 @@ class ResidualMLEngine:
         error than the one it faces in production.
         """
         train = train_df.copy()
-        struct_preds = [
-            structural_engine.planning_guests(row["market"], row["season"], row["seats"])
-            for _, row in train.iterrows()
-        ]
-
-        train["guests_struct"] = struct_preds
+        train["guests_struct"] = structural_engine.planning_guests_for(train)
         train["residual"] = train["guests"] - train["guests_struct"]
 
         # Train a regularized RidgeCV model per market
@@ -59,16 +54,7 @@ class ResidualMLEngine:
             if len(m_df) < 5:
                 continue
 
-            X = np.stack([
-                extract_calendar_features(
-                    iso_week=row["iso_week"],
-                    quarter=row["quarter"],
-                    month=row["month"],
-                    is_holiday_week=row["is_holiday_week"],
-                    is_major_event_week=row["is_major_event_week"],
-                )
-                for _, row in m_df.iterrows()
-            ])
+            X = calendar_feature_matrix(m_df)
             y = m_df["residual"].values
 
             model = RidgeCV(alphas=alphas)

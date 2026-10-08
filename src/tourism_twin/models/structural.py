@@ -178,6 +178,13 @@ class StructuralEngine:
             arrivals = p.baseline_weekly_arrivals
         return arrivals * p.baseline_los
 
+    def planning_guests_for(self, frame: pd.DataFrame) -> np.ndarray:
+        """planning_guests for every row of a frame with market, season and seats columns."""
+        return np.array([
+            self.planning_guests(market, season, seats)
+            for market, season, seats in zip(frame["market"], frame["season"], frame["seats"])
+        ], dtype=float)
+
     def simulate(
         self,
         market: str,

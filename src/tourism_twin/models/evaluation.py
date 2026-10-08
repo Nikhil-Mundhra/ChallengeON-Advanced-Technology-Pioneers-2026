@@ -22,16 +22,14 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-import numpy as np
 import pandas as pd
-from sklearn.linear_model import RidgeCV
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.data.panel import training_window
 from tourism_twin.domain.seasons import SEASONS
+from tourism_twin.models.backtest import HoldoutSplit, backtest, forecast_metrics
 from tourism_twin.models.conformal import calibrate_conformal
-from tourism_twin.models.features import extract_calendar_features
-from tourism_twin.models.residual import ResidualMLEngine
+from tourism_twin.models.specs import WEEKLY_SPECS
 from tourism_twin.models.structural import StructuralEngine
 
 # First Monday of the forward holdout; everything before it is the calibration window.
@@ -42,22 +40,14 @@ FALLBACK_CONFORMAL_MARGIN = 0.35
 
 # Neutral names only: which model leads on which metric is computed (benchmark_leaders),
 # never written into a label, so no report can claim a ranking the numbers contradict.
-BENCHMARK_NAMES = (
-    "1. Historical Seasonal Prior",
-    "2. Pure ML / Calendar Model",
-    "3. Structural-Only Engine",
-    "4. Hybrid Digital Twin",
-)
-
-
-def forecast_metrics(actual: np.ndarray, pred: np.ndarray) -> Dict[str, float]:
-    err = actual - pred
-    tot_act = float(np.sum(actual))
-    wmape = float(np.sum(np.abs(err)) / tot_act) if tot_act > 0 else 0.0
-    bias = float((np.sum(pred) - tot_act) / tot_act) if tot_act > 0 else 0.0
-    mae = float(np.mean(np.abs(err)))
-    rmse = float(np.sqrt(np.mean(err ** 2)))
-    return {"wmape": wmape, "bias": bias, "mae": mae, "rmse": rmse}
+# Each benchmark row is a weekly model spec run through the back-test harness.
+BENCHMARK_SPECS = {
+    "1. Historical Seasonal Prior": "seasonal_prior",
+    "2. Pure ML / Calendar Model": "calendar_ridge",
+    "3. Structural-Only Engine": "structural_planning",
+    "4. Hybrid Digital Twin": "hybrid_legacy",
+}
+BENCHMARK_NAMES = tuple(BENCHMARK_SPECS)
 
 
 def benchmark_leaders(benchmark: Dict[str, Dict[str, float]]) -> Dict[str, str]:
@@ -67,83 +57,35 @@ def benchmark_leaders(benchmark: Dict[str, Dict[str, float]]) -> Dict[str, str]:
     return leaders
 
 
-def _calendar_features(row: pd.Series) -> np.ndarray:
-    return extract_calendar_features(
-        row["iso_week"], row["quarter"], row["month"], row["is_holiday_week"], row["is_major_event_week"]
-    )
-
-
-def _pure_calendar_predictions(train: pd.DataFrame, test: pd.DataFrame) -> list[float]:
-    """Benchmark 2: a per-market ridge on calendar features alone, ignoring aviation entirely."""
-    models = {}
-    for m in train["market"].unique():
-        m_df = train[train["market"] == m]
-        X = np.stack([_calendar_features(r) for _, r in m_df.iterrows()])
-        models[m] = RidgeCV(alphas=np.logspace(-2, 4, 20)).fit(X, m_df["guests"].values)
-    return [
-        max(0.0, float(models[r["market"]].predict(_calendar_features(r).reshape(1, -1))[0]))
-        for _, r in test.iterrows()
-    ]
-
-
 def evaluate(panel_path: Path = SETTINGS.panel_path) -> Dict[str, Any]:
     """Run the back-test and return the results payload (see save_evaluation)."""
     complete = training_window(pd.read_parquet(panel_path))
-    week_start = pd.to_datetime(complete["week_start"])
-    train = complete[week_start < HOLDOUT_START].copy()
-    test = complete[week_start >= HOLDOUT_START].copy()
+    result = backtest(
+        {**{spec: WEEKLY_SPECS[spec] for spec in BENCHMARK_SPECS.values()}, "realized_chain": WEEKLY_SPECS["realized_chain"]},
+        complete, HoldoutSplit(HOLDOUT_START), date_column="week_start",
+    )
+    predictions = result.predictions.pivot(index="row", columns="model", values="pred")
+    test = complete.loc[result.predictions.loc[result.predictions["model"] == "structural_planning", "row"]].copy()
+    test = test.join(predictions)
+    train = complete[pd.to_datetime(complete["week_start"]) < HOLDOUT_START]
 
     structural = StructuralEngine.calibrate(train)
-    residual = ResidualMLEngine().fit(train, structural)
     conformal = calibrate_conformal(train, structural)
-
-    test["pred_structural"] = [
-        structural.planning_guests(r["market"], r["season"], r["seats"]) for _, r in test.iterrows()
-    ]
-    test["pred_realized"] = [
-        (
-            r["p2p"] * p.effective_response_multiplier * p.baseline_los
-            if r["market"] != "DOMESTIC"
-            else r["pred_structural"]
-        )
-        for (_, r), p in (
-            ((i, r), structural.get_or_create_params(r["market"], r["season"])) for i, r in test.iterrows()
-        )
-    ]
-    test["pred_hybrid"] = [
-        max(
-            0.0,
-            r["pred_structural"]
-            + residual.predict_residual(
-                r["market"], r["iso_week"], r["quarter"], r["month"], r["is_holiday_week"], r["is_major_event_week"]
-            ),
-        )
-        for _, r in test.iterrows()
-    ]
-    season_priors = train.groupby(["market", "season"])["guests"].mean().to_dict()
-    overall_prior = train["guests"].mean()
-    test["pred_baseline"] = [season_priors.get((r["market"], r["season"]), overall_prior) for _, r in test.iterrows()]
-    test["pred_ml_only"] = _pure_calendar_predictions(train, test)
 
     intl = test[test["market"] != "DOMESTIC"]
     dom = test[test["market"] == "DOMESTIC"]
     diagnostics = {
-        "international_planning_mode": forecast_metrics(intl["guests"].values, intl["pred_structural"].values),
-        "international_realized_chain": forecast_metrics(intl["guests"].values, intl["pred_realized"].values),
-        "domestic_forecast_mode": forecast_metrics(dom["guests"].values, dom["pred_structural"].values),
-        "combined_planning_mode": forecast_metrics(test["guests"].values, test["pred_structural"].values),
-        "combined_realized_chain": forecast_metrics(test["guests"].values, test["pred_realized"].values),
+        "international_planning_mode": forecast_metrics(intl["guests"].values, intl["structural_planning"].values),
+        "international_realized_chain": forecast_metrics(intl["guests"].values, intl["realized_chain"].values),
+        "domestic_forecast_mode": forecast_metrics(dom["guests"].values, dom["structural_planning"].values),
+        "combined_planning_mode": forecast_metrics(test["guests"].values, test["structural_planning"].values),
+        "combined_realized_chain": forecast_metrics(test["guests"].values, test["realized_chain"].values),
     }
-
-    benchmark_columns = ("pred_baseline", "pred_ml_only", "pred_structural", "pred_hybrid")
-    benchmark = {
-        name: forecast_metrics(test["guests"].values, test[column].values)
-        for name, column in zip(BENCHMARK_NAMES, benchmark_columns)
-    }
+    benchmark = {name: forecast_metrics(test["guests"].values, test[spec].values) for name, spec in BENCHMARK_SPECS.items()}
 
     margins = test["market"].map(lambda m: conformal.get(m, FALLBACK_CONFORMAL_MARGIN))
-    low = test["pred_structural"] * (1.0 - margins)
-    high = test["pred_structural"] * (1.0 + margins)
+    low = test["structural_planning"] * (1.0 - margins)
+    high = test["structural_planning"] * (1.0 + margins)
     demonstrated_coverage = float(((low <= test["guests"]) & (test["guests"] <= high)).mean())
 
     market_breakdown = {}
@@ -152,7 +94,7 @@ def evaluate(panel_path: Path = SETTINGS.panel_path) -> Dict[str, Any]:
         market_breakdown[m] = {
             "archetype": str(m_test["archetype"].iloc[0]),
             "observations": len(m_test),
-            **forecast_metrics(m_test["guests"].values, m_test["pred_structural"].values),
+            **forecast_metrics(m_test["guests"].values, m_test["structural_planning"].values),
         }
 
     season_breakdown = {}
@@ -162,7 +104,7 @@ def evaluate(panel_path: Path = SETTINGS.panel_path) -> Dict[str, Any]:
             continue
         season_breakdown[s] = {
             "observations": len(s_test),
-            **forecast_metrics(s_test["guests"].values, s_test["pred_structural"].values),
+            **forecast_metrics(s_test["guests"].values, s_test["structural_planning"].values),
         }
 
     return {
