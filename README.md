@@ -16,6 +16,9 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[report,dev]"   # editable install of src/; 'report' adds reportlab for PDFs, 'dev' adds pytest
 
+# The raw competition workbooks are not redistributed in this repository: place the
+# organizer-provided files in '01a - DCT Dataset/' (or set TWIN_SOURCE_DIR) before 'twin build-lake'.
+
 # --- One-command full rebuild (all metrics + artifacts) ---
 make all
 

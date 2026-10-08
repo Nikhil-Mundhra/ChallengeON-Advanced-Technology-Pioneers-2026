@@ -77,7 +77,9 @@ read once at import: `TWIN_ROOT`, `TWIN_SOURCE_DIR`, `TWIN_LAKE_DIR`, `TWIN_OUTP
 
 ## Data and artifact rules
 
-- `01a - DCT Dataset/` holds the raw competition workbooks. Immutable — never edit.
+- `01a - DCT Dataset/` holds the raw competition workbooks. It is gitignored (not
+  redistributed): place the organizer-provided files there locally, or point
+  `TWIN_SOURCE_DIR` at them. Immutable — never edit, never commit.
 - `lake/`: `analytics.duckdb` is gitignored, but `lake/manifest.json` and the files in
   `lake/curated/` (parquet, json, `residual_engine.pkl`) ARE committed despite the
   `.gitignore` patterns. `build-lake`, `build-panel`, `train`, `evaluate`, `charts`,

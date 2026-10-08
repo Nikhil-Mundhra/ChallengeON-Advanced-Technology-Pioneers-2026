@@ -74,7 +74,7 @@ The official evaluation places 40% of the score on technical accuracy and modeli
 
 ## 5. Supplied data
 
-The repository preserves the source workbooks in `01a - DCT Dataset/` and builds typed analytical assets in `lake/`.
+The pipeline reads the source workbooks from `01a - DCT Dataset/` (organizer-provided and not redistributed in this repository) and builds typed analytical assets in `lake/`.
 
 | Dataset | Grain and coverage | Main fields | Intended use |
 | --- | --- | --- | --- |
@@ -543,7 +543,7 @@ The key differentiator is not a black-box demand forecast. It is a transparent p
 ## 20. References
 
 - [DCT Abu Dhabi Challenge Statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en)
-- [`../01a - DCT Dataset/Data_Dictionary.pdf`](../01a%20-%20DCT%20Dataset/Data_Dictionary.pdf)
+- `01a - DCT Dataset/Data_Dictionary.pdf` (part of the organizer-provided dataset; not in the repository)
 - [`../lake/manifest.json`](../lake/manifest.json)
 - [`../README.md`](../README.md)
 
