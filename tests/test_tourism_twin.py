@@ -11,6 +11,9 @@ import pytest
 from tourism_twin.config import SETTINGS
 from tourism_twin.data.panel import build_weekly_panel
 from tourism_twin.features import FeatureRegistry, FeatureSpec, Kind
+from tourism_twin.models.components import LinearRegressors, LinearTrend
+from tourism_twin.models.composite import AdditiveLogModel
+from tourism_twin.models.fitters import Backfitting, JointLinear
 from tourism_twin.features.lags import DEFAULT_MAX_LAG, lag_column
 from tourism_twin.domain.archetypes import MarketArchetype, get_market_archetype
 from tourism_twin.domain.markets import REGIONAL_CLUSTERS, TOP_15_INTERNATIONAL_MARKETS
@@ -144,6 +147,70 @@ def test_daily_panel_sums_to_the_weekly_panel(daily_panel: pd.DataFrame, weekly_
         assert (weekly_values.isna() == daily_values.isna()).all(), column
         both = weekly_values.notna()
         np.testing.assert_allclose(weekly_values[both], daily_values[both], rtol=0, atol=1e-6, err_msg=column)
+
+
+# --- model components (synthetic data with a known answer) ---------------------------------
+
+def _synthetic(level=8.0, slope=0.05, season=0.3, event=0.5, noise=0.01, market="M", seed=0) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    dates = pd.date_range("2023-01-01", periods=730, freq="D")
+    years = (dates - dates[0]).days.to_numpy() / 365.25
+    sin = np.sin(2 * np.pi * dates.dayofyear.to_numpy() / 365.25)
+    bump = ((dates.dayofyear >= 100) & (dates.dayofyear < 110)).astype(float)
+    log_y = level + slope * years + season * sin + event * bump + rng.normal(0.0, noise, len(dates))
+    return pd.DataFrame({"market": market, "date": dates, "sin": sin, "bump": bump, "guests": np.exp(log_y)})
+
+
+def _components():
+    return [LinearTrend(), LinearRegressors(["sin"], name="season"), LinearRegressors(["bump"], name="event")]
+
+
+def test_joint_linear_recovers_known_coefficients():
+    frame = _synthetic(noise=0.0)
+    model = AdditiveLogModel(_components(), fitter=JointLinear()).fit(frame)
+    fitted = model.explain()["M"]
+    assert fitted["trend"]["slope_per_year"] == pytest.approx(0.05, abs=1e-9)
+    assert fitted["season"]["coef"]["sin"] == pytest.approx(0.3, abs=1e-9)
+    assert fitted["event"]["coef"]["bump"] == pytest.approx(0.5, abs=1e-9)
+    np.testing.assert_allclose(model.predict(frame), frame["guests"], rtol=1e-9)
+
+
+def test_backfitting_converges_to_the_joint_solution():
+    frame = _synthetic()
+    joint = AdditiveLogModel(_components(), fitter=JointLinear()).fit(frame)
+    cycled = AdditiveLogModel(_components(), fitter=Backfitting(joint_linear=False, tol=1e-12, max_iter=500)).fit(frame)
+    report = cycled.fitted_["M"][1]
+    assert report.converged and report.iterations > 1
+    np.testing.assert_allclose(cycled.decompose(frame), joint.decompose(frame), atol=1e-9)
+
+
+def test_components_are_identifiable_and_centred():
+    frame = _synthetic(noise=0.02)
+    parts = AdditiveLogModel(_components(), fitter=Backfitting(joint_linear=False)).fit(frame).decompose(frame)
+    truth_season = 0.3 * (frame["sin"] - frame["sin"].mean())
+    truth_event = 0.5 * (frame["bump"] - frame["bump"].mean())
+    assert (parts["season"] - truth_season).abs().max() < 0.01
+    assert (parts["event"] - truth_event).abs().max() < 0.01
+    assert abs(parts["season"].mean()) < 1e-12 and abs(parts["event"].mean()) < 1e-12  # only the trend owns the level
+
+
+def test_composite_fits_each_market_separately_and_resolves_registered_features():
+    frame = pd.concat([_synthetic(level=8.0, season=0.3, event=0.0, market="A"), _synthetic(level=6.0, season=-0.2, event=0.0, market="B", seed=1)], ignore_index=True)
+    model = AdditiveLogModel([LinearTrend(), LinearRegressors(["sin"], name="season"), LinearRegressors(["month"], name="month")]).fit(frame)
+    assert model.explain()["A"]["season"]["coef"]["sin"] == pytest.approx(0.3, abs=0.02)
+    assert model.explain()["B"]["season"]["coef"]["sin"] == pytest.approx(-0.2, abs=0.02)
+    np.testing.assert_allclose(np.log(model.predict(frame)), model.decompose(frame).sum(axis=1))
+    with pytest.raises(KeyError, match="No fitted model"):
+        model.predict(frame.assign(market="C"))
+
+
+def test_composite_requires_exactly_one_level_owner_and_unique_names():
+    with pytest.raises(ValueError, match="own the level"):
+        AdditiveLogModel([LinearRegressors(["sin"])])
+    with pytest.raises(ValueError, match="own the level"):
+        AdditiveLogModel([LinearTrend(), LinearTrend(name="trend2")])
+    with pytest.raises(ValueError, match="unique"):
+        AdditiveLogModel([LinearTrend(), LinearRegressors(["sin"], name="trend")])
 
 
 # --- simulator ------------------------------------------------------------------------------

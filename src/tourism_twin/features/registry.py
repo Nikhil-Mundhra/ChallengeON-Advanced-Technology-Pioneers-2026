@@ -48,6 +48,9 @@ class FeatureRegistry:
             raise ValueError(f"Feature {spec.name!r} is already registered")
         self._specs[spec.name] = spec
 
+    def __contains__(self, name: str) -> bool:
+        return name in self._specs
+
     def spec(self, name: str) -> FeatureSpec:
         return self._specs[name]
 
