@@ -1,551 +1,242 @@
-# Abu Dhabi Tourism Digital Twin
+# Abu Dhabi Tourism Digital Twin — Solution and Technical Specification
 
-## Solution and technical specification
+**Challenge:** DCT Abu Dhabi — Advanced Technology Pioneers 2026 ([challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en))
+**Status:** working prototype: CLI, web UI and JSON API, PDF reports, forward-holdout back-test, 59 automated tests.
+**Run instructions:** [README](../README.md) and [user guide](user_guide.md).
 
-**Status:** Implemented & Verified Prototype (MVP Complete)  
-**Challenge:** DCT Abu Dhabi - Advanced Technology Pioneers 2026  
-**Last updated:** 28 September 2026  
-**Primary source:** [Official DCT challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en)
+## 1. Summary
 
-## 1. Executive summary
+The twin estimates how a change in air connectivity changes weekly hotel guests for a source market and season. A planner changes weekly frequency, aircraft gauge, seat capacity, load factor, P2P share, response multiplier or length of stay and gets:
 
-The Abu Dhabi Tourism Digital Twin is an interactive scenario simulator that estimates how changes in air connectivity affect hotel demand. A DCT planner can add or remove a route, change weekly frequency, seat capacity, expected load factor, transfer share, market mix, or launch period and see the resulting change in hotel guests by source market and season.
+- baseline vs. scenario at every step of the seats → guests chain;
+- the lift attributed to each lever (waterfall);
+- the structural lift plus a residual ML adjustment (hybrid);
+- a P10/P50/P90 range and a tornado ranking of lever sensitivity;
+- a plain-language briefing.
 
-The solution combines two modeling layers:
+Two model layers: a structural conversion chain calibrated per market and season, and a per-market residual model on calendar and event features only.
 
-1. A transparent structural simulator that exposes the conversion from seats to passengers, point-to-point arrivals, market demand, hotel arrivals, and daily hotel guests.
-2. A machine-learning correction that models systematic residual patterns without hiding the main conversion chain.
+## 2. Problem
 
-The simulator reports a range rather than a single falsely precise answer. It identifies which assumptions drive the result and explains the recommended planning action in non-technical language.
+Flight data records departure country; hotel data records guest nationality. Arriving passengers may transfer, transit, be returning residents, stay with friends or relatives, or arrive overland. A change in seats therefore does not map one-to-one to hotel demand. Questions the tool answers:
 
-The design directly addresses the challenge requirements for a working simulator, an adjustable conversion chain, historical back-testing, sensitivity analysis, market and seasonal granularity, decision relevance, and reproducibility.
+- Hotel demand from a new twice-weekly route.
+- Effect of a change in aircraft size or load factor.
+- Guests generated per added seat, by market and season.
+- Exposure of a market-season to a capacity cut.
+- Which assumption drives the result most.
 
-## 2. Problem statement
+**Not in scope:** individual-traveler prediction or profiling; passenger itinerary reconstruction; causal claims from observational data; occupancy (no room-inventory data); identifying nationality, purpose or hotel choice from flight aggregates.
 
-Flight planning and hotel-demand planning use different datasets and different definitions of source market. Flight data records where a flight departed, while hotel data records a guest's nationality. Many arriving passengers also transfer, transit, return home as residents, stay with friends or relatives, or otherwise do not become hotel guests.
+## 3. Challenge requirements
 
-As a result, a change in available seats does not translate directly into the same change in hotel demand. DCT needs a tool that answers questions such as:
-
-- What hotel demand could a new twice-weekly route generate?
-- What happens if an airline changes aircraft size or load factor?
-- Which routes produce the most hotel demand per added seat?
-- Which markets and seasons are most exposed to a capacity reduction?
-- Which assumptions create the greatest uncertainty in the answer?
-
-## 3. Product objective
-
-Build a reproducible decision-support tool that converts aviation scenarios into estimated hotel demand while keeping the assumptions, uncertainty, and historical performance visible.
-
-### Primary user
-
-A DCT Abu Dhabi tourism or aviation planner evaluating route development, seasonal capacity, airline partnerships, hotel readiness, or event timing.
-
-### Core user outcome
-
-The planner can compare a proposed aviation scenario with the historical baseline and receive:
-
-- Incremental hotel guests and guest nights.
-- Results by market and season.
-- Guests generated per added seat.
-- An expected range and its main uncertainty drivers.
-- A concise explanation of what changed and what action DCT should consider.
-
-### Non-goals for the MVP
-
-- Individual traveler prediction or profiling.
-- Passenger-level itinerary reconstruction.
-- A claim of causal impact from observational data alone.
-- Precise hotel occupancy without a supplied room-inventory assumption.
-- Fully identifying passenger nationality, visitor purpose, and hotel choice from flight aggregates.
-
-## 4. Challenge alignment
-
-| Challenge requirement | Proposed implementation |
+| Requirement | Implementation |
 | --- | --- |
-| Working simulator | Interactive baseline and scenario comparison with editable aviation and market levers |
-| Transparent conversion chain | Structural seats-to-guests calculation with every active assumption shown |
-| Historical validation | Forward-chaining back-tests with WMAPE, bias, and interval coverage |
-| Sensitivity analysis | Tornado chart, scenario elasticities, and Monte Carlo or bootstrap uncertainty |
-| Useful granularity | Weekly results by source market with monthly and seasonal summaries |
-| Decision relevance | Automated explanation of the impact, risk, and recommended planning response |
-| Reproducibility | Versioned code, data manifest, explicit configuration, tests, and one-command packaging |
+| Working simulator | `twin simulate`, `twin serve` (web UI + JSON API), Python API |
+| Adjustable conversion chain | 7 levers over seats → passengers → P2P → hotel arrivals → guests; every stage shown baseline vs. scenario |
+| Historical validation | Forward holdout (104 calibration weeks, 30 holdout weeks): WMAPE, bias, MAE, RMSE, interval coverage; 4-model benchmark |
+| Sensitivity analysis | Tornado ranking; Monte Carlo P10/P50/P90 |
+| Granularity | 21 markets × 4 seasons; weekly grain; market and season error breakdowns |
+| Decision relevance | Generated briefing naming the lift, range and top driver |
+| Reproducibility | Source hashes in `lake/manifest.json`, env-configurable paths, `make all` from raw workbooks, seeded deterministic Monte Carlo, tests |
 
-The official evaluation places 40% of the score on technical accuracy and modeling rigor. The remaining criteria cover creativity, practicality, and clarity. The MVP therefore prioritizes an honest historical back-test and an explainable working simulator over unsupported feature breadth.
+## 4. Data
 
-## 5. Supplied data
+Source workbooks are read from `01a - DCT Dataset/` (organizer-provided, not redistributed; SHA-256 of each file in `lake/manifest.json`).
 
-The pipeline reads the source workbooks from `01a - DCT Dataset/` (organizer-provided and not redistributed in this repository) and builds typed analytical assets in `lake/`.
-
-| Dataset | Grain and coverage | Main fields | Intended use |
+| Dataset | Grain and coverage | Fields | Use |
 | --- | --- | --- | --- |
-| International guest train | Daily nationality records, January 2022-July 2025 | Guests, new arrivals, same-day guests, nationality | Training and historical validation |
-| International guest test | Daily nationality records, August 2025-February 2026 | New arrivals, same-day guests, nationality; Guests withheld | Competition forecast output |
-| Domestic guest train/test | One row per day | Guests, new arrivals, same-day guests | Separate domestic-demand model |
-| Flight operations | Route-airline-date records, January 2022-February 2026 | Seats, passengers, P2P, transfer, transit, load factor, frequency, origin, airline | Structural conversion and scenarios |
-| Data dictionary | Eight-page reference document | Field definitions and caveats | Semantic reference |
+| International guests, train | Nationality-day, 2022-01-01 to 2025-07-31 | Guests, new arrivals, same-day guests | Calibration, back-test |
+| International guests, test | Nationality-day, 2025-08-01 to 2026-02-28 | New arrivals, same-day guests (Guests withheld) | Competition forecast inputs |
+| Domestic guests, train/test | Day | Guests, new arrivals, same-day guests | Separate domestic prior |
+| Flights | Route-airline-date, 2022 (monthly) and 2023-01-01 to 2026-02-28 (daily) | Seats, pax, P2P, transfer, transit, load factor, frequency, origin, airline | Structural chain |
+| Data dictionary | 8-page PDF | Field definitions | Reference |
 
-### Current curated assets
+### 4.1 Lake (`twin build-lake`)
 
-- `lake/curated/guest_daily.parquet`
-- `lake/curated/flight_daily.parquet`
-- `lake/analytics.duckdb`
-- `lake/manifest.json`
+| Check (`lake/manifest.json`) | Value |
+| --- | --- |
+| `guest_daily` rows (1,520 dates × 45 nationalities + domestic) | 69,920 |
+| Source-present guest rows / absent grid rows | 69,344 / 576 |
+| Present rows, train / test | 59,930 / 9,414 |
+| Flight rows total / daily (2023+) / monthly (2022) | 117,608 / 116,395 / 1,213 |
+| Flight rows with load factor > 100% (kept, flagged) | 9,896 |
+| Duplicate candidate keys (guest, flight) | 0, 0 |
+| Passenger identity mismatches (`Total PAX = P2P + Transfer + Transit`) | 0 |
 
-The lake contains 69,344 guest rows and 117,608 flight rows. It separates 59,930 labeled guest records from 9,414 prediction records and validates the passenger identity:
+### 4.2 Data findings that shape the model
 
-```text
-Total PAX = Total P2P + Total Transfer + Total Transit
-```
+1. Guests: 1,308 labeled days followed by 212 test days.
+2. 45 guest nationalities vs. 33 flight departure countries; the fields are not semantically equivalent even when labels match.
+3. 2022 flights exist on only 12 month-start dates; daily flights start 2023-01-01. Joint flight–guest modeling starts in 2023; 2022 flights are isolated in `flight_monthly.parquet`.
+4. `*` in the source (suppressed / unavailable) is kept as null, never zero: 840 suppressed new-arrival rows and 40,004 suppressed same-day rows, flagged by `is_suppressed_arrival` / `is_suppressed_same_day`.
+5. Domestic demand is modeled separately; international flight changes do not create domestic guests.
+6. Realized pax, P2P, load factor and new arrivals are valid for calibration but unknown before a future flight operates.
+7. International train-split guests ÷ new arrivals = 3.61 (stock-to-flow ratio, not a measured length of stay).
 
-### Material data findings
+### 4.3 Modeling panels
 
-1. The guest data contains 1,308 labeled days followed by 212 test days.
-2. The international data contains 45 nationalities; the flight data contains 33 departure countries.
-3. The flight-country and guest-nationality fields are not semantically equivalent, even when their labels match.
-4. Flight records contain only 12 distinct dates during 2022 but daily dates from 2023 onward. Daily or weekly joint modeling should therefore begin in January 2023 unless all sources are aggregated consistently.
-5. The `*` marker in same-day guests can mean zero, suppressed, unavailable, or not applicable. The curated data retains these cases as null rather than converting them to zero.
-6. Domestic demand should be modeled separately. International flight changes must not mechanically create domestic guests.
-7. Realized passengers, P2P passengers, load factor, and hotel new arrivals are valid for historical calibration but are unknown before a future flight operates.
+| Panel | Command | Grain | Contract |
+| --- | --- | --- | --- |
+| `weekly_market_panel.parquet` | `twin build-panel` | Market × Monday–Sunday week × split; 3,507 rows, 39 columns, week starts 2022-12-26 to 2026-02-23 | Flights and guests matched by date and market before weekly aggregation; weeks crossing the train/test boundary are split, not merged; `is_complete_week`, `is_complete_guest_inputs` flags; `load_factor_raw` kept unclipped with `is_load_factor_outlier`, `load_factor` clipped to [0, 1] |
+| `daily_market_panel.parquet` (not committed) | `twin build-daily-panel [--max-lag K]` | Market × day, both splits; 31,920 rows (21 × 1,520) | Arrival lags `arrivals_lag_0..K` (default K = 21) built over the concatenated train + test series, so the first test days take lags from the last train days; `lag_complete` marks rows with a full lag window. Suppressed or absent nationality-day arrivals are linearly interpolated within each nationality's series into `new_arrivals_filled` (counts in `n_arrivals_interpolated`, `n_absent_records`); observed `new_arrivals` leaves them missing, so weekly sums of daily `guests` and `new_arrivals` equal the weekly panel exactly (tested) |
 
-## 6. Solution architecture
+Markets: the top 15 nationalities by training guest volume, 5 regional clusters (`OTHER_EUROPE`, `OTHER_ASIA_PACIFIC`, `OTHER_MENA`, `OTHER_AMERICAS_AFRICA`, `OTHER_EURASIA`) and `DOMESTIC`. Both panels use the same SQL market mapping (`build_market_case`).
+
+The daily panel is input for a planned stock-flow guest model (§11); no shipped model reads it yet.
+
+Derived columns of both panels (ratios, flags, calendar fields, archetype, arrival lags) are defined once in `src/tourism_twin/features/` and resolved by `FeatureRegistry` in dependency order. Ratios are computed from summed parts at the panel's grain, never averaged. Both panel builders read the lake through `LakeRepository` (`data/repository.py`); the weekly panel's SQL runs on in-memory DuckDB views over the curated Parquet, so `twin build-panel` does not need `lake/analytics.duckdb`. `models/` (structural, training, evaluation) read `weekly_market_panel.parquet` directly.
+
+## 5. Architecture
 
 ```mermaid
 flowchart LR
-    A[Source Excel files] --> B[Validated analytical lake]
-    B --> C[Feature and assumption registry]
-    C --> D[Structural scenario engine]
-    C --> E[Residual ML model]
-    D --> F[Scenario prediction]
+    A[Source workbooks] --> B[Validated lake: Parquet + manifest]
+    B --> C[Weekly and daily panels via FeatureRegistry]
+    C --> D[Structural engine]
+    C --> E[Residual ML]
+    D --> F[Hybrid prediction]
     E --> F
-    F --> G[Uncertainty and sensitivity engine]
-    G --> H[Planner interface]
-    H --> I[Decision explanation]
+    F --> G[Uncertainty and sensitivity]
+    G --> H[CLI / web UI / API / PDF]
 ```
 
-### Structural conversion chain
+Package layout: [README §2](../README.md#2-architecture).
 
-```text
-Scheduled seats
-    x expected load factor
-= arriving passengers
-    x expected P2P share
-= passengers ending their journey in Abu Dhabi
-    x effective market conversion
-= hotel arrivals by market
-    x stay profile
-= daily hotel guests and guest nights
-    + residual ML correction
-= final demand estimate and uncertainty range
-```
+## 6. Operating modes
 
-The term **effective market conversion** combines relationships that the supplied aggregate data cannot uniquely separate: origin-to-nationality allocation, inbound visitor share, and hotel-capture rate. The interface may expose those concepts as planner assumptions, but the prototype must not claim that each is directly observed.
-
-## 7. Operating modes
-
-### 7.1 Planning mode
-
-Planning mode supports decisions made before future operations are observed. It starts from scheduled capacity and planner assumptions.
-
-Allowed inputs include:
-
-- Route and origin market.
-- Weekly frequency.
-- Aircraft or seats per flight.
-- Expected load factor.
-- Transfer and transit share.
-- Launch and operating dates.
-- Seasonal market conversion.
-- Stay-profile assumptions.
-
-Planning mode must not rely on future realized `Total PAX`, `Total P2P`, or hotel `New Arrivals`.
-
-### 7.2 Forecast mode
-
-Forecast mode predicts the competition's withheld `Guests` field as accurately as possible. Because `New Arrivals` is present in the test data, it may be used in this mode.
-
-Forecast mode is a competition prediction task, not a pre-flight planning simulation. Results from the two modes must be labeled separately so a strong forecast does not imply that a planner knew future realized arrivals.
-
-## 8. Model specification
-
-### 8.1 Seats to passengers
-
-For origin or route `o` and period `t`:
-
-```text
-Passengers[o,t] = Seats[o,t] x LoadFactor[o,t]
-```
-
-Historical load factor is calculated from realized passengers and seats. Scenario load factor is selected by the planner or estimated from comparable routes using origin, city, airline, month, weekday, route maturity, and recent history.
-
-### 8.2 Passengers to P2P arrivals
-
-```text
-P2P[o,t] = Passengers[o,t] x P2PShare[o,t]
-```
-
-Equivalently:
-
-```text
-P2PShare = 1 - TransferShare - TransitShare
-```
-
-Historical `Total P2P` is the validation target for this stage. The scenario engine recomputes P2P from the active assumptions.
-
-### 8.3 Origin to hotel-arrival markets
-
-For nationality or hotel market `n`:
-
-```text
-HotelArrivals[n,t] = sum over origins o of P2P[o,t] x Conversion[n,o,season]
-```
-
-The conversion matrix must be non-negative and strongly regularized. A full 45 x 33 unrestricted cross-allocation matrix has 1,485 parameters and is mathematically unidentifiable from aggregate weekly time series (highly collinear, rank-deficient system).
-
-In this prototype, the bridge is implemented as an explicit **regularized same-market proxy with calibrated effective multipliers**:
-- Flight departure country $k$ is linked to hotel guest nationality $k$.
-- The market-season-specific effective multiplier $\beta_{k, \text{season}} = \frac{\text{HotelArrivals}_{k, \text{season}}}{\text{P2P}_{k, \text{season}}}$ absorbs non-national travelers on the flight, indirect non-hub connections, and overland ground transport from other UAE airports (e.g., Dubai International Airport DXB).
-- For unmodeled or cold-start routes, hierarchical shrinkage applies regional archetype priors (e.g., Scandinavia, Eastern Europe, South Asia VFR).
-- This structure avoids fabricating unverified 1,485-cell origin-nationality cross-matrices while giving planners a direct, transparent lever to adjust destination conversion.
-
-
-### 8.4 Hotel arrivals to daily guests
-
-A simple approximation uses a market-season stock-to-flow ratio:
-
-```text
-Guests[n,t] = HotelArrivals[n,t] x StayFactor[n,season]
-```
-
-A stronger model treats daily guests as a stock created by arrivals over previous days:
-
-```text
-Guests[n,t] = sum from k=0 to K of HotelArrivals[n,t-k] x Survival[n,k]
-```
-
-`Survival[n,k]` represents the probability that a guest remains after `k` nights. The historical international guest-stock/new-arrivals ratio of approximately 3.6 is a useful initialization check, but it is not proof of average length of stay.
-
-### 8.5 Residual ML correction
-
-```text
-FinalPrediction = StructuralPrediction + ResidualCorrection
-```
-
-Candidate residual-model features include:
-
-- Calendar seasonality.
-- Weekday and weekend effects.
-- Market-specific recurring patterns.
-- Holiday and event indicators when reliable sources are available.
-- Lagged residuals or demand state.
-- Route and airline composition.
-
-In the implementation, the residual target is actual guests minus the planning-mode structural prediction (`StructuralEngine.planning_guests`: scheduled seats × calibrated seasonal load factor, P2P share, response multiplier and length of stay; `DOMESTIC` uses its calibrated seasonal prior), the same prediction the simulator produces at inference time; realized load factor and P2P share are never used, so training and serving see the same structural error.
-
-The residual model must not silently double-count the same flight effect already represented by the structural layer. Structural and residual contributions should be displayed separately, and simulated demand should pass monotonicity and reasonableness checks.
-
-### 8.6 Domestic demand
-
-Domestic guests form a separate time-series or regression problem. Domestic predictions may use calendar, event, holiday, and lag features, but international aviation scenarios should not directly alter domestic demand unless a separately justified relationship is introduced.
-
-## 9. Market archetypes
-
-Because the data is aggregated, the system uses market archetypes rather than individual traveler personas. Archetypes help explain model behavior without implying passenger-level knowledge.
-
-Candidate archetypes include:
-
-- Direct leisure market.
-- Highly seasonal market.
-- Business-oriented market.
-- Hub-mediated or indirect market.
-- Transfer-heavy route.
-- Resident or visiting-friends-and-relatives-heavy market.
-- Emerging or data-sparse market.
-
-Archetype assignments must be based on measurable aggregate features and should not be presented as demographic profiles of individual travelers.
-
-## 10. Uncertainty and sensitivity
-
-### Uncertainty
-
-Do not assume all simulation outputs follow a normal distribution. Guest demand is non-negative, seasonal, autocorrelated, and exposed to unusual events.
-
-Preferred uncertainty methods are:
-
-- Time-block bootstrap of model residuals.
-- Empirical market-season distributions.
-- Beta distributions for bounded shares such as load factor and P2P share.
-- Conformal prediction intervals for final forecasts.
-- Quantile regression as a complementary model.
-
-The output should show a base estimate and an honest interval, such as P10-P90, together with its calibration coverage on held-out history.
-
-### Sensitivity
-
-The simulator should report:
-
-- One-at-a-time scenario elasticities.
-- A tornado chart of the largest input effects.
-- Market-season sensitivity heatmaps.
-- Global sensitivity analysis when input interactions materially affect the answer.
-- The top three assumptions responsible for result uncertainty.
-
-## 11. Validation strategy
-
-Random train/test splits are prohibited for the primary evaluation because they leak future seasonal and market information into training.
-
-### Forward-chaining back-tests
-
-Suggested folds are:
-
-| Training window | Validation window |
-| --- | --- |
-| Through June 2024 | July-September 2024 |
-| Through September 2024 | October-December 2024 |
-| Through March 2025 | April-July 2025 |
-
-Exact cutoffs may be adjusted to maintain sufficient coverage, but validation must always occur after training in time.
-
-### Metrics
-
-- WMAPE overall.
-- WMAPE by nationality or market.
-- WMAPE by month and season.
-- Bias or signed percentage error.
-- Prediction-interval coverage and average interval width.
-- Error for high-volume versus low-volume markets.
-- Error on route additions or discontinuities where historical analogues exist.
-
-WMAPE is defined as:
-
-```text
-WMAPE = sum(abs(actual - forecast)) / sum(actual)
-```
-
-### Stage-level validation
-
-Validate each stage as well as the final prediction:
-
-1. Seats to passengers.
-2. Passengers to P2P.
-3. P2P to hotel arrivals or effective market conversion.
-4. Hotel arrivals to guest stock.
-5. Structural prediction to corrected final prediction.
-
-### Required baselines and ablations
-
-Compare:
-
-- Seasonal naive forecast.
-- Fixed conversion-ratio model.
-- Direct ML forecast.
-- Structural model without ML correction.
-- Full hybrid model.
-
-The hybrid model is justified only if it improves held-out accuracy without producing implausible scenario behavior.
-
-### Empirical Forward-Holdout Results (Jan 2025 – Jul 2025)
-
-The models were evaluated strictly on complete 7-day ISO weeks without split-boundary contamination (104 complete calibration weeks, Jan 2023 – Dec 2024, 2,132 market-weeks; and 30 complete forward holdout weeks, Jan 2025 – Jul 2025, 621 market-weeks across all 21 unified markets: Top 15 international, 5 regional clusters, and Domestic). The back-test fits the shipped components with their production trainers (`StructuralEngine.calibrate`, `ResidualMLEngine.fit`, `calibrate_conformal`) on the calibration window only, and every planning-mode prediction (residual training, conformal calibration, scoring) comes from the same `StructuralEngine.planning_guests` chain the simulator serves, so the benchmark measures the deployed model rather than a reimplementation.
-
-#### 1. Separation of Planning, Realized-Chain, and Domestic Diagnostics
-
-To avoid operational target leakage and prevent domestic staycations from artificially deflating the aviation headline score, evaluations are separated explicitly across 621 complete-input test market-weeks (calibrated on 2,132 training market-weeks):
-
-| Evaluation Setting | WMAPE | Directional Bias | MAE | RMSE | Operational Scope |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **International Planning Mode** | **27.52%** | **+1.52%** | 2,466.5 | 3,920.7 | Scheduled seats + training priors only (true pre-flight planning). |
-| **International Realized-Chain** | **24.54%** | **-5.67%** | 2,199.9 | 3,308.7 | Downstream conversion holding realized P2P fixed. |
-| **Domestic Forecast Mode** | **16.04%** | **+13.05%** | 17,485.2 | 21,078.9 | Dedicated seasonal prior; NO holdout arrival leakage. |
-| **Combined Planning Mode** | **23.14%** | **+5.93%** | 3,192.1 | 6,007.8 | Full territory diagnostic (International + Domestic). |
-| **Combined Realized-Chain** | **21.30%** | **+1.48%** | 2,938.3 | 5,646.6 | Realized aviation P2P across entire territory. |
-
-#### 2. Model Architecture Benchmark (All Markets)
-
-| Model Architecture | WMAPE | Directional Bias | MAE | RMSE | Model Status |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **1. Historical Seasonal Prior** | 23.00% | -6.60% | 3,172.8 | 6,156.5 | Naive Baseline |
-| **2. Pure ML / Calendar Model** | 22.00% | -8.50% | 3,035.6 | 5,839.0 | Calendar Extrapolation |
-| **3. Structural-Only Engine** | 23.14% | +5.93% | 3,192.1 | 6,007.8 | Pre-Flight Decision Chain |
-| **4. Hybrid Digital Twin** | **21.74%** | **+5.36%** | **2,999.2** | **5,673.6** | **Lowest WMAPE, \|Bias\|, MAE & RMSE** |
-
-**Demonstrated Empirical Holdout Coverage:** 65.2% (Nominal target: 80.0%).  
-*Coverage shortfall reflects positive secular tourism growth in Abu Dhabi during 2025 (+2.8% to +9.1% YoY) relative to the 2023–2024 calibration base.*
-
-Key takeaways from the strict evaluation:
-1. When evaluated strictly in pre-flight planning mode (without realized operational data), the international structural conversion engine achieves **27.52% WMAPE** with minimal directional bias (**+1.52%**).
-2. The Hybrid Digital Twin leads every benchmark metric (`benchmark_leaders`): **21.74% WMAPE**, **+5.36%** bias, **2,999.2 MAE**, **5,673.6 RMSE**, ahead of the seasonal prior, pure calendar ML and structural-only models while mathematically guaranteeing monotonicity. The margins are modest (0.26 pp WMAPE over pure calendar ML), and the structural-only engine on its own (23.14% WMAPE) does not beat the historical seasonal prior (23.00%).
-3. Domestic demand achieves **16.04% WMAPE** without using any future arrivals, demonstrating that domestic staycations must be kept separate from the international aviation chain.
-4. **Domestic Secular Trend & Planning Guidance:** Domestic staycation volume expanded substantially in 2025 (+13.05% directional bias vs historical training baseline). Because domestic guests represent the single largest share of total hotel room nights in Abu Dhabi, planners projecting beyond 12 months should apply an explicit secular annual growth drift factor (recommended +3.5% to +5.0% annually) to historical domestic seasonal baselines.
-
-
-## 12. Simulator experience
-
-### Screen 1: Baseline
-
-Show expected guests and guest nights by period and market, historical performance, the active baseline assumptions, and the uncertainty range.
-
-### Screen 2: Scenario builder
-
-Allow the planner to:
-
-- Add or discontinue a route.
-- Change weekly frequency.
-- Select or enter seat capacity.
-- Change expected load factor.
-- Change transfer and transit shares.
-- Set a launch date and operating season.
-- Override market conversion or stay assumptions.
-
-### Screen 3: Impact explanation
-
-Show baseline versus scenario totals, incremental demand, market and seasonal breakdowns, and a conversion waterfall such as:
-
-```text
-+20,000 scheduled seats
--> +16,400 expected passengers
--> +10,100 expected P2P passengers
--> +4,200 expected hotel arrivals
--> +14,900 expected guest nights
-```
-
-Every number in the waterfall must be traceable to the displayed assumption or model stage that produced it.
-
-### Screen 4: Sensitivity and risk
-
-Show:
-
-- Optimistic, base, and pessimistic ranges.
-- Tornado chart.
-- Market-season heatmap.
-- Most influential assumptions.
-- Historical interval coverage.
-- Plain-language planning recommendation.
-
-## 13. Proposed technical design
-
-### Data and modeling
-
-- Python for pipelines and modeling.
-- DuckDB and Parquet for local analytical storage.
-- Pandas or Polars for feature engineering.
-- Statsmodels or regularized regression for interpretable baselines.
-- LightGBM or XGBoost for residual correction if justified by validation.
-- Scikit-learn-compatible pipelines for preprocessing and cross-validation.
-- SALib or a lightweight custom engine for sensitivity analysis.
-
-### Application
-
-- Streamlit for the fastest MVP, or FastAPI plus a web front end if the team requires greater UI control.
-- Plotly for interactive comparisons, waterfalls, heatmaps, and uncertainty bands.
-- Docker for a reproducible one-command demo.
-
-### Proposed repository layout
-
-*Original proposal, kept for the record. The implemented layout is described in the README, section 2.*
-
-```text
-app/                 Simulator interface
-configs/             Versioned model and scenario assumptions
-docs/                Product and technical documentation
-models/              Structural, residual, and uncertainty models
-notebooks/           Exploration only; no production dependencies
-scripts/             Repeatable data and training commands
-tests/               Data, model, and scenario-behavior tests
-lake/                Curated Parquet files, DuckDB database, manifest
-01a - DCT Dataset/   Unmodified competition source files
-```
-
-## 14. Implementation & Verification Status
-
-### Phase 1: Data foundation [COMPLETED & VERIFIED]
-- Curated lake verified (`lake/analytics.duckdb`).
-- Documented weekly panel produced (`lake/curated/weekly_market_panel.parquet`, 3,507 rows, complete weeks isolated, daily flight/guest matching).
-- Top 15 international markets + 5 regional clusters + `DOMESTIC` segmented cleanly across 21 unified markets.
-
-### Phase 2: Baselines & Evaluation Harness [COMPLETED & VERIFIED]
-- Implemented seasonal naive, pure ML calendar, structural-only, and hybrid models.
-- Strict 104-week train vs 30-week forward holdout back-test implemented (`twin evaluate`, `src/tourism_twin/models/evaluation.py`).
-- Explicitly separated International Planning Mode (27.52% WMAPE), Realized-Chain Mode (24.54%), Domestic Forecast Mode (16.04%), and Combined Planning Mode (23.14%).
-- Saved all metrics dynamically to `lake/curated/evaluation_results.json`.
-
-### Phase 3: Structural Simulator [COMPLETED & VERIFIED]
-- Structural conversion chain implemented in `src/tourism_twin/models/structural.py`.
-- Exact sequential waterfall attribution decomposition verified ($0.000000$ discrepancy).
-- Cold-start hierarchical regional priors implemented for unmodeled countries (Sweden, Brazil, Poland, etc.).
-- Deterministic training command implemented (`twin train`, `src/tourism_twin/models/training.py`).
-
-### Phase 4: Residual ML & Uncertainty [COMPLETED & VERIFIED]
-- Monotonic residual ML model (`src/tourism_twin/models/residual.py`) trained strictly on calendar/event features, excluding flight capacity levers.
-- Beta-distributed operational priors and block-bootstrapped residuals implemented in `src/tourism_twin/models/uncertainty.py`.
-- Demonstrated holdout coverage verified at 65.2% (with positive secular trend documentation).
-
-### Phase 5: Interactive Product & Submission Assets [COMPLETED & VERIFIED]
-- Interactive web application implemented (`src/app/server.py` + `src/app/static/index.html`), runnable via `twin serve --port 8080`.
-- Terminal scenario CLI implemented (`twin simulate`; all pipeline steps share the single `twin` console command from `src/tourism_twin/cli/`).
-- Automated unit and integration test suite implemented (`tests/test_digital_twin.py` & `tests/test_audit_agent.py`, 38 tests; 37 pass on a fresh clone until `twin build-lake` creates `flight_monthly.parquet`).
-- Publication-grade 3-page executive PDF report generated dynamically (`twin report solution` -> `output/pdf/challengeon_solution_report.pdf`).
-
-
-## 15. Acceptance Criteria Checklist
-
-- [x] A planner can change frequency, seats, aircraft gauge, load factor, P2P mix, response multiplier, and stay duration.
-- [x] Outputs update dynamically for total demand, market, and season.
-- [x] The interface displays the complete conversion waterfall with verified 0.000000 discrepancy.
-- [x] Baseline and scenario results include empirical uncertainty ranges (P10, P50, P90).
-- [x] Strict forward-chaining WMAPE, directional bias, MAE, and interval coverage are reported without data leakage.
-- [x] Structural-only, ML-only, and hybrid results are benchmarked side-by-side.
-- [x] International planning and domestic demand are modeled and reported separately.
-- [x] Monotonicity is verified: capacity additions strictly produce non-negative demand shifts.
-- [x] Cold-start markets resolve to regional priors without software failures.
-- [x] All pipeline commands, tests, and models are 100% deterministic and reproducible.
-
-## 16. Risks and mitigations
-
-| Risk | Consequence | Mitigation |
+| Mode | Purpose | Allowed inputs |
 | --- | --- | --- |
-| Departure country is treated as nationality | Misallocated market impact | Regularized effective conversion, aggregated markets, visible overrides, explicit limitation |
-| Too many bridge-matrix parameters | Unstable and non-unique estimates | Top-market scope, sparse or low-rank structure, partial pooling |
-| Realized data is used in planning mode | Operational leakage | Separate forecast and planning feature sets and tests |
-| Random validation inflates accuracy | Misleading technical score | Forward-chaining folds only |
-| ML double-counts structural flight effects | Implausible scenario responses | Residual feature controls, contribution reporting, monotonicity tests |
-| 2022 flight grain is joined to daily guests | Incorrect daily relationships | Begin joint daily/weekly modeling in 2023 or aggregate consistently |
-| Missing values are converted to zero | Biased ratios and targets | Preserve null semantics and add explicit missingness rules |
-| Small markets produce extreme ratios | Unstable results | Hierarchical shrinkage and `Other` grouping |
-| Occupancy is reported without room supply | Unsupported operational claim | Report guest demand or require an explicit inventory assumption |
-| New-route scenario lacks history | Weak cold-start estimate | Comparable-market priors, regional pooling, wider uncertainty |
+| Planning | Pre-flight decisions; what the simulator serves | Scheduled seats, planner levers, calibrated seasonal priors. No realized pax, P2P or hotel arrivals for the predicted period |
+| Realized-chain (diagnostic) | Isolates error in the downstream stages | Realized P2P × calibrated multiplier × LOS |
+| Forecast | Predicting the withheld competition `Guests` | May use test-period new arrivals, which the test files contain |
 
-## 17. Responsible interpretation
+Results from different modes are reported separately.
 
-The supplied data is aggregated and contains no permitted passenger-level information. Model outputs describe expected aggregate relationships and should not be used to infer individual behavior or protected characteristics.
+## 7. Model
 
-The simulator supports planning; it does not establish causal effects by itself. Predictions depend on historical relationships, active assumptions, and the representativeness of the scenario. All material overrides and uncertainty ranges must remain visible.
+### 7.1 Structural chain (`models/structural.py`)
 
-## 18. Open decisions
+Per market $m$ and season $s$, calibrated from the mean of weekly seats, pax, P2P, arrivals and guests in the training window:
 
-Before model implementation is finalized, the team should confirm:
+```text
+LF        = mean pax / mean seats
+P2PShare  = mean P2P / mean pax
+M[m,s]    = mean hotel arrivals / mean P2P        (effective response multiplier)
+L[m,s]    = mean guests / mean hotel arrivals     (stay factor)
 
-1. Whether organizers intended the 2022 flight records to be monthly and the later records to be daily.
-2. Whether room inventory, occupancy, events, holidays, aircraft type, or additional schedule files will be provided separately.
-3. Whether the competition forecast score evaluates international and domestic guests jointly or separately.
-4. Whether hotel `Guests` represents an end-of-day stock, a daily occupied-guest count, or another reporting convention.
-5. Whether a proposed new route should be allocated to nationality markets through planner input, a comparable-market prior, or both.
+Guests = Seats × LF × P2PShare × M × L
+```
 
-## 19. Submission narrative
+- **Market bridge.** Departure country $k$ is linked to nationality $k$. $M_{m,s}$ absorbs non-national passengers, indirect connections and overland arrivals (e.g. via DXB). A full 45 × 33 country-to-nationality matrix (1,485 parameters) is not identifiable from aggregate weekly series and is not estimated.
+- **Planning prediction** (`planning_guests`): scheduled seats × calibrated LF, P2P share, $M$, $L$. A served market with zero seats has zero aviation arrivals; an unserved market keeps its calibrated arrivals; `DOMESTIC` = calibrated arrivals × $L$, independent of seats.
+- **Cold start.** A country without calibration gets its archetype's default LF, P2P share, $M$ and $L$ (`domain/archetypes.py`; unknown countries map to Emerging / Sparse).
+- **Waterfall.** The scenario lift is attributed sequentially: seats, load factor, P2P share, multiplier, LOS. The five parts sum to the total lift (tested to < 1e-9 for every calibrated market, a cold-start market, all seasons and 6 lever sets).
 
-The recommended pitch is:
+### 7.2 Residual ML (`models/residual.py`, `models/features.py`)
 
-> The Abu Dhabi Tourism Digital Twin connects aviation decisions to hotel demand. It shows how scheduled seats become passengers, P2P arrivals, hotel arrivals, and guest nights; corrects systematic errors with machine learning; and reports which assumptions matter most. DCT planners can test a route or capacity change in seconds and receive a market-level impact range backed by forward-looking historical validation.
+```text
+Hybrid = max(0, planning_guests + residual)
+```
 
-The key differentiator is not a black-box demand forecast. It is a transparent planning sandbox that answers three questions together:
+One `RidgeCV` per market. Features: two week-of-year sine/cosine harmonic pairs, quarter dummies, winter and summer flags, holiday-week flag (Eid al-Fitr, Eid al-Adha, UAE National Day, New Year / festive weeks) and major-event-week flag (e.g. ADIPEC, Formula 1). Target: actual guests − `planning_guests`, so training and serving use the same structural prediction. No aviation inputs: the residual does not change with a capacity lever, so the hybrid lift equals the structural lift unless the max(0, ·) floor binds (tested: lift ≥ 0 for +2 flights in 5 markets).
 
-1. What is likely to happen?
-2. Why does the model expect it?
-3. Which controllable lever creates the greatest hotel demand per added seat?
+### 7.3 Domestic demand
 
-## 20. References
+`DOMESTIC` uses its calibrated seasonal arrivals × LOS. Seat, frequency, load-factor and P2P levers have no effect; multiplier and LOS levers do (tested).
 
-- [DCT Abu Dhabi Challenge Statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en)
-- `01a - DCT Dataset/Data_Dictionary.pdf` (part of the organizer-provided dataset; not in the repository)
+### 7.4 Uncertainty and sensitivity (`models/uncertainty.py`, `models/conformal.py`, `services/sensitivity.py`)
+
+| Component | Method |
+| --- | --- |
+| Monte Carlo (1,500 draws default) | Load factor and P2P share ~ Beta (method-of-moments, sd 0.03 and 0.04); multiplier and LOS × Normal(1, 0.06) and Normal(1, 0.04); residuals by 4-week block bootstrap of the market's weekly training residuals. Seed derived from the scenario via SHA-256, so identical inputs give identical bands |
+| Conformal margin | Per market: (1 − α) quantile of in-sample relative planning-mode error on the training window, α = 0.2 |
+| Tornado | Guest swing for ±15% seats, ±4 pp LF, ±5 pp P2P share, ±10% multiplier, ±0.5 days LOS; cold-start markets use a reference route |
+
+## 8. Archetypes
+
+Seven archetypes assigned per market in `domain/archetypes.py`: Direct Leisure, Resident / VFR, Regional GCC, Hub-Mediated, Highly Seasonal, Emerging / Sparse, Domestic Staycation. Each carries default LF, P2P share, multiplier and LOS used for cold start. They describe aggregate market behavior, not traveler demographics. Per-market assignment: [user guide §4](user_guide.md#4-market-directory).
+
+## 9. Validation
+
+### 9.1 Design
+
+- Single forward split over complete train-split weeks with complete guest inputs: calibration 2023-01-02 to 2024-12-23 week starts (104 weeks, 2,132 market-weeks); holdout 2024-12-30 to 2025-07-21 week starts (30 weeks, 621 market-weeks, 21 markets). No random splits.
+- `twin evaluate` fits the shipped trainers (`StructuralEngine.calibrate`, `ResidualMLEngine.fit`, `calibrate_conformal`) on the calibration window only.
+- WMAPE = Σ|actual − predicted| / Σ actual. Bias = (Σ predicted − Σ actual) / Σ actual; positive = over-forecast.
+- Baselines: (1) market-season mean of training guests; (2) per-market ridge on calendar features only; (3) structural planning prediction; (4) hybrid.
+- Output: `lake/curated/evaluation_results.json`.
+
+### 9.2 Results
+
+| Setting | WMAPE | Bias | MAE | RMSE |
+| :--- | :---: | :---: | :---: | :---: |
+| International planning | 27.52% | +1.52% | 2,466.5 | 3,920.7 |
+| International realized-chain | 24.54% | −5.67% | 2,199.9 | 3,308.7 |
+| Domestic forecast | 16.04% | +13.05% | 17,485.2 | 21,078.9 |
+| Combined planning | 23.14% | +5.93% | 3,192.1 | 6,007.8 |
+| Combined realized-chain | 21.30% | +1.48% | 2,938.3 | 5,646.6 |
+
+| Model (all markets) | WMAPE | Bias | MAE | RMSE |
+| :--- | :---: | :---: | :---: | :---: |
+| 1. Historical seasonal prior | 23.00% | −6.60% | 3,172.8 | 6,156.5 |
+| 2. Pure ML / calendar | 22.00% | −8.50% | 3,035.6 | 5,839.0 |
+| 3. Structural only | 23.14% | +5.93% | 3,192.1 | 6,007.8 |
+| 4. Hybrid digital twin | **21.74%** | **+5.36%** | **2,999.2** | **5,673.6** |
+
+Combined planning mode by season (structural prediction):
+
+| Season | Market-weeks | WMAPE | Bias |
+| :--- | :---: | :---: | :---: |
+| Winter_Peak | 292 | 27.92% | +9.65% |
+| Spring_Shoulder | 168 | 21.24% | +4.86% |
+| Summer_Trough | 161 | 16.40% | +0.23% |
+
+Autumn_Shoulder is not in the holdout window. Per-market results are in `market_breakdown` of `evaluation_results.json`.
+
+Findings:
+
+1. The hybrid model is best on all four metrics (`benchmark_leaders`; bias by absolute value). Its WMAPE lead over the calendar-only model is 0.26 pp.
+2. The structural-only engine (23.14%) does not beat the seasonal prior (23.00%) on WMAPE.
+3. International planning mode, which uses no realized operational data, has 27.52% WMAPE and +1.52% bias.
+4. The domestic prior over-forecast the holdout by 13.05%: 2025 domestic guests were below the 2023–2024 seasonal level.
+5. Interval coverage: 65.2% of holdout market-weeks fall inside structural prediction × (1 ± conformal margin), against a nominal 80%.
+
+## 10. Tests
+
+59 tests: 35 in `tests/test_tourism_twin.py` (lake grain contract, feature registry, weekly and daily panel contracts, daily-to-weekly reconciliation, waterfall identity, route closure, domestic decoupling, monotonicity, cold start, deterministic uncertainty, API validation) and 24 in `tests/test_audit_agent.py`. On a fresh clone 58 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022` needs `flight_monthly.parquet` from `twin build-lake`). Details: [user guide §9](user_guide.md#9-tests).
+
+## 11. Limitations and planned work
+
+| Limitation | Consequence | Current handling |
+| --- | --- | --- |
+| Departure country used as proxy for nationality | Misallocated market impact | Calibrated effective multiplier; planner-adjustable; documented |
+| Interval coverage 65.2% vs. 80% nominal | P10–P90 ranges are too narrow on the 2025 holdout | Coverage reported with every briefing |
+| Domestic prior over-forecast 2025 by 13.05% | Domestic baseline too high for 2025 conditions | Reported; domestic modeled separately |
+| Stay factor $L$ is a stock-to-flow ratio, not a measured length of stay | LOS lever is an approximation | Planned stock-flow model (below) |
+| Structural-only accuracy does not beat the seasonal prior | Structural chain is for scenario attribution more than for point forecasting | Hybrid reported alongside |
+| Cold-start markets use archetype defaults | Weak estimates for new origins | Flagged `is_cold_start` in results |
+| No room inventory | Occupancy cannot be reported | Output is guests, not occupancy |
+| Single forward split | One holdout period; no Autumn_Shoulder weeks | Season breakdown reported |
+| Observational data | No causal identification | Results described as planning estimates |
+
+**Planned: stock-flow guest model.** Model daily guests as a convolution of past new arrivals, $\text{Guests}_t = \sum_{k=0}^{K} w_k \cdot \text{Arrivals}_{t-k}$, with $w_k$ the share of arrivals still in a hotel after $k$ nights. `daily_market_panel.parquet` supplies the lag inputs. Not implemented.
+
+## 12. Open questions for the organizers
+
+1. Are the 2022 flight records intended to be monthly and later records daily?
+2. Will room inventory, occupancy, events, aircraft type or schedule files be provided?
+3. Is the competition forecast scored on international and domestic guests jointly or separately?
+4. Is hotel `Guests` an end-of-day stock, a daily occupied-guest count, or another convention?
+5. Should a new route be allocated to nationality markets by planner input, a comparable-market prior, or both?
+
+## 13. Responsible use
+
+The data is aggregated and contains no passenger-level information. Outputs describe expected aggregate relationships and must not be used to infer individual behavior or protected characteristics. The simulator supports planning; it does not establish causal effects.
+
+## 14. References
+
+- [DCT Abu Dhabi challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en)
+- `01a - DCT Dataset/Data_Dictionary.pdf` (organizer-provided; not in the repository)
 - [`../lake/manifest.json`](../lake/manifest.json)
 - [`../README.md`](../README.md)
-

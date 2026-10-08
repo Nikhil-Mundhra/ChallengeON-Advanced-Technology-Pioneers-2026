@@ -1,19 +1,21 @@
 # Local agentic data-audit loop
 
-The controller parses the checklist locally and sends one bounded task at a time to
-the configured finder. It owns scheduling, retries, issue deduplication, durable
-state, and Markdown rendering. No model receives the complete checklist or issue
-register.
+Driven by `scripts/run_data_issues_audit.py`. The controller parses the checklist
+(`DATA_ISSUES_CHECKLIST.md` by default) locally and sends one bounded task at a time to
+the configured finder. It owns scheduling, retries, issue deduplication, durable state,
+and Markdown rendering. No model receives the complete checklist or issue register.
 
-Before scheduling work, the controller builds a deterministic repository map under
-`audit/discovery/`. The filename contains a fingerprint derived from source contents
-and structured-asset metadata, so unchanged repositories reuse the same version.
-Each finder receives only its scoped files, top-level Python symbols and imports,
-related tests/modules, and matching data assets. This context is navigation metadata,
-not audit evidence; material claims must still be reproduced with read-only tools.
+Before scheduling, the controller builds a deterministic repository map in
+`audit/discovery/`: `repository_map.json` plus a copy named
+`repository_map.<fingerprint>.json`, where the fingerprint covers source contents and
+data-asset metadata, so an unchanged repository reuses the same map. Each finder
+receives only its scoped files, top-level Python symbols and imports, related
+tests/modules, and matching data assets. This is navigation metadata, not audit
+evidence: material claims must be reproduced with read-only tools.
 
-Start the local Qwen server in non-thinking mode. Keeping this setting at the
-server boundary also allows its prompt cache to be reused:
+## Local Qwen server
+
+Run in non-thinking mode; setting it at the server also lets the prompt cache be reused:
 
 ```bash
 mlx_lm.server \
@@ -24,94 +26,93 @@ mlx_lm.server \
   --chat-template-args '{"enable_thinking": false}'
 ```
 
-The audit client defaults to `http://localhost:8000/v1/chat/completions` and disables
-thinking in each request. Investigation turns are capped at 1,024 output tokens. Once
-the finder returns `ready_to_finalize`, a dedicated streamed final-report request gets
-up to 8,192 tokens and a 15-minute total deadline with inactivity protection. Override
-these independently with `--local-max-tokens` and `--local-final-max-tokens`.
-Tool results are retained at up to 8,000 serialized characters each and local prompt
-history is compacted above 280,000 characters, keeping long investigations well below
-the model's theoretical context ceiling. These guardrails matter on macOS even when
-the KV cache fits in unified memory: a very long prefill can trigger Metal's
-`Impacting Interactivity` watchdog. Override them with `--local-tool-result-chars`
-and `--local-max-prompt-chars` only after measuring the host.
+| Client setting | Default | Flag |
+| --- | --- | --- |
+| Endpoint | `http://localhost:8000/v1/chat/completions` | `--endpoint` |
+| Model | `mlx-community/Qwen3.5-4B-MLX-4bit` | `--model` |
+| Output tokens per investigation turn | 1,024 | `--local-max-tokens` |
+| Output tokens for the final report (streamed, 15-minute deadline, inactivity protection) | 8,192 | `--local-final-max-tokens` |
+| Retained characters per tool result | 8,000 | `--local-tool-result-chars` |
+| Prompt history compacted above (characters) | 280,000 | `--local-max-prompt-chars` |
 
-Initialize and inspect the queue:
+Thinking is also disabled in each request. The prompt limits keep prefill short: on
+macOS a very long prefill can trigger Metal's `Impacting Interactivity` watchdog even
+when the KV cache fits in unified memory. Raise them only after measuring the host.
 
-```bash
-.venv/bin/python scripts/run_data_issues_audit.py init
-.venv/bin/python scripts/run_data_issues_audit.py status
-```
-
-Watch the live terminal dashboard (Ctrl+C stops only the dashboard, not the audit):
+## Commands
 
 ```bash
-.venv/bin/python scripts/run_data_issues_audit.py watch
+.venv/bin/python scripts/run_data_issues_audit.py init      # create the task queue
+.venv/bin/python scripts/run_data_issues_audit.py status    # snapshot, incl. active escalation telemetry (--json)
+.venv/bin/python scripts/run_data_issues_audit.py watch     # live dashboard; Ctrl+C stops only the dashboard
+                                                            # (--watch-interval, default 2 s; --json for NDJSON)
+.venv/bin/python scripts/run_data_issues_audit.py run --max-tasks 1   # one task (default)
+.venv/bin/python scripts/run_data_issues_audit.py run --max-tasks 0   # until the checklist is exhausted
 ```
 
-The refresh interval defaults to two seconds and can be changed with
-`--watch-interval`. Use `status --json` for a machine-readable snapshot or
-`watch --json` for newline-delimited snapshots.
+### Finder backends
 
-Run one task for a controlled test:
+| Command | Finder | Fallback |
+| --- | --- | --- |
+| `run --max-tasks 0` | local Qwen | — |
+| `run --max-tasks 0 --with-opencode` | OpenCode (fresh isolated session per task) | local Qwen if every OpenCode model fails |
+| `run --max-tasks 0 --finder-backend opencode --no-local-fallback` | OpenCode | none |
+| `run --finder-backend qwen --with-opencode` | local Qwen | OpenCode on blocker |
 
-```bash
-.venv/bin/python scripts/run_data_issues_audit.py run --max-tasks 1
-```
+The issue-manager step always uses local Qwen.
 
-Run until the finite checklist is exhausted:
+### Escalation
 
-```bash
-.venv/bin/python scripts/run_data_issues_audit.py run --max-tasks 0
-```
-
-Run OpenCode as the primary finder. Each task gets a fresh isolated OpenCode session;
-if every configured model fails, the controller falls back to local Qwen by default.
-The issue-manager step also uses local Qwen:
-
-```bash
-.venv/bin/python scripts/run_data_issues_audit.py run --max-tasks 0 --with-opencode
-```
-
-For an OpenCode-only finder run with no local Qwen fallback:
-
-```bash
-.venv/bin/python scripts/run_data_issues_audit.py run --max-tasks 0 \
-  --finder-backend opencode --no-local-fallback
-```
-
-Use `--finder-backend qwen --with-opencode` only when you explicitly want a
-Qwen-first, OpenCode-on-blocker run.
-
-To escalate terminal tasks from an earlier local-model run, first ensure no audit task
-is currently running, then execute:
+Re-run terminal tasks from an earlier local-model run with OpenCode. Ensure no audit
+task is running first.
 
 ```bash
 .venv/bin/python scripts/run_data_issues_audit.py escalate --max-tasks 0
+.venv/bin/python scripts/run_data_issues_audit.py escalate --task-id KEY-003   # one task
 ```
 
-OpenCode escalation sessions are read-only and stored under `audit/escalations/`.
-They establish audit findings and evidence; they do not repair production code or data.
-Each escalation runs in an isolated temporary OpenCode workspace by default. Only the
-minimal audit agent definition is loaded up front; the repository root is supplied
-explicitly and inspected on demand. This avoids preloading project/global skills and
-workspace configuration into every model turn. External plugins, Claude-compatible
-instructions, and project configuration discovery are disabled for the subprocess.
-Each model streams raw events to `<model>.events.jsonl` and updates `progress.json`
-every five seconds. Progress distinguishes unique completed tool calls from narration,
-tracks repeated calls, detects a verdict candidate, and records the last action. By
-default a model is stopped after 10 minutes without a new unique tool result or
-verdict, after 30 completed tool calls, after four identical consecutive calls, or
-after the 30-minute absolute timeout. These limits can be adjusted with
-`--escalation-stall-timeout`, `--escalation-max-tool-calls`,
-`--escalation-max-repeat`, and `--escalation-timeout`.
+- Sessions are read-only, stored under `audit/escalations/`, and establish findings and
+  evidence; they do not repair code or data.
+- Each runs in an isolated temporary OpenCode workspace with only the minimal audit
+  agent definition loaded; the repository root is passed explicitly and read on demand.
+  External plugins (unless `--opencode-with-plugins`), Claude-compatible instructions,
+  and project configuration discovery are disabled.
+- Each model streams raw events to `<model>.events.jsonl` and updates `progress.json`
+  every 5 seconds (unique completed tool calls, repeated calls, verdict candidate, last
+  action).
+- Existing model output is checked for a valid embedded verdict before a new request is
+  started, so narration before the JSON does not discard a usable result.
 
-## Observed 32 GB Mac memory envelope
+| Stop condition | Default | Flag |
+| --- | --- | --- |
+| No new unique tool result or verdict | 10 min | `--escalation-stall-timeout` (seconds) |
+| Completed tool calls | 30 | `--escalation-max-tool-calls` |
+| Identical consecutive calls | 4 (3 repeats) | `--escalation-max-repeat` |
+| Absolute timeout | 30 min | `--escalation-timeout` (seconds) |
 
-The following is the measured operating baseline for this audit, not a theoretical
-model-size estimate:
+### Retry
 
-| Component | Current memory |
+Reset a terminal or failed task after its limitation is fixed:
+
+```bash
+.venv/bin/python scripts/run_data_issues_audit.py retry --task-id INV-001
+```
+
+`--undo-attempt` does not consume a retry (for infrastructure failures);
+`--retry-status pending` restores a task that never started. Retry also clears stale
+timestamps, backend ownership, escalation metadata, and controller PID.
+
+## State
+
+Canonical state is under `audit/` (gitignored). `DATA_ISSUES_GEMMA.md` (`--output`) is
+generated from `audit/issues.json`; do not edit it. Finder transcripts, task reports,
+and manager decisions are kept separately.
+
+## Observed memory on a 32 GB Mac
+
+Measured during this audit:
+
+| Component | Memory |
 | --- | ---: |
 | Qwen MLX server | ~17.0 GB physical footprint |
 | Vivaldi | ~2.70 GB RSS |
@@ -122,36 +123,5 @@ model-size estimate:
 | Audit controller | ~0.04 GB RSS |
 | macOS and remaining processes | ~4.70 GB RSS |
 
-Run only one local model server. Treat memory pressure and swap as the operational
-signals; do not infer available headroom solely from the model weight file size.
-
-The normal status command includes any active escalation telemetry:
-
-```bash
-.venv/bin/python scripts/run_data_issues_audit.py status
-```
-
-To recover or rerun one earlier terminal escalation without processing every older
-terminal task:
-
-```bash
-.venv/bin/python scripts/run_data_issues_audit.py escalate --task-id KEY-003
-```
-
-Existing model output is checked for a valid embedded verdict before a new remote
-request is started, so narration before the JSON does not discard a usable result.
-
-Reset a terminal or failed task when its limitation has been corrected:
-
-```bash
-.venv/bin/python scripts/run_data_issues_audit.py retry --task-id INV-001
-```
-
-For an infrastructure-only attempt that must not consume a retry, add
-`--undo-attempt`. Use `--retry-status pending` when restoring a task that had not
-actually started before the failed controller launch. The command also clears stale
-timestamps, backend ownership, escalation metadata, and controller PID.
-
-Canonical state is stored beneath `audit/`. `DATA_ISSUES_GEMMA.md` is a generated
-view of `audit/issues.json` and should not be edited directly. Finder transcripts,
-task reports, and manager decisions are retained separately for auditability.
+Run one local model server at a time. Use memory pressure and swap, not the model
+weight file size, to judge headroom.

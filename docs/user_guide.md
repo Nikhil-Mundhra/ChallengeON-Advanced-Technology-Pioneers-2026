@@ -1,265 +1,201 @@
 # Abu Dhabi Tourism Digital Twin — User Guide
 
-This guide is designed for DCT tourism planners, aviation strategists, and data science evaluators working with the **Abu Dhabi Tourism Digital Twin**.
+How to run scenarios, read the output, retrain, evaluate, and rebuild the reports. Setup and the full pipeline are in the [README](../README.md); method and results are in the [solution documentation](solution_documentation.md).
 
 ---
 
-## 1. Overview
+## 1. What the simulator does
 
-The **Abu Dhabi Tourism Digital Twin** is an operational scenario simulator that translates aviation decisions (introducing flights, expanding seat capacity, adjusting load factors) into hotel guest demand outcomes.
+For one source market and one season, the twin compares a baseline week with a scenario week and reports:
 
-Unlike black-box statistical forecasting, the Digital Twin provides:
-1. **A Visible Conversion Chain:** Traceable steps from seats to passengers, P2P traffic, hotel arrivals, and daily guests.
-2. **Exact Waterfall Attribution:** Mathematical decomposition of incremental guests with zero residual error.
-3. **Monotonicity Protection:** Guarantees that capacity additions never produce counter-intuitive negative demand shifts.
-4. **Empirical Uncertainty:** Calibrated P10, P50, and P90 confidence intervals derived from Beta sampling and historical block-bootstrap residuals.
-5. **Non-Technical Executive Summaries:** Actionable recommendations ready for leadership briefings.
+| Output | Content |
+| :--- | :--- |
+| Conversion chain | Seats → passengers → P2P passengers → hotel new arrivals → hotel guests, baseline vs. scenario |
+| Waterfall | Guest lift split sequentially across 5 levers; the parts sum to the total (tested to < 1e-9) |
+| Hybrid lift | Structural lift plus the residual ML adjustment |
+| Uncertainty | P10 / P50 / P90 of total guests and of the lift (Monte Carlo) |
+| Tornado | Swing in guests for a fixed up/down shock to each lever |
+| Briefing | One-paragraph plain-language summary |
 
 ---
 
-## 2. Command-Line Interface (CLI) Usage
+## 2. CLI: `twin simulate`
 
-The primary scenario simulator is the `twin simulate` command (installed by `pip install -e ".[report,dev]"`, also runnable as `python -m tourism_twin simulate`; source: [`src/tourism_twin/cli/simulate.py`](../src/tourism_twin/cli/simulate.py)). Run `twin --help` to list every pipeline command.
-
-### Basic Command
+Installed by `pip install -e ".[report,dev]"`; also `python -m tourism_twin simulate`. Source: [`src/tourism_twin/cli/simulate.py`](../src/tourism_twin/cli/simulate.py).
 
 ```bash
-# Activate environment
-source .venv/bin/activate
-
-# Simulate adding 2 weekly flights from the UK during Winter Peak
-twin simulate \
-  --market "UNITED KINGDOM" \
-  --season "Winter_Peak" \
-  --delta-freq 2.0 \
-  --gauge 290.0 \
-  --delta-lf 0.02
+twin simulate --market "UNITED KINGDOM" --season Winter_Peak \
+  --delta-freq 2.0 --gauge 290.0 --delta-lf 0.02
 ```
 
-### Supported Arguments & Levers
+| Argument | Default | Meaning |
+| :--- | :---: | :--- |
+| `--market` | `UNITED KINGDOM` | One of the 21 modeled markets (§4), or an unmodeled country (e.g. `SWEDEN`, `BRAZIL`), which uses its archetype's default parameters (cold start) |
+| `--season` | `Winter_Peak` | `Winter_Peak` (Nov–Mar), `Spring_Shoulder` (Apr–May), `Summer_Trough` (Jun–Aug), `Autumn_Shoulder` (Sep–Oct) |
+| `--delta-freq` | `2.0` | Added weekly round-trip flights; each adds `--gauge` inbound seats per week |
+| `--gauge` | `290.0` | Seats per added flight (e.g. 290 B787-9, 180 A320) |
+| `--delta-seats-pct` | `0.0` | Proportional change in existing seats (`0.15` = +15%; `-1.0` = route closure) |
+| `--delta-lf` | `0.02` | Absolute change in load factor (`0.02` = +2 pp) |
+| `--delta-p2p` | `0.0` | Absolute change in P2P share |
+| `--delta-mult-pct` | `0.0` | Proportional change in response multiplier (e.g. marketing; `0.05` = +5%) |
+| `--delta-los` | `0.0` | Absolute change in length of stay, days |
 
-| Argument | Type | Default | Description |
-| :--- | :---: | :---: | :--- |
-| `--market` | `str` | `"UNITED KINGDOM"` | Source market name (must match one of the 15 top markets, 5 regional clusters, `DOMESTIC`, or an unmodeled country name like `SWEDEN` for cold-start priors). |
-| `--season` | `str` | `"Winter_Peak"` | Season: `Winter_Peak` (Nov–Mar), `Spring_Shoulder` (Apr–May), `Summer_Trough` (Jun–Aug), `Autumn_Shoulder` (Sep–Oct). |
-| `--delta-freq` | `float` | `2.0` | Additional weekly round-trip flights (e.g. `+2.0` flights/week). |
-| `--gauge` | `float` | `290.0` | Seat capacity per added flight (e.g. `290` for Boeing 787-9, `180` for Airbus A320). |
-| `--delta-seats-pct` | `float` | `0.0` | Proportional seat capacity shift across existing flights (e.g. `0.15` for $+15\%$). |
-| `--delta-lf` | `float` | `0.02` | Absolute shift in target load factor (e.g. `0.02` for $+2.0\%$ LF). |
-| `--delta-p2p` | `float` | `0.0` | Absolute shift in P2P passenger share (e.g. `0.03` for $+3.0\%$). |
-| `--delta-mult-pct` | `float` | `0.0` | Proportional shift in response multiplier from marketing (e.g. `0.05` for $+5\%$). |
-| `--delta-los` | `float` | `0.0` | Shift in average length of stay days (e.g. `0.3` for $+0.3$ days). |
-
----
-
-## 3. Interpreting Output Sections
-
-When you execute a scenario, the Digital Twin outputs five structured sections:
-
-### 1. Executive Briefing
-A concise, non-technical paragraph designed for leadership. It states:
-- Total weekly incremental guest-days.
-- Percentage change relative to the historical baseline.
-- 80% empirical scenario interval (P10 conservative to P90 optimistic).
-- The single highest-leverage driver identified by sensitivity analysis.
-
-### 2. End-to-End Conversion Chain
-A side-by-side comparison of baseline vs. scenario rates across each operational stage:
-- **Weekly Seat Capacity:** Scheduled seats offered.
-- **Flight Passengers (Pax):** Expected passengers based on simulated load factor.
-- **Point-to-Point (P2P):** Passengers deplaning in Abu Dhabi (excluding transfer/transit).
-- **Hotel New Arrivals:** Estimated weekly flow of new check-ins.
-- **Hotel Guests (Guest-Days):** Daily active guest stock multiplied over the week.
-
-### 3. Exact Waterfall Attribution
-Decomposes total incremental guest-days into 5 independent operational drivers:
-$$\Delta Guests = \Delta G_{Seats} + \Delta G_{LF} + \Delta G_{P2P} + \Delta G_{Mult} + \Delta G_{Stay}$$
-- The sum of components **exactly matches** the total net lift with $0.000000$ discrepancy.
-
-### 4. Uncertainty Quantification
-Rather than assuming a Gaussian distribution, the Digital Twin reports:
-- **P10 (Conservative / Downside):** 10th percentile demand outcome under adverse operational conditions.
-- **P50 (Median Expectation):** Expected central trajectory.
-- **P90 (Optimistic / Upside):** 90th percentile demand outcome under favorable operational conditions.
-
-### 5. Tornado Sensitivity Ranking
-Evaluates the elasticity of hotel guest demand with respect to each lever under standard shocks:
-- Identifies which operational lever creates the greatest swing for that specific market archetype.
+`DOMESTIC` has no aviation input: seat, frequency, load-factor and P2P levers have no effect; only `--delta-mult-pct` and `--delta-los` change domestic guests.
 
 ---
 
-## 4. Market Archetype Directory
+## 3. Reading the output
 
-| Market | Assigned Archetype | Baseline LOS | Baseline Conversion | Strategic Behavior |
-| :--- | :--- | :---: | :---: | :--- |
-| **India** | Resident / VFR | 3.37 days | 0.172 | High P2P traffic, large expat diaspora staying with family. Highly sensitive to seat volume. |
-| **Russian Federation** | Direct Leisure | 4.97 days | 1.542 | Long vacation stays, extreme winter sun preference, high hotel capture. |
-| **United Kingdom** | Direct Leisure | 4.87 days | 0.995 | High hotel capture, long vacation stays, responsive to route frequency. |
-| **China** | Hub-Mediated | 2.26 days | 6.878 | High visitor footprint entering via connecting flights and regional hubs. |
-| **Germany** | Direct Leisure | 4.94 days | 0.986 | Strong winter preference, high hotel capture rate. |
-| **Saudi Arabia** | Regional GCC | 2.47 days | 0.397 | Short-haul leisure, strong summer school break and long-weekend elasticity. |
-| **United States** | Hub-Mediated | 3.84 days | 2.085 | Long-haul visitors entering via European/Gulf hubs or DXB transfers. |
-| **Kuwait** | Regional GCC | 3.28 days | 0.592 | High summer holiday surge to indoor Abu Dhabi attractions. |
-| **France** | Direct Leisure | 3.55 days | 1.232 | Cultural and leisure tourists with strong winter preference. |
-| **Egypt** | Resident / VFR | 5.01 days | 0.116 | High diaspora / business traffic, lower hotel conversion rate. |
-| **Italy** | Direct Leisure | 3.70 days | 0.492 | Leisure tourists with seasonal winter peaks. |
-| **Kazakhstan** | Highly Seasonal | 3.84 days | 0.463 | Severe winter sun preference with low summer presence. |
-| **Israel** | Direct Leisure | 2.92 days | 0.870 | Leisure visitors responsive to direct connectivity. |
-| **Armenia** | Highly Seasonal | 4.98 days | 4.980 | High winter peak, long average stay. |
-| **Oman** | Regional GCC | 1.63 days | 0.422 | Shortest stay duration (weekend driving/flying cross-border traffic). |
-| **Other International** | Emerging / Sparse | 3.53 days | 0.409 | 30 pooled markets under regularized Bayesian shrinkage. |
-| **Domestic** | Domestic Staycation | 2.35 days | 1.000 | UAE resident staycations and corporate events. Modeled separately. |
+`twin simulate` prints five sections.
+
+1. **Executive recommendation** — weekly guest lift, % vs. baseline, P10–P90 range of the lift, holdout coverage (65.2%), and the top tornado driver.
+2. **Conversion chain** — weekly seats, passengers, P2P, hotel new arrivals and hotel guests (guest-days), plus load factor, P2P share, response multiplier and LOS, baseline vs. scenario.
+3. **Waterfall** — lift attributed in this order: seats, load factor, P2P share, response multiplier, length of stay. Because the attribution is sequential, a lever's share depends on its position in the order.
+4. **Uncertainty** — P10/P50/P90 of simulated total guests and of the lift. Draws: Beta-distributed load factor and P2P share, normal shocks to multiplier and LOS, and 4-week block-bootstrap of the market's historical weekly residuals. Results are deterministic for identical inputs. The P10 of the lift can be negative even when capacity is added.
+5. **Tornado** — swing in guests for ±15% seats, ±4 pp load factor, ±5 pp P2P share, ±10% multiplier, ±0.5 days LOS, ranked.
 
 ---
 
-## 5. Python API Usage
+## 4. Market directory
 
-To embed the simulator into automated pipelines or custom dashboards:
+Archetypes come from `src/tourism_twin/domain/archetypes.py`. Implied LOS (guests ÷ new arrivals) and arrivals per P2P passenger are ratios of sums over the train split of `weekly_market_panel.parquet`.
+
+| Market | Archetype | Implied LOS (days) | Arrivals per P2P pax |
+| :--- | :--- | :---: | :---: |
+| INDIA | Resident / VFR | 3.25 | 0.169 |
+| RUSSIAN FEDERATION | Direct Leisure | 4.96 | 1.484 |
+| UNITED KINGDOM | Direct Leisure | 4.79 | 0.994 |
+| UNITED STATES OF AMERICA | Hub-Mediated | 3.84 | 2.094 |
+| GERMANY | Direct Leisure | 4.94 | 0.989 |
+| CHINA | Hub-Mediated | 2.12 | 6.011 |
+| SAUDI ARABIA | Regional GCC | 2.47 | 0.399 |
+| FRANCE | Direct Leisure | 3.55 | 1.236 |
+| EGYPT | Resident / VFR | 5.01 | 0.116 |
+| KUWAIT | Regional GCC | 3.28 | 0.594 |
+| ITALY | Direct Leisure | 3.70 | 0.493 |
+| KAZAKHSTAN | Highly Seasonal | 3.84 | 0.465 |
+| ISRAEL | Direct Leisure | 2.92 | 0.877 |
+| PHILIPPINES | Resident / VFR | 3.25 | 0.582 |
+| OMAN | Regional GCC | 1.63 | 0.423 |
+| OTHER_EUROPE | Direct Leisure | 3.83 | 0.764 |
+| OTHER_ASIA_PACIFIC | Hub-Mediated | 3.18 | 2.218 |
+| OTHER_MENA | Regional GCC | 3.14 | 0.174 |
+| OTHER_AMERICAS_AFRICA | Hub-Mediated | 3.96 | 6.395 |
+| OTHER_EURASIA | Highly Seasonal | 3.77 | 0.165 |
+| DOMESTIC | Domestic Staycation | 2.32 | — (no flights) |
+
+The five `OTHER_*` clusters pool the remaining nationalities (membership in `src/tourism_twin/domain/markets.py`). A multiplier above 1 means more hotel arrivals of that nationality than P2P passengers from the same-named country, i.e. many arrive via other origins. The simulator uses the per-season calibrated values in `structural_calibration.json`, not these all-season ratios.
+
+---
+
+## 5. Python API
 
 ```python
 from tourism_twin.services.simulator import TourismDigitalTwin
 from tourism_twin.domain.scenario import ScenarioLever
 
-# Instantiate simulator (loads calibrated structural and residual models)
-twin = TourismDigitalTwin()
+twin = TourismDigitalTwin()   # loads the calibrated artifacts from lake/curated/
 
-# Define scenario
 lever = ScenarioLever(
     market="GERMANY",
     delta_frequency=1.0,      # +1 weekly flight
-    aircraft_gauge=250.0,     # A330 / 250 seats
-    delta_load_factor=0.03,   # +3% load factor
+    aircraft_gauge=250.0,     # seats per added flight
+    delta_load_factor=0.03,   # +3 pp load factor
 )
+report = twin.run_scenario(market="GERMANY", season="Winter_Peak", lever=lever, n_draws=1500)
 
-# Run simulation
-report = twin.run_scenario(
-    market="GERMANY",
-    season="Winter_Peak",
-    lever=lever,
-    n_draws=1500,
-)
-
-# Access results
-print(f"Incremental Guests: {report.structural_result.delta_guests:+,.0f}")
-print(f"Conservative P10:   {report.uncertainty_bands.delta_p10:+,.0f}")
-print(f"Optimistic P90:     {report.uncertainty_bands.delta_p90:+,.0f}")
-print(f"Executive Summary:  {report.recommendation_summary}")
+print(f"Incremental guests: {report.structural_result.delta_guests:+,.0f}")
+print(f"P10 lift:           {report.uncertainty_bands.delta_p10:+,.0f}")
+print(f"P90 lift:           {report.uncertainty_bands.delta_p90:+,.0f}")
+print(report.recommendation_summary)
 ```
+
+Other `ScenarioLever` fields: `delta_seats_pct`, `delta_p2p_share`, `delta_multiplier_pct`, `delta_los` (see `src/tourism_twin/domain/scenario.py`).
 
 ---
 
-## 6. Interactive Web Simulator
-
-The solution includes a self-contained, interactive single-page web simulator located in `src/app/`. It requires no external frontend build tools or internet connection.
-
-### Launching the Web App
+## 6. Web simulator
 
 ```bash
-# Start the web simulator on port 8080
-twin serve --port 8080
+twin serve --port 8080      # open http://localhost:8080
 ```
 
-Open `http://localhost:8080` in your web browser.
+Single page (`src/app/static/index.html`) served by `src/app/server.py`; no frontend build step.
 
-### Key Capabilities
-
-1. **Preset Scenarios:** Instant one-click selection of policy scenarios:
-   - UK Winter Peak (+2 B787 flights, +2% LF)
-   - India Capacity Surge (+5 A320 flights, +3% P2P)
-   - Germany Winter Expansion (+1 A330 flight, +3% LF)
-   - Saudi Summer Campaign (+3 A320 flights, +5% LF)
-   - China Hub Recovery (+2 B787 flights, +5% LF)
-2. **Interactive Levers:** Real-time sliders for market selection, season, weekly flight delta, aircraft gauge, seat capacity shift, load factor, P2P share, response multiplier, and stay duration.
-3. **Live Conversion Chain Visualization:** Visual flow of seats $\rightarrow$ pax $\rightarrow$ P2P $\rightarrow$ arrivals $\rightarrow$ hotel guests with baseline vs. scenario comparisons.
-4. **Waterfall Breakdown:** Dynamic bar chart of exact waterfall attribution components.
-5. **Tornado Sensitivity Chart:** Real-time ranking of operational levers by elasticity.
-6. **Executive Briefing Card:** Auto-generated natural language briefing for tourism executives.
+- **Controls:** market, season, added weekly flights, aircraft gauge, load-factor shift, P2P shift, response-multiplier shift, LOS shift, and a reset-to-baseline button. (Seat-percentage shift is CLI/API only.)
+- **Panels:** executive recommendation; KPI cards (baseline weekly guests, structural lift, hybrid lift, conformal range, simulated total); waterfall chart; conversion-chain table; tornado chart.
+- **JSON API:** `GET /api/simulate` with query parameters `market`, `season`, `delta_freq`, `gauge`, `delta_seats_pct`, `delta_lf`, `delta_p2p`, `delta_mult_pct`, `delta_los` (an invalid season returns 400); `GET /api/benchmark`.
 
 ---
 
-## 7. Deterministic Training & Model Retraining
-
-To recalibrate the structural parameters and train the monotonic residual engine from curated data:
+## 7. Retraining
 
 ```bash
-twin train                          # or: make train
+twin train          # or: make train; options: --max-date (default 2025-07-27), --panel-path
 ```
 
-### Generated Artifacts
+Trains on complete train-split weeks with complete guest inputs up to `--max-date`, and writes:
 
-- `lake/curated/structural_calibration.json`: Calibrated baseline parameters for 21 markets (15 individual markets, 5 regional clusters, and Domestic) across 4 seasons.
-- `lake/curated/residual_engine.pkl`: Trained scikit-learn RidgeCV models (one per market) fitted on calendar-harmonic, quarter, season, holiday and event features with aviation features excluded to protect monotonicity. The target is actual guests minus the planning-mode structural prediction (scheduled seats × calibrated seasonal priors, exactly what the simulator computes), not a prediction built from realized load factor or P2P share.
-- `lake/curated/conformal_calibrator.json`: Calibrated historical residual distributions used for empirical uncertainty intervals.
+| File | Contents |
+| :--- | :--- |
+| `lake/curated/structural_calibration.json` | Seats, load factor, P2P share, response multiplier, LOS and baseline guests for 21 markets × 4 seasons |
+| `lake/curated/residual_engine.pkl` | One RidgeCV per market on week-of-year harmonics, quarter, season, holiday-week and major-event-week flags; no aviation inputs. Target: actual guests − planning-mode structural prediction (scheduled seats × calibrated seasonal priors) |
+| `lake/curated/conformal_calibrator.json` | Per-market conformal margins (target alpha 0.2) and demonstrated holdout coverage |
 
 ---
 
-## 8. Holdout Back-Testing & Model Evaluation
-
-To execute the temporal back-test against the 2025 holdout window (Dec 30, 2024 to Jul 27, 2025, 30 complete ISO weeks, 621 market-weeks; calibrated on the preceding 104 weeks, 2,132 market-weeks):
+## 8. Back-test
 
 ```bash
-twin evaluate                       # or: make evaluate
+twin evaluate       # or: make evaluate
 ```
 
-### Evaluation Reporting Modes
+Calibrates on 104 complete weeks (2023-01-02 to 2024-12-23 week starts, 2,132 market-weeks) and scores 30 complete holdout weeks (2024-12-30 to 2025-07-21 week starts, 621 market-weeks), using the same trainers as `twin train`. Writes `lake/curated/evaluation_results.json` (diagnostics, benchmark, `benchmark_leaders`, coverage, market and season breakdowns) and copies the coverage into `conformal_calibrator.json`.
 
-The evaluation script rigorously separates planning simulations from realized data:
+| Setting | Prediction |
+| :--- | :--- |
+| International planning | Scheduled seats × calibrated seasonal load factor, P2P share, multiplier, LOS. No holdout load factor, P2P or arrivals |
+| International realized-chain | Realized holdout P2P × calibrated multiplier × LOS |
+| Domestic forecast | Calibrated domestic seasonal prior |
+| Combined | International + domestic |
 
-1. **International Planning Mode:** Simulates purely from scheduled aviation capacity and calibrated conversion rates without looking at holdout load factor, P2P mix, or arrival numbers.
-2. **International Realized-Chain Mode:** Uses actual holdout load factors and P2P shares to isolate error in the downstream conversion stages.
-3. **Domestic Forecast Mode:** Pure seasonal prior forecast with zero holdout arrival leakage.
-4. **Combined Diagnostic:** Full territory evaluation across all international markets and domestic demand.
-
-The back-test trains the shipped structural, residual and conformal components with the same trainers as `twin train`, restricted to the 104 calibration weeks, so the Hybrid Digital Twin benchmark row measures the model the simulator serves. Benchmark metrics, including the best model per metric (`benchmark_leaders`), are written to `lake/curated/evaluation_results.json`.
-
----
-
-## 8.1 Operational Guidance: Domestic Staycation Decoupling & Secular Drift
-
-1. **Aviation Decoupling Invariant:**  
-   Domestic UAE residents do not arrive on international flights entering AUH. When simulating the `DOMESTIC` market, aviation levers (`--delta-freq`, `--gauge`, `--delta-seats-pct`, `--delta-lf`, `--delta-p2p`) are strictly decoupled and inactive. Changes in domestic demand are driven solely by marketing multipliers (`--delta-mult-pct`) and length-of-stay (`--delta-los`).
-
-2. **Secular Trend Adjustment for 2025+:**  
-   On the strict 2025 forward holdout, domestic demand exhibited +13.05% directional growth over the 2023–2024 training baseline. For strategic planning horizons beyond 12 months, planners should factor in this secular expansion (recommended: +3.5% to +5.0% annual drift factor) to avoid under-forecasting baseline room night requirements.
+Results are in the [README](../README.md#3-forward-holdout-results). Bias is (Σ predicted − Σ actual) / Σ actual, so a positive bias is an over-forecast. The domestic forecast over-predicted the 2025 holdout by 13.05%: domestic guests fell below their 2023–2024 seasonal level.
 
 ---
 
-## 9. Automated Verification & Test Suite
-
-The digital twin includes an automated test suite verifying core mathematical properties (38 tests; on a fresh clone 37 pass, because `test_data_contract_and_grain_separation` needs `lake/curated/flight_monthly.parquet`, which only exists after `twin build-lake`):
+## 9. Tests
 
 ```bash
-# Run full test suite with pytest
-pytest tests/ -v
+pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-### Key Verified Invariants
+59 tests: 35 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`. On a fresh clone 58 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022`, until `twin build-lake` creates `flight_monthly.parquet`). The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required.
 
-1. `test_panel_integrity`: Asserts panel schema, non-negative flight metrics, complete 7-day ISO weeks, and candidate-key uniqueness across all 21 unified markets.
-2. `test_waterfall_exact_identity`: Verifies that exact waterfall attribution decomposes net guest lift with zero residual ($|\text{sum} - \Delta Guests| < 10^{-9}$).
-3. `test_monotonicity_guarantee`: Confirms that increasing flight frequency or seats strictly increases or maintains guest demand ($\Delta Guests \ge 0$).
-4. `test_route_closure_demand_loss_and_waterfall`: Verifies that route discontinuation produces 100% demand loss with exact waterfall reconciliation.
-5. `test_domestic_domain_decoupling`: Verifies domestic staycations ignore aviation levers while preserving exact waterfall accounting.
-6. `test_cold_start_fallback`: Tests dynamic fallback to regional priors for unmodeled source markets (e.g. Sweden, Brazil, Pakistan).
-7. `test_load_factor_outliers_preserved_and_flagged`: Confirms raw load factor anomalies (>100%) are auditable and tagged rather than silently lost.
+Product checks in `tests/test_tourism_twin.py`:
+
+| Test | Asserts |
+| :--- | :--- |
+| `test_lake_tables_keep_their_grain_contract` | `flight_daily` is daily from 2023-01-01; `guest_daily` has 69,920 rows and its flag columns |
+| `test_registry_*` (2) | Feature registry resolves dependencies first, computes each once, rejects missing inputs, cycles, duplicate names |
+| `test_weekly_panel_contract` | Exactly the 21 markets; unique (week, market, split); load factor > 1 kept in `load_factor_raw` and flagged, `load_factor` ≤ 1 |
+| `test_weekly_panel_rebuilds_from_the_lake_exactly` | Rebuilding the weekly panel from the curated Parquet equals the committed panel |
+| `test_daily_panel_contract`, `test_daily_lags_cross_the_train_test_boundary`, `test_daily_panel_sums_to_the_weekly_panel` | Lag completeness, lags continue across the train→test boundary, weekly sums of daily guests and arrivals equal the weekly panel |
+| `test_waterfall_reconciles_exactly_for_every_market_and_season` | For every calibrated market + `SWEDEN`, every season, 6 lever sets: waterfall sum = lift within 1e-9; zero levers give zero lift |
+| `test_route_closure_removes_all_aviation_demand` | `delta_seats_pct=-1` zeroes seats through guests; all lift attributed to seats |
+| `test_domestic_ignores_aviation_levers` | Domestic seats stay 0; only multiplier and LOS move guests |
+| `test_added_capacity_never_lowers_demand` | +2 flights gives structural lift ≥ 0 and hybrid lift ≥ 0 for 5 markets |
+| `test_cold_start_*` (2) | `SWEDEN`, `BRAZIL`, `NORWAY`, `PAKISTAN` resolve to archetype priors with positive guests; tornado works for cold start |
+| `test_uncertainty_is_deterministic` | Identical inputs give identical Monte Carlo bands |
+| `test_api_validates_season_and_exposes_the_hybrid_model` | API returns 400 on an invalid season and hybrid fields on success |
 
 ---
 
-## 10. Publication-Grade PDF & Scenario Chart Generation
-
-To compile the executive PDF dossier and high-resolution figures:
+## 10. Charts and PDF
 
 ```bash
-# 1. Generate scenario figures dynamically from evaluation results
-twin charts
-
-# 2. Compile publication-grade 3-page PDF dossier (needs the 'report' extra: reportlab)
-twin report solution
+twin charts              # output/figures/{waterfall_attribution,tornado_sensitivity,model_benchmark}.png
+twin report solution     # output/pdf/challengeon_solution_report.pdf (3 pages; needs the 'report' extra)
+twin report database     # output/pdf/challengeon_schema_database_report.pdf (needs lake/analytics.duckdb)
 ```
 
-Generated outputs:
-- `output/figures/waterfall_attribution.png`: High-resolution waterfall attribution graphic.
-- `output/figures/tornado_sensitivity.png`: Tornado sensitivity graphic.
-- `output/figures/model_benchmark.png`: Model benchmark comparison graphic.
-- `output/pdf/challengeon_solution_report.pdf`: 3-page publication-grade executive dossier.
-
+`model_benchmark.png` reads `lake/curated/evaluation_results.json`.
