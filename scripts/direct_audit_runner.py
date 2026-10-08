@@ -89,13 +89,20 @@ def audit_REPRO_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dic
     """Audit hidden local state and artifact compatibility."""
     import tempfile
 
-    # Check execution from outside working directory
+    # Check execution from outside working directory. `evaluate` and `report` write artifacts,
+    # so the commands run against a throwaway copy of the lake: this audit must stay read-only.
+    import shutil
+
     commands = [["simulate"], ["evaluate"], ["report", "solution"]]
     cwd_success = True
-    for command in commands:
-        res = subprocess.run([sys.executable, "-m", "tourism_twin", *command], cwd="/tmp", capture_output=True, text=True)
-        if res.returncode != 0:
-            cwd_success = False
+    with tempfile.TemporaryDirectory(prefix="audit_repro_004_") as scratch:
+        scratch_lake = Path(scratch) / "lake"
+        shutil.copytree(ROOT_DIR / "lake", scratch_lake)
+        env = {**os.environ, "TWIN_LAKE_DIR": str(scratch_lake), "TWIN_OUTPUT_DIR": str(Path(scratch) / "output")}
+        for command in commands:
+            res = subprocess.run([sys.executable, "-m", "tourism_twin", *command], cwd="/tmp", env=env, capture_output=True, text=True)
+            if res.returncode != 0:
+                cwd_success = False
 
     # Check error handling on missing/corrupted artifacts
     from tourism_twin.models.structural import StructuralEngine
@@ -135,7 +142,7 @@ def audit_REPRO_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dic
         "findings": [finding],
         "limitations": [],
         "criterion_results": [
-            {"criterion": "Working directory independence", "status": "verified", "evidence": "Scripts resolve paths relative to repo root via Path(__file__)"},
+            {"criterion": "Working directory independence", "status": "verified" if cwd_success else "failed", "evidence": f"simulate, evaluate, report solution run from cwd=/tmp against a scratch lake: {'all succeeded' if cwd_success else 'at least one failed'}; paths resolve through tourism_twin.config.SETTINGS"},
             {"criterion": "Artifact error actionability", "status": "failed", "evidence": "Raw low-level exceptions without build instructions"},
         ],
     }
