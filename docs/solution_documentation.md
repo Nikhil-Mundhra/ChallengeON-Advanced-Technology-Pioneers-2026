@@ -465,14 +465,14 @@ lake/                Curated Parquet files, DuckDB database, manifest
 - Saved all metrics dynamically to `lake/curated/evaluation_results.json`.
 
 ### Phase 3: Structural Simulator [COMPLETED & VERIFIED]
-- Structural conversion chain implemented in `src/engine/structural.py`.
+- Structural conversion chain implemented in `src/tourism_twin/models/structural.py`.
 - Exact sequential waterfall attribution decomposition verified ($0.000000$ discrepancy).
 - Cold-start hierarchical regional priors implemented for unmodeled countries (Sweden, Brazil, Poland, etc.).
 - Deterministic training script implemented (`scripts/train_models.py`).
 
 ### Phase 4: Residual ML & Uncertainty [COMPLETED & VERIFIED]
-- Monotonic residual ML model (`src/engine/residual.py`) trained strictly on calendar/event features, excluding flight capacity levers.
-- Beta-distributed operational priors and block-bootstrapped residuals implemented in `src/engine/uncertainty.py`.
+- Monotonic residual ML model (`src/tourism_twin/models/residual.py`) trained strictly on calendar/event features, excluding flight capacity levers.
+- Beta-distributed operational priors and block-bootstrapped residuals implemented in `src/tourism_twin/models/uncertainty.py`.
 - Demonstrated holdout coverage verified at 65.2% (with positive secular trend documentation).
 
 ### Phase 5: Interactive Product & Submission Assets [COMPLETED & VERIFIED]

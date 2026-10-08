@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 
-from engine.archetypes import MarketArchetype, get_archetype_profile, get_market_archetype
-from engine.structural import ScenarioLever, SimulationResult, StructuralEngine
+from tourism_twin.domain.archetypes import get_archetype_profile, get_market_archetype
+from tourism_twin.domain.scenario import ScenarioLever
+from tourism_twin.models.structural import StructuralEngine
 
 
 @dataclass

@@ -28,7 +28,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from engine.config import SETTINGS
+from tourism_twin.config import SETTINGS
 
 DATABASE = SETTINGS.database_path
 MANIFEST = SETTINGS.manifest_path

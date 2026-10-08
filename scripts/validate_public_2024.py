@@ -17,7 +17,7 @@ from urllib.request import urlopen
 import duckdb
 import openpyxl
 
-from engine.config import SETTINGS
+from tourism_twin.config import SETTINGS
 
 
 ROOT = SETTINGS.root

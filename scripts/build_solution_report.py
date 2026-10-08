@@ -24,9 +24,9 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from engine.config import SETTINGS
-from engine.simulator import TourismDigitalTwin
-from engine.structural import ScenarioLever
+from tourism_twin.config import SETTINGS
+from tourism_twin.domain.scenario import ScenarioLever
+from tourism_twin.services.simulator import TourismDigitalTwin
 
 OUTPUT_PDF = SETTINGS.pdf_dir / "challengeon_solution_report.pdf"
 FIG_DIR = SETTINGS.figures_dir

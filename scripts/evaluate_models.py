@@ -20,9 +20,10 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import RidgeCV
 
-from engine.config import SETTINGS
-from engine.residual import extract_calendar_features
-from engine.structural import MarketSeasonParams, StructuralEngine
+from tourism_twin.config import SETTINGS
+from tourism_twin.domain.scenario import MarketSeasonParams
+from tourism_twin.models.features import extract_calendar_features
+from tourism_twin.models.structural import StructuralEngine
 
 RESULTS_PATH = SETTINGS.evaluation_results_path
 

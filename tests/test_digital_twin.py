@@ -6,10 +6,11 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from engine.archetypes import get_cold_start_prior, get_market_archetype
-from engine.config import SETTINGS
-from engine.simulator import TourismDigitalTwin
-from engine.structural import ScenarioLever, StructuralEngine
+from tourism_twin.config import SETTINGS
+from tourism_twin.domain.archetypes import get_cold_start_prior, get_market_archetype
+from tourism_twin.domain.scenario import ScenarioLever
+from tourism_twin.models.structural import StructuralEngine
+from tourism_twin.services.simulator import TourismDigitalTwin
 
 
 class TestDigitalTwin(unittest.TestCase):
@@ -135,7 +136,8 @@ class TestDigitalTwin(unittest.TestCase):
 
     def test_top15_includes_philippines_and_archetype(self):
         """Verify Philippines is promoted to Top 15 (rank 14 by volume) and Armenia is reassigned to regional priors."""
-        from engine.archetypes import TOP_15_INTERNATIONAL_MARKETS, MarketArchetype
+        from tourism_twin.domain.archetypes import MarketArchetype
+        from tourism_twin.domain.markets import TOP_15_INTERNATIONAL_MARKETS
         self.assertIn("PHILIPPINES", TOP_15_INTERNATIONAL_MARKETS)
         self.assertNotIn("ARMENIA", TOP_15_INTERNATIONAL_MARKETS)
         self.assertEqual(get_market_archetype("PHILIPPINES"), MarketArchetype.RESIDENT_VFR)

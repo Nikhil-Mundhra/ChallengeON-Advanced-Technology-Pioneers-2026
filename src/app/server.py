@@ -7,9 +7,9 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-from engine.config import SETTINGS
-from engine.simulator import TourismDigitalTwin
-from engine.structural import ScenarioLever
+from tourism_twin.config import SETTINGS
+from tourism_twin.domain.scenario import ScenarioLever
+from tourism_twin.services.simulator import TourismDigitalTwin
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 RESULTS_PATH = SETTINGS.evaluation_results_path

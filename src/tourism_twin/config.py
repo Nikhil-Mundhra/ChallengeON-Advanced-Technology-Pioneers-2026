@@ -3,7 +3,7 @@
 Each location defaults to its place in the repository checkout and can be overridden
 through an environment variable, read once when this module is first imported:
 
-    TWIN_ROOT        repository root (default: two levels above src/engine/)
+    TWIN_ROOT        repository root (default: two levels above src/tourism_twin/)
     TWIN_SOURCE_DIR  raw competition workbooks (default: <root>/01a - DCT Dataset)
     TWIN_LAKE_DIR    DuckDB database, manifest, curated tables, model artifacts (default: <root>/lake)
     TWIN_OUTPUT_DIR  generated figures and PDF reports (default: <root>/output)

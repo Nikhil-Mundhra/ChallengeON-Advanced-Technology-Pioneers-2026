@@ -13,7 +13,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 
-from engine.config import SETTINGS
+from tourism_twin.config import SETTINGS
 
 GUEST_FILES = (
     ("data domestic_train.xlsx", "train", "Domestic"),

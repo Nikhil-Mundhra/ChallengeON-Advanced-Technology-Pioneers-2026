@@ -3,7 +3,7 @@
 
 import pandas as pd
 
-from engine.panel import save_weekly_panel
+from tourism_twin.data.panel import save_weekly_panel
 
 
 def main():

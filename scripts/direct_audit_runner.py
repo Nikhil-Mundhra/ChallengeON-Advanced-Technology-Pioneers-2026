@@ -45,8 +45,8 @@ def audit_REPRO_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dic
     fresh_proc_match = (out1 == out2)
 
     # 2. In-process execution order independence
-    from engine.simulator import TourismDigitalTwin
-    from engine.structural import ScenarioLever
+    from tourism_twin.domain.scenario import ScenarioLever
+    from tourism_twin.services.simulator import TourismDigitalTwin
     twin = TourismDigitalTwin()
     lever_uk = ScenarioLever(market="UNITED KINGDOM", delta_frequency=2.0)
     lever_de = ScenarioLever(market="GERMANY", delta_frequency=1.0)
@@ -98,7 +98,7 @@ def audit_REPRO_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dic
             cwd_success = False
 
     # Check error handling on missing/corrupted artifacts
-    from engine.structural import StructuralEngine
+    from tourism_twin.models.structural import StructuralEngine
     missing_handled = False
     try:
         StructuralEngine.load(Path("/tmp/nonexistent_calib.json"))
@@ -324,7 +324,7 @@ def audit_CONS_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict
 
 def audit_CONS_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
     """Compare conversion-chain definitions and feature labels."""
-    from engine.structural import StructuralEngine
+    from tourism_twin.models.structural import StructuralEngine
     engine = StructuralEngine.load()
     sample_params = next(iter(next(iter(engine.params.values())).values()))
 
@@ -354,8 +354,8 @@ def audit_CONS_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict
 
 def audit_CONS_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
     """Compare defaults, domestic scope, and planning-mode labels."""
-    from engine.simulator import TourismDigitalTwin
-    from engine.structural import ScenarioLever
+    from tourism_twin.domain.scenario import ScenarioLever
+    from tourism_twin.services.simulator import TourismDigitalTwin
     twin = TourismDigitalTwin()
 
     # Domestic lever invariance
@@ -609,8 +609,8 @@ def audit_DOC_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[
 
 def audit_VS_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
     """Trace a high-volume international market (UNITED KINGDOM)."""
-    from engine.simulator import TourismDigitalTwin
-    from engine.structural import ScenarioLever
+    from tourism_twin.domain.scenario import ScenarioLever
+    from tourism_twin.services.simulator import TourismDigitalTwin
     twin = TourismDigitalTwin()
     lever = ScenarioLever(market="UNITED KINGDOM", delta_frequency=2.0, aircraft_gauge=290.0, delta_load_factor=0.02)
     rep = twin.run_scenario(market="UNITED KINGDOM", season="Winter_Peak", lever=lever)
@@ -642,8 +642,8 @@ def audit_VS_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
 
 def audit_VS_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
     """Trace a sparse international market (KUWAIT / BAHRAIN)."""
-    from engine.simulator import TourismDigitalTwin
-    from engine.structural import ScenarioLever
+    from tourism_twin.domain.scenario import ScenarioLever
+    from tourism_twin.services.simulator import TourismDigitalTwin
     twin = TourismDigitalTwin()
     market = "KUWAIT"
     lever = ScenarioLever(market=market, delta_frequency=1.0, aircraft_gauge=150.0)
@@ -674,8 +674,8 @@ def audit_VS_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
 
 def audit_VS_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
     """Trace a hub-mediated or indirect-travel market (CHINA)."""
-    from engine.simulator import TourismDigitalTwin
-    from engine.structural import ScenarioLever
+    from tourism_twin.domain.scenario import ScenarioLever
+    from tourism_twin.services.simulator import TourismDigitalTwin
     twin = TourismDigitalTwin()
     rep = twin.run_scenario(market="CHINA", season="Winter_Peak", lever=ScenarioLever("CHINA", delta_frequency=2.0))
 
@@ -732,8 +732,8 @@ def audit_VS_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
 
 def audit_VS_005(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
     """Trace DOMESTIC demand end to end."""
-    from engine.simulator import TourismDigitalTwin
-    from engine.structural import ScenarioLever
+    from tourism_twin.domain.scenario import ScenarioLever
+    from tourism_twin.services.simulator import TourismDigitalTwin
     twin = TourismDigitalTwin()
     lever = ScenarioLever(market="DOMESTIC", delta_los=0.5)
     rep = twin.run_scenario(market="DOMESTIC", season="Winter_Peak", lever=lever)
@@ -765,8 +765,8 @@ def audit_VS_005(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
 
 def audit_VS_006(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
     """Trace an unsupported cold-start market (BRAZIL)."""
-    from engine.simulator import TourismDigitalTwin
-    from engine.structural import ScenarioLever
+    from tourism_twin.domain.scenario import ScenarioLever
+    from tourism_twin.services.simulator import TourismDigitalTwin
     twin = TourismDigitalTwin()
     lever = ScenarioLever(market="BRAZIL", delta_frequency=1.0, aircraft_gauge=280.0)
     rep = twin.run_scenario(market="BRAZIL", season="Winter_Peak", lever=lever)

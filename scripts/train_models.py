@@ -17,9 +17,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from engine.config import SETTINGS
-from engine.residual import ResidualMLEngine
-from engine.structural import StructuralEngine
+from tourism_twin.config import SETTINGS
+from tourism_twin.models.residual import ResidualMLEngine
+from tourism_twin.models.structural import StructuralEngine
 
 
 

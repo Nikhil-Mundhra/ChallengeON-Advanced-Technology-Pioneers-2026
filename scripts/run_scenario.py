@@ -4,8 +4,8 @@
 import argparse
 
 
-from engine.simulator import TourismDigitalTwin
-from engine.structural import ScenarioLever
+from tourism_twin.domain.scenario import ScenarioLever
+from tourism_twin.services.simulator import TourismDigitalTwin
 
 
 def main():

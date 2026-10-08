@@ -7,72 +7,18 @@ Enforces monotonicity by strictly excluding flight capacity levers from residual
 
 from __future__ import annotations
 
-import datetime
-import json
 import pickle
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict
 
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import RidgeCV
 
-from engine.config import SETTINGS
-from engine.structural import ScenarioLever, SimulationResult, StructuralEngine
-
-
-def extract_calendar_features(
-    iso_week: int,
-    quarter: int,
-    month: int,
-    is_holiday_week: int,
-    is_major_event_week: int,
-) -> np.ndarray:
-    """Extract regularized calendar and event features for a single observation."""
-    sin_w1 = np.sin(2.0 * np.pi * iso_week / 52.1775)
-    cos_w1 = np.cos(2.0 * np.pi * iso_week / 52.1775)
-    sin_w2 = np.sin(4.0 * np.pi * iso_week / 52.1775)
-    cos_w2 = np.cos(4.0 * np.pi * iso_week / 52.1775)
-
-    q1 = 1.0 if quarter == 1 else 0.0
-    q2 = 1.0 if quarter == 2 else 0.0
-    q3 = 1.0 if quarter == 3 else 0.0
-    q4 = 1.0 if quarter == 4 else 0.0
-
-    winter = 1.0 if month in (11, 12, 1, 2, 3) else 0.0
-    summer = 1.0 if month in (6, 7, 8) else 0.0
-
-    return np.array([
-        sin_w1,
-        cos_w1,
-        sin_w2,
-        cos_w2,
-        float(is_holiday_week),
-        float(is_major_event_week),
-        q1,
-        q2,
-        q3,
-        q4,
-        winter,
-        summer,
-    ], dtype=float)
-
-
-FEATURE_NAMES = [
-    "sin_week1",
-    "cos_week1",
-    "sin_week2",
-    "cos_week2",
-    "is_holiday_week",
-    "is_major_event_week",
-    "q1",
-    "q2",
-    "q3",
-    "q4",
-    "is_winter",
-    "is_summer",
-]
+from tourism_twin.config import SETTINGS
+from tourism_twin.domain.scenario import SimulationResult
+from tourism_twin.models.features import extract_calendar_features
+from tourism_twin.models.structural import StructuralEngine
 
 
 class ResidualMLEngine:
@@ -216,14 +162,28 @@ class ResidualMLEngine:
         }
 
     def save(self, model_path: Path = SETTINGS.residual_model_path) -> Path:
-        """Serialize trained residual models to disk."""
+        """Serialize the fitted state to disk.
+
+        Only plain containers and scikit-learn estimators are pickled, never this class, so the
+        artifact does not depend on the module path this engine happens to live at.
+        """
         model_path.parent.mkdir(parents=True, exist_ok=True)
+        state = {
+            "models": self.models,
+            "residual_history": self.residual_history,
+            "residual_std": self.residual_std,
+        }
         with open(model_path, "wb") as f:
-            pickle.dump(self, f)
+            pickle.dump(state, f)
         return model_path
 
     @classmethod
     def load(cls, model_path: Path = SETTINGS.residual_model_path) -> "ResidualMLEngine":
-        """Load trained residual models from disk."""
+        """Load fitted residual models from disk."""
         with open(model_path, "rb") as f:
-            return pickle.load(f)
+            state = pickle.load(f)
+        engine = cls()
+        engine.models = state["models"]
+        engine.residual_history = state["residual_history"]
+        engine.residual_std = state["residual_std"]
+        return engine

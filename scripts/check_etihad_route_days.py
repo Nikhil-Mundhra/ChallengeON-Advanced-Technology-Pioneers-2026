@@ -10,7 +10,7 @@ import json
 
 import duckdb
 
-from engine.config import SETTINGS
+from tourism_twin.config import SETTINGS
 
 
 ROOT = SETTINGS.root

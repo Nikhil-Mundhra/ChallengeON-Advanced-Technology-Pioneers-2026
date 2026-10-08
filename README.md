@@ -49,7 +49,7 @@ python scripts/build_solution_report.py
 
 ### Configuration
 
-Every file location is defined once in [`src/engine/config.py`](src/engine/config.py). Defaults point into the repository checkout; override them with environment variables, for example to rebuild into a scratch directory without touching the committed lake:
+Every file location is defined once in [`src/tourism_twin/config.py`](src/tourism_twin/config.py). Defaults point into the repository checkout; override them with environment variables, for example to rebuild into a scratch directory without touching the committed lake:
 
 | Variable | Default | Holds |
 | :--- | :--- | :--- |
@@ -66,13 +66,24 @@ TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/output make all
 
 ## 2. Core Architecture
 
+The `tourism_twin` package is layered; imports only point downward:
+
+```text
+src/tourism_twin/
+├── config.py      every file location (env-overridable)
+├── domain/        pure value types and reference data: markets, archetypes, seasons, event weeks, scenario types
+├── data/          lake → weekly market panel
+├── models/        structural chain, calendar features, residual ML layer, uncertainty
+└── services/      use cases: the simulator, tornado sensitivity, the executive briefing
+```
+
 The **Abu Dhabi Tourism Digital Twin** combines:
-1. **Structural Conversion Engine (`src/engine/structural.py`)**: A visible conversion chain mapping aviation decisions to hotel demand:
+1. **Structural Conversion Engine (`src/tourism_twin/models/structural.py`)**: A visible conversion chain mapping aviation decisions to hotel demand:
    $$\text{Aviation Levers} \to \text{Total Pax} \to \text{P2P Traffic} \xrightarrow{M_{m, s}} \text{Hotel Arrivals} \xrightarrow{L_{m, s}} \text{Hotel Guests}$$
    Includes **Exact Waterfall Attribution Decomposition** with $0.000000$ verified discrepancy and cold-start support for unmodeled source markets.
-2. **Regularized ML Residual Layer (`src/engine/residual.py`)**: Captures calendar harmonics, Islamic lunar holidays (Eid al-Fitr, Eid al-Adha), UAE National Day, and major events (ADIPEC, Formula 1) without touching flight variables, mathematically guaranteeing **monotonicity**.
-3. **Market Archetype Profiling (`src/engine/archetypes.py`)**: Categorizes source markets into 6 defensible behavioral archetypes (*Direct Leisure, Resident/VFR, Regional GCC, Hub-Mediated, Highly Seasonal, Emerging/Sparse*) with hierarchical regional shrinkage for cold-start markets.
-4. **Uncertainty & Sensitivity Engine (`src/engine/uncertainty.py` & `src/engine/simulator.py`)**: Beta-distributed sampling for bounded operational ratios, parameter shocks, time-block bootstrap residuals, and Tornado sensitivity ranking.
+2. **Regularized ML Residual Layer (`src/tourism_twin/models/residual.py`)**: Captures calendar harmonics, Islamic lunar holidays (Eid al-Fitr, Eid al-Adha), UAE National Day, and major events (ADIPEC, Formula 1) without touching flight variables, mathematically guaranteeing **monotonicity**.
+3. **Market Archetype Profiling (`src/tourism_twin/domain/archetypes.py`)**: Categorizes source markets into 6 defensible behavioral archetypes (*Direct Leisure, Resident/VFR, Regional GCC, Hub-Mediated, Highly Seasonal, Emerging/Sparse*) with hierarchical regional shrinkage for cold-start markets.
+4. **Uncertainty & Sensitivity Engine (`src/tourism_twin/models/uncertainty.py` & `src/tourism_twin/services/sensitivity.py`)**: Beta-distributed sampling for bounded operational ratios, parameter shocks, time-block bootstrap residuals, and Tornado sensitivity ranking.
 
 ---
 

@@ -14,9 +14,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from engine.config import SETTINGS
-from engine.simulator import TourismDigitalTwin
-from engine.structural import ScenarioLever
+from tourism_twin.config import SETTINGS
+from tourism_twin.domain.scenario import ScenarioLever
+from tourism_twin.services.simulator import TourismDigitalTwin
 
 OUTPUT_DIR = SETTINGS.figures_dir
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

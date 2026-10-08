@@ -19,7 +19,7 @@ from html.parser import HTMLParser
 import duckdb
 
 from audit_agent.local_model import OpenAICompatibleClient, parse_json_response
-from engine.config import SETTINGS
+from tourism_twin.config import SETTINGS
 
 ROOT = SETTINGS.root
 OUT = ROOT / "research" / "real_world_validation"
