@@ -17,8 +17,5 @@ lake/curated/*.json
 # Local MLX/ollama server logs. Contain generated key material and an env dump.
 ollama_server.log
 
-# NOTE: "01a - DCT Dataset/" is intentionally tracked.
-# These files are competition-provided data distributed to all participants.
-# They are required for end-to-end reproducibility of all reported metrics.
-# If competition rules prohibit redistribution, remove tracking with:
-#   git rm -r --cached "01a - DCT Dataset/" && git commit -m "Remove raw data"
+# Raw competition dataset
+01a - DCT Dataset/
