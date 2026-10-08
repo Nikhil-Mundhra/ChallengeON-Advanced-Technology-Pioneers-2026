@@ -1,0 +1,4 @@
+# Keep downloaded third-party source files local. Recreate from URLs in the
+# validation manifest and the download scripts.
+*
+!.gitignore

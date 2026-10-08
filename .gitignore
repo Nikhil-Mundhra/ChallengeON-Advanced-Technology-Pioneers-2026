@@ -14,6 +14,9 @@ lake/curated/*.pkl
 lake/curated/*.json
 *.pdf
 
+# Local MLX/ollama server logs. Contain generated key material and an env dump.
+ollama_server.log
+
 # NOTE: "01a - DCT Dataset/" is intentionally tracked.
 # These files are competition-provided data distributed to all participants.
 # They are required for end-to-end reproducibility of all reported metrics.

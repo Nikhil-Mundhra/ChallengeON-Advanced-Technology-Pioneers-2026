@@ -1,0 +1,17 @@
+{
+  "source_url": "https://www150.statcan.gc.ca/n1/pub/24-25-0002/2021001/2024/CSV.zip",
+  "source_sha256": "3412b143d71a40f42f04569c1e6e99cbff5ddb88628c218082d7572cc54ff0c0",
+  "source_zip_bytes": 45056310,
+  "sample_records": 13204,
+  "hotel_answered_records": 13202,
+  "weighted_air_visitors": 7421531,
+  "weighted_answered_visitors": 7421122,
+  "weighted_hotel_user_share": 0.358,
+  "fields": {
+    "VRTEN": "route of entry into Canada, not flight number",
+    "VGPRVENP": "Canadian province or region of entry",
+    "VACCVxxA": "hotel used at visit location xx; 1=yes, 2=no",
+    "VWEIGHTP": "survey weight"
+  },
+  "limitation": "Canada air arrivals, not Abu Dhabi; survey record connects broad air-entry route and accommodation use, but does not identify a flight or hotel booking."
+}

@@ -1,0 +1,63 @@
+{
+  "interpretation": "Route-day schedule overlap only; challenge workbook has no flight number or timestamp, so exact flight operation is unverified.",
+  "checks": [
+    {
+      "city": "Gassim",
+      "airport": "ELQ",
+      "flight": "EY0628",
+      "start": "2024-06-24",
+      "end": "2024-10-26",
+      "weekdays": [
+        0,
+        2,
+        4,
+        5
+      ],
+      "local_arrival": "13:20",
+      "source": "https://www.etihad.com/en-us/news/etihad-airways-explores-new-horizons-in-the-middle-east-with-the-launch-of-its-newest-destination",
+      "scheduled_days_in_window": 72,
+      "challenge_route_days": 72,
+      "scheduled_days_missing_in_challenge": [],
+      "challenge_days_outside_published_weekdays": []
+    },
+    {
+      "city": "Jaipur",
+      "airport": "JAI",
+      "flight": "EY0367",
+      "start": "2024-06-16",
+      "end": "2024-07-26",
+      "weekdays": [
+        0,
+        2,
+        4,
+        6
+      ],
+      "local_arrival": "13:00",
+      "source": "https://www.etihad.com/en-in/news/etihad-airways-adds-new-route-to-northwest-india-with-four-weekly-flights-to-jaipur",
+      "scheduled_days_in_window": 24,
+      "challenge_route_days": 23,
+      "scheduled_days_missing_in_challenge": [
+        "2024-07-22"
+      ],
+      "challenge_days_outside_published_weekdays": []
+    },
+    {
+      "city": "Antalya",
+      "airport": "AYT",
+      "flight": "EY0540",
+      "start": "2024-06-15",
+      "end": "2024-09-14",
+      "weekdays": [
+        1,
+        3,
+        5
+      ],
+      "local_arrival": "19:45",
+      "source": "https://www.etihad.com/en-ae/news/etihad-airways-expands-schedule-with-two-stunning-new-destinations-and-additional-flights",
+      "scheduled_days_in_window": 40,
+      "challenge_route_days": 40,
+      "scheduled_days_missing_in_challenge": [],
+      "challenge_days_outside_published_weekdays": []
+    }
+  ]
+}

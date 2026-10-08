@@ -1,0 +1,365 @@
+{
+  "contract": {
+    "scad_hotel_unit": "guests, monthly, all nationality groups, all establishment types in Abu Dhabi emirate",
+    "scad_guest_nights_unit": "guest nights, monthly, all establishment types in Abu Dhabi emirate",
+    "challenge_hotel_unit": "new arrivals and Guests, monthly sum of daily nationality rows",
+    "challenge_flight_unit": "P2P passengers, monthly sum of inbound route-day rows",
+    "scad_airport_unit": "arrivals via Zayed International Airport by region of embarkation, annual, excluding transit"
+  },
+  "monthly_source_urls_sha256": [
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_01.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_43282_58_4_7_2024_EN.xlsx/1a54442d-47e2-13a0-9f98-a4f44e57adc3",
+      "bytes": 314268,
+      "sha256": "e9bf19c2a76670c0d3d9f4f8b541c77ffe22a8eb2aaa4dc38d7316ba5dd5355c"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_02.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_43331_58_4_8_2024_EN.xlsx/1f59c674-a395-6dad-eb7f-1bc0d9b164a5",
+      "bytes": 319998,
+      "sha256": "598d181ff4694abd912e012086b4b6b778714685b6181a26a2a13b1c708ddbde"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_03.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_53349_58_4_9_2024_EN.xlsx/3a9c4815-6ad5-0a0e-1b55-3c54f596b719",
+      "bytes": 320583,
+      "sha256": "7e9b9fb6de65b04893727f1e377ab9ab9b657e435ac5086c106f78efd02dc046"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_04.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_53385_58_4_10_2024_EN.xlsx/45d32d2f-ad60-0b78-b407-d03cf2dd5ecd",
+      "bytes": 356767,
+      "sha256": "be99dec5bec5cc1aa1d1383a441d7aa65588a93d16bce5127c0aadd6e13b4a9f"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_05.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_53418_58_4_11_2024_EN.xlsx/0266c68e-e45d-8060-4f0b-062402192f18",
+      "bytes": 351008,
+      "sha256": "fcb02fc00320b66f8d3819329a63cbdd88991572263feba505cef521254402b6"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_06.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_53472_58_4_12_2024_EN.xlsx/4175e25d-46eb-74c8-e8f8-11ce95ea59c8",
+      "bytes": 350949,
+      "sha256": "85eec78aaa93b4c21b86c83a8036113e5b534475bce1d3325b4e0835127783c2"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_07.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_53490_58_4_13_2024_EN.xlsx/3f6a5866-4533-33ad-f350-354527845306",
+      "bytes": 350707,
+      "sha256": "ac7cb05e5228439a9534911fe058e5d54d33cfd32cef7f16e4dce439526198e3"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_08.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_53522_58_4_14_2024_EN.xlsx/dfe68169-ae92-9dbb-4bbd-b61e7e0193bd",
+      "bytes": 359157,
+      "sha256": "d0127ab7d891c4235876c3fe8cd95b06a45a67724052cf01b117dfadc49f3c19"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_09.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_63565_58_4_15_2024_EN.xlsx/80feafa3-ce3a-c07c-abdc-b44d54d761ed",
+      "bytes": 360711,
+      "sha256": "b2e26a49323a47d0bcad43f88c1507120ec666276027653838cd55442c7a1c8e"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_10.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_63611_58_4_16_2024_EN.xlsx/36f3c304-6311-c903-2b32-56148f71d1b4",
+      "bytes": 361424,
+      "sha256": "2f96134bbcf88b91e2d3c6e1334521169734b2abf354b2a4b755a3bf8fc587b3"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_2024_11.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_63630_58_4_17_2024_EN.xlsx/d8b18483-d18c-9a62-b5f8-4a6d2d3e751d",
+      "bytes": 363968,
+      "sha256": "722f6a1e1b6c2227e13f01a5688003d4b3a5af755d838190567c90ca9a453b8d"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_hotel_dec_2024.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2313850/publication_63661_58_4_18_2024_EN.xlsx/ace5c4e6-3d58-fb27-11e3-52d3fc8de4fd",
+      "bytes": 365959,
+      "sha256": "0648aeadc572cd81a106e158eb5e1b1aabe831987b7ab977121907405593f2c6"
+    },
+    {
+      "file": "research/real_world_validation/sources/scad_transport_2024.xlsx",
+      "url": "https://scad.gov.ae/documents/20122/2311280/publication_63732_344_1_1_2024_EN.xlsx/ed1047d7-c9a1-134b-be60-8a97c9bf9505",
+      "bytes": 108836,
+      "sha256": "8c85498c33870f82f491c08c6e5109596670b6da327e54199ecbd2939453a854"
+    }
+  ],
+  "scad_2024_hotel_guests": 5807555,
+  "challenge_2024_new_arrivals": 5074677,
+  "scad_2024_guest_nights": 15913059,
+  "challenge_2024_guests": 14688200,
+  "challenge_2024_p2p": 5726035,
+  "scad_2024_airport_arrivals": 14522288,
+  "scad_airport_regions": {
+    "Africa": 737101,
+    "Asia": 1992310,
+    "Australasia": 210244,
+    "Eastern Europe": 1364983,
+    "GCC": 2094690,
+    "Indian Subcontinent": 4366519,
+    "Middle East": 414958,
+    "North America": 611923,
+    "South America": 0,
+    "Western Europe": 2671346,
+    "Other": 58214
+  },
+  "pearson_scad_hotels_vs_challenge_new_arrivals": 0.9424154878358862,
+  "pearson_scad_hotels_vs_challenge_p2p": 0.628282856077627,
+  "pearson_scad_guest_nights_vs_challenge_guests": 0.9826039468759783,
+  "monthly": [
+    {
+      "month": "2024-01",
+      "scad_hotel_guests": 498697,
+      "scad_guest_nights": 1386785,
+      "scad_group_rounding_gap_guests": 0,
+      "scad_groups": {
+        "UAE": 108.076,
+        "GCC": 41.629,
+        "Other Arab countries": 41.149,
+        "Asia (excluding Arab countries)": 128.57,
+        "Europe": 110.507,
+        "North and South America": 22.923,
+        "Africa (excluding Arab countries)": 7.964,
+        "Australia and New Zealand": 4.706,
+        "Others & Not mentioned": 33.173
+      },
+      "challenge_new_arrivals": 421735,
+      "challenge_guests": 1250109,
+      "challenge_p2p": 494145,
+      "challenge_pax": 928304
+    },
+    {
+      "month": "2024-02",
+      "scad_hotel_guests": 507355,
+      "scad_guest_nights": 1415816,
+      "scad_group_rounding_gap_guests": 0,
+      "scad_groups": {
+        "UAE": 90.256,
+        "GCC": 32.486,
+        "Other Arab countries": 40.799,
+        "Asia (excluding Arab countries)": 142.766,
+        "Europe": 130.107,
+        "North and South America": 25.591,
+        "Africa (excluding Arab countries)": 6.888,
+        "Australia and New Zealand": 4.228,
+        "Others & Not mentioned": 34.234
+      },
+      "challenge_new_arrivals": 435123,
+      "challenge_guests": 1284954,
+      "challenge_p2p": 473410,
+      "challenge_pax": 875040
+    },
+    {
+      "month": "2024-03",
+      "scad_hotel_guests": 433699,
+      "scad_guest_nights": 1262221,
+      "scad_group_rounding_gap_guests": 0,
+      "scad_groups": {
+        "UAE": 70.207,
+        "GCC": 12.521,
+        "Other Arab countries": 32.837,
+        "Asia (excluding Arab countries)": 135.132,
+        "Europe": 125.352,
+        "North and South America": 21.856,
+        "Africa (excluding Arab countries)": 6.721,
+        "Australia and New Zealand": 3.533,
+        "Others & Not mentioned": 25.54
+      },
+      "challenge_new_arrivals": 365421,
+      "challenge_guests": 1145045,
+      "challenge_p2p": 414410,
+      "challenge_pax": 824608
+    },
+    {
+      "month": "2024-04",
+      "scad_hotel_guests": 500075,
+      "scad_guest_nights": 1374223,
+      "scad_group_rounding_gap_guests": 0,
+      "scad_groups": {
+        "UAE": 88.62,
+        "GCC": 27.638,
+        "Other Arab countries": 49.88,
+        "Asia (excluding Arab countries)": 157.321,
+        "Europe": 118.759,
+        "North and South America": 23.163,
+        "Africa (excluding Arab countries)": 7.823,
+        "Australia and New Zealand": 4.643,
+        "Others & Not mentioned": 22.228
+      },
+      "challenge_new_arrivals": 434933,
+      "challenge_guests": 1265812,
+      "challenge_p2p": 485108,
+      "challenge_pax": 897475
+    },
+    {
+      "month": "2024-05",
+      "scad_hotel_guests": 471836,
+      "scad_guest_nights": 1285726,
+      "scad_group_rounding_gap_guests": 0,
+      "scad_groups": {
+        "UAE": 91.84,
+        "GCC": 25.836,
+        "Other Arab countries": 51.023,
+        "Asia (excluding Arab countries)": 155.055,
+        "Europe": 102.217,
+        "North and South America": 22.583,
+        "Africa (excluding Arab countries)": 7.191,
+        "Australia and New Zealand": 4.046,
+        "Others & Not mentioned": 12.045
+      },
+      "challenge_new_arrivals": 409518,
+      "challenge_guests": 1190077,
+      "challenge_p2p": 426312,
+      "challenge_pax": 882691
+    },
+    {
+      "month": "2024-06",
+      "scad_hotel_guests": 464538,
+      "scad_guest_nights": 1140415,
+      "scad_group_rounding_gap_guests": 0,
+      "scad_groups": {
+        "UAE": 94.768,
+        "GCC": 50.552,
+        "Other Arab countries": 60.969,
+        "Asia (excluding Arab countries)": 155.236,
+        "Europe": 65.015,
+        "North and South America": 19.146,
+        "Africa (excluding Arab countries)": 7.833,
+        "Australia and New Zealand": 4.215,
+        "Others & Not mentioned": 6.804
+      },
+      "challenge_new_arrivals": 418062,
+      "challenge_guests": 1069394,
+      "challenge_p2p": 378037,
+      "challenge_pax": 870573
+    },
+    {
+      "month": "2024-07",
+      "scad_hotel_guests": 496104,
+      "scad_guest_nights": 1264478,
+      "scad_group_rounding_gap_guests": -5,
+      "scad_groups": {
+        "UAE": 116.191,
+        "GCC": 72.872,
+        "Other Arab countries": 59.524,
+        "Asia (excluding Arab countries)": 145.699,
+        "Europe": 63.788,
+        "North and South America": 18.365,
+        "Africa (excluding Arab countries)": 7.799,
+        "Australia and New Zealand": 4.547,
+        "Others & Not mentioned": 7.314
+      },
+      "challenge_new_arrivals": 448091,
+      "challenge_guests": 1187833,
+      "challenge_p2p": 438929,
+      "challenge_pax": 946829
+    },
+    {
+      "month": "2024-08",
+      "scad_hotel_guests": 506647,
+      "scad_guest_nights": 1353372,
+      "scad_group_rounding_gap_guests": -3,
+      "scad_groups": {
+        "UAE": 112.348,
+        "GCC": 76.228,
+        "Other Arab countries": 61.042,
+        "Asia (excluding Arab countries)": 146.078,
+        "Europe": 75.122,
+        "North and South America": 17.424,
+        "Africa (excluding Arab countries)": 8.659,
+        "Australia and New Zealand": 3.815,
+        "Others & Not mentioned": 5.928
+      },
+      "challenge_new_arrivals": 456345,
+      "challenge_guests": 1281505,
+      "challenge_p2p": 600868,
+      "challenge_pax": 1087267
+    },
+    {
+      "month": "2024-09",
+      "scad_hotel_guests": 423617,
+      "scad_guest_nights": 1169127,
+      "scad_group_rounding_gap_guests": 0,
+      "scad_groups": {
+        "UAE": 81.688,
+        "GCC": 34.35,
+        "Other Arab countries": 49.804,
+        "Asia (excluding Arab countries)": 142.298,
+        "Europe": 78.485,
+        "North and South America": 20.179,
+        "Africa (excluding Arab countries)": 7.655,
+        "Australia and New Zealand": 4.967,
+        "Others & Not mentioned": 4.191
+      },
+      "challenge_new_arrivals": 376485,
+      "challenge_guests": 1090685,
+      "challenge_p2p": 473014,
+      "challenge_pax": 952460
+    },
+    {
+      "month": "2024-10",
+      "scad_hotel_guests": 483515,
+      "scad_guest_nights": 1400210,
+      "scad_group_rounding_gap_guests": 0,
+      "scad_groups": {
+        "UAE": 83.947,
+        "GCC": 24.473,
+        "Other Arab countries": 46.406,
+        "Asia (excluding Arab countries)": 155.659,
+        "Europe": 127.191,
+        "North and South America": 25.786,
+        "Africa (excluding Arab countries)": 7.604,
+        "Australia and New Zealand": 5.697,
+        "Others & Not mentioned": 6.752
+      },
+      "challenge_new_arrivals": 426519,
+      "challenge_guests": 1298766,
+      "challenge_p2p": 494297,
+      "challenge_pax": 967645
+    },
+    {
+      "month": "2024-11",
+      "scad_hotel_guests": 479582,
+      "scad_guest_nights": 1355458,
+      "scad_group_rounding_gap_guests": 0,
+      "scad_groups": {
+        "UAE": 76.056,
+        "GCC": 32.407,
+        "Other Arab countries": 42.888,
+        "Asia (excluding Arab countries)": 153.599,
+        "Europe": 126.648,
+        "North and South America": 27.172,
+        "Africa (excluding Arab countries)": 6.716,
+        "Australia and New Zealand": 4.574,
+        "Others & Not mentioned": 9.522
+      },
+      "challenge_new_arrivals": 413243,
+      "challenge_guests": 1248315,
+      "challenge_p2p": 474942,
+      "challenge_pax": 947990
+    },
+    {
+      "month": "2024-12",
+      "scad_hotel_guests": 541890,
+      "scad_guest_nights": 1505228,
+      "scad_group_rounding_gap_guests": 0,
+      "scad_groups": {
+        "UAE": 90.256,
+        "GCC": 26.134,
+        "Other Arab countries": 47.443,
+        "Asia (excluding Arab countries)": 177.266,
+        "Europe": 140.935,
+        "North and South America": 31.093,
+        "Africa (excluding Arab countries)": 12.625,
+        "Australia and New Zealand": 6.914,
+        "Others & Not mentioned": 9.224
+      },
+      "challenge_new_arrivals": 469202,
+      "challenge_guests": 1375705,
+      "challenge_p2p": 572563,
+      "challenge_pax": 1041122
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+dimension,code,label,sample_records,weighted_air_visitors,weighted_hotel_users,hotel_use_share
+VRTEN,1,From United States only,4411,3906845,1594512,0.4081
+VRTEN,2,Directly from non-US country,8339,3327412,1000879,0.3008
+VRTEN,3,From non-US country via United States,452,186865,61715,0.3303
+VGPRVENP,12,Nova Scotia,471,68056,27017,0.397
+VGPRVENP,19,"Newfoundland, PEI and New Brunswick",12,1801,308,0.1713
+VGPRVENP,24,Quebec,3218,1627604,612444,0.3763
+VGPRVENP,35,Ontario,4804,3190744,1026590,0.3217
+VGPRVENP,46,Manitoba,22,10801,1462,0.1354
+VGPRVENP,47,Saskatchewan,10,6033,3106,0.5148
+VGPRVENP,48,Alberta,1437,702717,263393,0.3748
+VGPRVENP,59,British Columbia and territories,3228,1813366,722785,0.3986
