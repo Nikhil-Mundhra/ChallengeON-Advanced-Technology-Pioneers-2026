@@ -11,40 +11,45 @@ The master solution specification is documented in [Abu Dhabi Tourism Digital Tw
 Every stage of the pipeline is 100% repeatable, deterministic, and self-contained:
 
 ```bash
-# Set up Python virtual environment
+# Set up Python virtual environment (or simply: make install)
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[report,dev]"   # editable install: src/ packages import without sys.path hacks
+pip install -e ".[report,dev]"   # editable install of src/; 'report' adds reportlab for PDFs, 'dev' adds pytest
 
 # --- One-command full rebuild (all metrics + artifacts) ---
 make all
 
-# --- Or run individual steps manually ---
+# --- Or run individual steps manually (also available as: python -m tourism_twin <command>) ---
 
 # 1. Build local analytical lake from raw Excel workbooks
-python scripts/build_lake.py
+twin build-lake
 
 # 2. Build the curated weekly market modeling panel (Jan 2023 - Feb 2026)
-python scripts/build_panels.py
+twin build-panel
 
 # 3. Run strict forward temporal holdout back-tests (writes evaluation_results.json)
-python scripts/evaluate_models.py
+twin evaluate
 
 # 4. Deterministically train and calibrate models & uncertainty bounds
-python scripts/train_models.py --max_date 2025-07-27
+twin train --max-date 2025-07-27
 
-# 5. Run automated unit and integration tests (14/14 passing)
+# 5. Run the unit and integration tests (38 tests; on a fresh clone 37 pass until
+#    `twin build-lake` creates lake/curated/flight_monthly.parquet)
 pytest tests/ -v
 
 # 6. Run a planner scenario via CLI
-python scripts/run_scenario.py --market "UNITED KINGDOM" --season "Winter_Peak" --delta_freq 2.0 --gauge 290.0 --delta_lf 0.02
+twin simulate --market "UNITED KINGDOM" --season "Winter_Peak" --delta-freq 2.0 --gauge 290.0 --delta-lf 0.02
 
 # 7. Launch the interactive web application dashboard
-python scripts/run_app.py --port 8080
+twin serve --port 8080
 
 # 8. Rebuild dynamic presentation figures and 3-page PDF dossier
-python scripts/generate_scenario_charts.py
-python scripts/build_solution_report.py
+twin charts
+twin report solution
+
+# Ad-hoc SQL against lake/analytics.duckdb (created by step 1); schema & database audit PDF
+twin query "SELECT COUNT(*) FROM guest_daily_totals"
+twin report database
 ```
 
 ### Configuration
@@ -59,7 +64,9 @@ Every file location is defined once in [`src/tourism_twin/config.py`](src/touris
 | `TWIN_OUTPUT_DIR` | `output/` | Generated figures and PDF reports |
 
 ```bash
-TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/output make all
+export TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/output
+twin build-lake && twin build-panel   # `make all` starts from an existing lake and panel
+make all
 ```
 
 ---
@@ -72,10 +79,14 @@ The `tourism_twin` package is layered; imports only point downward:
 src/tourism_twin/
 ├── config.py      every file location (env-overridable)
 ├── domain/        pure value types and reference data: markets, archetypes, seasons, event weeks, scenario types
-├── data/          lake → weekly market panel
-├── models/        structural chain, calendar features, residual ML layer, uncertainty
-└── services/      use cases: the simulator, tornado sensitivity, the executive briefing
+├── data/          raw workbooks → validated lake → weekly market panel
+├── models/        structural chain, calendar features, residual ML layer, uncertainty, conformal bounds, training, evaluation
+├── services/      use cases: the simulator, tornado sensitivity, the executive briefing
+├── reporting/     scenario charts, solution PDF, schema & database PDF
+└── cli/           the `twin` command (python -m tourism_twin)
 ```
+
+The web server (`src/app/server.py` + `src/app/static/index.html`) sits outside the package and calls into `config`, `domain`, and `services`; the data-audit tool (`src/audit_agent/`) is a separate package that does not import `tourism_twin`.
 
 The **Abu Dhabi Tourism Digital Twin** combines:
 1. **Structural Conversion Engine (`src/tourism_twin/models/structural.py`)**: A visible conversion chain mapping aviation decisions to hotel demand:
@@ -139,4 +150,4 @@ Evaluated on 30 complete 7-day holdout weeks with complete guest inputs (Jan 202
 - **User Guide & Archetype Manual:** [`docs/user_guide.md`](docs/user_guide.md)
 - **Executive PDF Report:** [`output/pdf/challengeon_solution_report.pdf`](output/pdf/challengeon_solution_report.pdf)
 - **Schema & Database Audit Report:** [`output/pdf/challengeon_schema_database_report.pdf`](output/pdf/challengeon_schema_database_report.pdf)
-- **Interactive Web UI:** Run `python scripts/run_app.py --port 8080` and visit `http://127.0.0.1:8080`
+- **Interactive Web UI:** Run `twin serve --port 8080` and visit `http://127.0.0.1:8080`

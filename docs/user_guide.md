@@ -19,7 +19,7 @@ Unlike black-box statistical forecasting, the Digital Twin provides:
 
 ## 2. Command-Line Interface (CLI) Usage
 
-The primary scenario simulator is located in [`scripts/run_scenario.py`](../scripts/run_scenario.py).
+The primary scenario simulator is the `twin simulate` command (installed by `pip install -e ".[report,dev]"`, also runnable as `python -m tourism_twin simulate`; source: [`src/tourism_twin/cli/simulate.py`](../src/tourism_twin/cli/simulate.py)). Run `twin --help` to list every pipeline command.
 
 ### Basic Command
 
@@ -28,12 +28,12 @@ The primary scenario simulator is located in [`scripts/run_scenario.py`](../scri
 source .venv/bin/activate
 
 # Simulate adding 2 weekly flights from the UK during Winter Peak
-python scripts/run_scenario.py \
+twin simulate \
   --market "UNITED KINGDOM" \
   --season "Winter_Peak" \
-  --delta_freq 2.0 \
+  --delta-freq 2.0 \
   --gauge 290.0 \
-  --delta_lf 0.02
+  --delta-lf 0.02
 ```
 
 ### Supported Arguments & Levers
@@ -42,13 +42,13 @@ python scripts/run_scenario.py \
 | :--- | :---: | :---: | :--- |
 | `--market` | `str` | `"UNITED KINGDOM"` | Source market name (must match one of the 15 top markets, 5 regional clusters, `DOMESTIC`, or an unmodeled country name like `SWEDEN` for cold-start priors). |
 | `--season` | `str` | `"Winter_Peak"` | Season: `Winter_Peak` (Nov–Mar), `Spring_Shoulder` (Apr–May), `Summer_Trough` (Jun–Aug), `Autumn_Shoulder` (Sep–Oct). |
-| `--delta_freq` | `float` | `0.0` | Additional weekly round-trip flights (e.g. `+2.0` flights/week). |
+| `--delta-freq` | `float` | `2.0` | Additional weekly round-trip flights (e.g. `+2.0` flights/week). |
 | `--gauge` | `float` | `290.0` | Seat capacity per added flight (e.g. `290` for Boeing 787-9, `180` for Airbus A320). |
-| `--delta_seats_pct` | `float` | `0.0` | Proportional seat capacity shift across existing flights (e.g. `0.15` for $+15\%$). |
-| `--delta_lf` | `float` | `0.0` | Absolute shift in target load factor (e.g. `0.02` for $+2.0\%$ LF). |
-| `--delta_p2p` | `float` | `0.0` | Absolute shift in P2P passenger share (e.g. `0.03` for $+3.0\%$). |
-| `--delta_mult_pct` | `float` | `0.0` | Proportional shift in response multiplier from marketing (e.g. `0.05` for $+5\%$). |
-| `--delta_los` | `float` | `0.0` | Shift in average length of stay days (e.g. `0.3` for $+0.3$ days). |
+| `--delta-seats-pct` | `float` | `0.0` | Proportional seat capacity shift across existing flights (e.g. `0.15` for $+15\%$). |
+| `--delta-lf` | `float` | `0.02` | Absolute shift in target load factor (e.g. `0.02` for $+2.0\%$ LF). |
+| `--delta-p2p` | `float` | `0.0` | Absolute shift in P2P passenger share (e.g. `0.03` for $+3.0\%$). |
+| `--delta-mult-pct` | `float` | `0.0` | Proportional shift in response multiplier from marketing (e.g. `0.05` for $+5\%$). |
+| `--delta-los` | `float` | `0.0` | Shift in average length of stay days (e.g. `0.3` for $+0.3$ days). |
 
 ---
 
@@ -117,8 +117,8 @@ Evaluates the elasticity of hotel guest demand with respect to each lever under 
 To embed the simulator into automated pipelines or custom dashboards:
 
 ```python
-from engine.simulator import TourismDigitalTwin
-from engine.structural import ScenarioLever
+from tourism_twin.services.simulator import TourismDigitalTwin
+from tourism_twin.domain.scenario import ScenarioLever
 
 # Instantiate simulator (loads calibrated structural and residual models)
 twin = TourismDigitalTwin()
@@ -156,7 +156,7 @@ The solution includes a self-contained, interactive single-page web simulator lo
 
 ```bash
 # Start the web simulator on port 8080
-python scripts/run_app.py --port 8080
+twin serve --port 8080
 ```
 
 Open `http://localhost:8080` in your web browser.
@@ -182,7 +182,7 @@ Open `http://localhost:8080` in your web browser.
 To recalibrate the structural parameters and train the monotonic residual engine from curated data:
 
 ```bash
-python scripts/train_models.py
+twin train                          # or: make train
 ```
 
 ### Generated Artifacts
@@ -198,7 +198,7 @@ python scripts/train_models.py
 To execute the temporal back-test against the 2025 holdout window (Jan 6, 2025 to Jul 27, 2025, 30 complete ISO weeks, 510 market-weeks):
 
 ```bash
-python scripts/evaluate_models.py
+twin evaluate                       # or: make evaluate
 ```
 
 ### Evaluation Reporting Modes
@@ -217,7 +217,7 @@ Benchmark metrics are written to `lake/curated/evaluation_results.json`.
 ## 8.1 Operational Guidance: Domestic Staycation Decoupling & Secular Drift
 
 1. **Aviation Decoupling Invariant:**  
-   Domestic UAE residents do not arrive on international flights entering AUH. When simulating the `DOMESTIC` market, aviation levers (`--delta_freq`, `--gauge`, `--delta_seats_pct`, `--delta_lf`, `--delta_p2p`) are strictly decoupled and inactive. Changes in domestic demand are driven solely by marketing multipliers (`--delta_mult_pct`) and length-of-stay (`--delta_los`).
+   Domestic UAE residents do not arrive on international flights entering AUH. When simulating the `DOMESTIC` market, aviation levers (`--delta-freq`, `--gauge`, `--delta-seats-pct`, `--delta-lf`, `--delta-p2p`) are strictly decoupled and inactive. Changes in domestic demand are driven solely by marketing multipliers (`--delta-mult-pct`) and length-of-stay (`--delta-los`).
 
 2. **Secular Trend Adjustment for 2025+:**  
    On the strict 2025 forward holdout, domestic demand exhibited +13.05% directional growth over the 2023–2024 training baseline. For strategic planning horizons beyond 12 months, planners should factor in this secular expansion (recommended: +3.5% to +5.0% annual drift factor) to avoid under-forecasting baseline room night requirements.
@@ -226,14 +226,11 @@ Benchmark metrics are written to `lake/curated/evaluation_results.json`.
 
 ## 9. Automated Verification & Test Suite
 
-The digital twin includes an automated test suite verifying core mathematical properties (38/38 passing tests):
+The digital twin includes an automated test suite verifying core mathematical properties (38 tests; on a fresh clone 37 pass, because `test_data_contract_and_grain_separation` needs `lake/curated/flight_monthly.parquet`, which only exists after `twin build-lake`):
 
 ```bash
 # Run full test suite with pytest
 pytest tests/ -v
-
-# Or run with standard library unittest
-python -m unittest discover tests/
 ```
 
 ### Key Verified Invariants
@@ -254,10 +251,10 @@ To compile the executive PDF dossier and high-resolution figures:
 
 ```bash
 # 1. Generate scenario figures dynamically from evaluation results
-python scripts/generate_scenario_charts.py
+twin charts
 
-# 2. Compile publication-grade 3-page PDF dossier
-python scripts/build_solution_report.py
+# 2. Compile publication-grade 3-page PDF dossier (needs the 'report' extra: reportlab)
+twin report solution
 ```
 
 Generated outputs:
