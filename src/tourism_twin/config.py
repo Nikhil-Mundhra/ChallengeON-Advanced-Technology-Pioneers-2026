@@ -69,6 +69,10 @@ class Settings:
         return self.curated_dir / "weekly_market_panel.parquet"
 
     @property
+    def daily_panel_path(self) -> Path:
+        return self.curated_dir / "daily_market_panel.parquet"
+
+    @property
     def calibration_path(self) -> Path:
         return self.curated_dir / "structural_calibration.json"
 

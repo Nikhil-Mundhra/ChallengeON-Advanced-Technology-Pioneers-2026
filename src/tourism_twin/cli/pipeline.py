@@ -16,6 +16,10 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     subparsers.add_parser("build-lake", help="Build the Parquet tables and DuckDB lake from the raw workbooks").set_defaults(func=build_lake)
     subparsers.add_parser("build-panel", help="Build the curated weekly market panel from the lake").set_defaults(func=build_panel)
 
+    daily_parser = subparsers.add_parser("build-daily-panel", help="Build the daily (market, date) panel with arrival lags")
+    daily_parser.add_argument("--max-lag", dest="max_lag", type=int, default=None, help="Largest arrival lag in days (default 21)")
+    daily_parser.set_defaults(func=build_daily_panel)
+
     train_parser = subparsers.add_parser("train", help="Calibrate and save the structural, residual, and conformal artifacts")
     train_parser.add_argument("--max-date", dest="max_date", default=TRAINING_CUTOFF, help="Training cutoff date")
     train_parser.add_argument("--panel-path", dest="panel_path", type=Path, default=SETTINGS.panel_path, help="Path to weekly panel")
@@ -70,6 +74,17 @@ def build_panel(args: argparse.Namespace) -> None:
     summary = summary_raw[["total_guests", "total_arrivals", "weighted_los", "total_p2p", "weighted_multiplier", "weighted_lf"]]
     print(summary.to_string())
 
+
+
+def build_daily_panel(args: argparse.Namespace) -> None:
+    from tourism_twin.data.daily_panel import DEFAULT_MAX_LAG, save_daily_panel
+
+    max_lag = DEFAULT_MAX_LAG if args.max_lag is None else args.max_lag
+    path = save_daily_panel(max_lag=max_lag)
+    panel = pd.read_parquet(path)
+    print(f"Saved daily panel: {path}")
+    print(f"Shape: {panel.shape[0]} rows x {panel.shape[1]} columns | max lag {max_lag} days")
+    print(f"Dates: {panel['date'].min().date()} to {panel['date'].max().date()} | markets: {panel['market'].nunique()}")
 
 
 def train(args: argparse.Namespace) -> None:

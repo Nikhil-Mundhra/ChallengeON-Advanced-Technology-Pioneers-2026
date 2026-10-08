@@ -25,9 +25,10 @@ install:
 lake:
 	$(TWIN) build-lake
 
-## Step 2 — lake -> curated weekly market panel
+## Step 2 — lake -> curated weekly market panel + daily panel with arrival lags
 panel:
 	$(TWIN) build-panel
+	$(TWIN) build-daily-panel
 
 ## Step 3 — evaluate models, write evaluation_results.json + sync calibrator
 evaluate:

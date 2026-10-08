@@ -35,7 +35,7 @@ def training_window(panel: pd.DataFrame, max_date: str = TRAINING_CUTOFF) -> pd.
     ].copy()
 
 
-def _build_market_case(top15_tuple: tuple) -> str:
+def build_market_case(top15_tuple: tuple) -> str:
     """Build a SQL CASE expression mapping departure country / nationality to market label.
 
     Priority:
@@ -67,8 +67,8 @@ def build_weekly_panel(db_path: Path = SETTINGS.database_path) -> pd.DataFrame:
     top15_tuple = tuple(TOP_15_INTERNATIONAL_MARKETS)
 
     # Build parameterised CASE expressions for flight departure country and guest nationality
-    flight_market_case = _build_market_case(top15_tuple).format(col="departure_country_name")
-    guest_market_case = _build_market_case(top15_tuple).format(col="nationality")
+    flight_market_case = build_market_case(top15_tuple).format(col="departure_country_name")
+    guest_market_case = build_market_case(top15_tuple).format(col="nationality")
 
     # 1. Aggregate daily flights and daily guests at exact daily grain first
     matched_query = f"""
