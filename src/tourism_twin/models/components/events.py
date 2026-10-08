@@ -2,7 +2,9 @@
 
 Each event type gets one coefficient per day offset in its window (union over occurrences); a
 second-difference penalty of strength `smoothing` keeps each kernel smooth. Coefficients are
-log effects relative to days outside every window.
+log effects relative to days outside every window, and the contribution is zero outside them.
+Window days never seen in training are reported as unidentified (their values come from the
+smoothing penalty).
 """
 
 from __future__ import annotations
@@ -18,6 +20,8 @@ from tourism_twin.models.components.base import LinearComponent
 
 
 class EventKernel(LinearComponent):
+    centred = False  # zero contribution outside every window: the contribution is the event effect
+
     def __init__(
         self,
         events: Iterable[str] = DEFAULT_KERNEL_EVENTS,
@@ -67,7 +71,11 @@ class EventKernel(LinearComponent):
         return np.sqrt(self.smoothing) * np.array(rows) if rows else None
 
     def explain(self) -> Dict[str, Any]:
+        self._require_fitted()
         kernels: Dict[str, Dict[int, float]] = {}
         for (event, k), coef in zip(self._columns(), self.coef_):
             kernels.setdefault(event, {})[k] = float(np.expm1(coef))
-        return {"effect_pct_by_day_offset": kernels, "smoothing": self.smoothing}
+        out: Dict[str, Any] = {"effect_pct_by_day_offset": kernels, "smoothing": self.smoothing}
+        if self.unidentified_:
+            out["unidentified"] = list(self.unidentified_)
+        return out

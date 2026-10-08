@@ -215,6 +215,75 @@ def test_composite_requires_exactly_one_level_owner_and_unique_names():
         AdditiveLogModel([LinearTrend(), LinearRegressors(["sin"], name="trend")])
 
 
+def test_fit_state_carries_to_out_of_sample_and_single_row_predictions():
+    frame = _synthetic(noise=0.0)
+    model = AdditiveLogModel(_components(), fitter=JointLinear()).fit(frame.iloc[:500])
+    np.testing.assert_allclose(model.predict(frame.iloc[500:]), frame["guests"].iloc[500:], rtol=1e-9)
+    np.testing.assert_allclose(model.predict(frame.iloc[[600]]), frame["guests"].iloc[[600]], rtol=1e-9)
+
+
+def test_composite_rejects_inputs_that_would_give_silent_nonsense():
+    frame = _synthetic()
+    model = AdditiveLogModel(_components(), fitter=JointLinear())
+    with pytest.raises(ValueError, match="<= 0"):
+        model.fit(frame.assign(guests=frame["guests"].where(frame.index != 3, 0.0)))
+    with pytest.raises(ValueError, match="non-finite values in design columns"):
+        model.fit(frame.assign(sin=frame["sin"].where(frame.index != 3, np.nan)))
+    with pytest.raises(ValueError, match="index must be unique"):
+        model.fit(pd.concat([frame, frame]))
+    model.fit(frame)
+    with pytest.raises(ValueError, match="non-finite values"):
+        model.predict(frame.assign(sin=np.nan))
+    with pytest.raises(ValueError, match="have no 'market'"):
+        model.predict(frame.assign(market=None))
+    with pytest.raises(TypeError, match="non-numeric"):
+        AdditiveLogModel([LinearTrend(), LinearRegressors(["market"])]).fit(frame)
+    with pytest.raises(ValueError, match="anchor"):
+        AdditiveLogModel([LinearTrend(date_column="week_start")])
+    with pytest.raises(RuntimeError, match="not fitted"):
+        LinearRegressors(["sin"]).explain()
+
+
+def test_fit_report_flags_overlapping_and_unidentified_columns():
+    frame = _synthetic().assign(sin_copy=lambda f: f["sin"], never=0.0)
+    overlap = AdditiveLogModel([LinearTrend(), LinearRegressors(["sin"], name="a"), LinearRegressors(["sin_copy"], name="b")], fitter=JointLinear()).fit(frame)
+    assert overlap.explain()["M"]["fit"]["rank_deficient"]
+    constant = AdditiveLogModel([LinearTrend(), LinearRegressors(["never"], name="ghost")], fitter=JointLinear()).fit(frame)
+    assert constant.explain()["M"]["ghost"]["unidentified"] == ["never"]
+
+
+def test_trend_origin_is_shared_across_markets_and_smearing_corrects_the_mean():
+    early, late = _synthetic(market="A", noise=0.2), _synthetic(market="B", noise=0.2, seed=1).iloc[200:]
+    model = AdditiveLogModel(_components(), fitter=JointLinear(), bias_correction="smearing").fit(pd.concat([early, late], ignore_index=True))
+    assert model.explain()["A"]["trend"]["origin"] == model.explain()["B"]["trend"]["origin"] == "2023-01-01"
+    assert model.smearing_["A"] == pytest.approx(np.exp(0.2 ** 2 / 2), rel=0.02)
+
+
+class _ScaledSine:
+    """Non-linear-protocol stub: fits a * sin by closed form on y - offset."""
+    name, requires, owns_level = "scaled_sine", ("sin",), False
+
+    def fit(self, panel, offset, y):
+        x = panel["sin"] - panel["sin"].mean()
+        self.a = float(x @ (y - offset) / (x @ x))
+        self.mean = panel["sin"].mean()
+        return self
+
+    def contribution(self, panel):
+        return self.a * (panel["sin"] - self.mean)
+
+    def explain(self):
+        return {"a": self.a}
+
+
+def test_backfitting_cycles_protocol_components_and_joint_linear_rejects_them():
+    frame = _synthetic(event=0.0)
+    model = AdditiveLogModel([LinearTrend(), _ScaledSine()], fitter=Backfitting()).fit(frame)
+    assert model.explain()["M"]["scaled_sine"]["a"] == pytest.approx(0.3, abs=0.01)
+    with pytest.raises(TypeError, match="Use Backfitting"):
+        AdditiveLogModel([LinearTrend(), _ScaledSine()], fitter=JointLinear()).fit(frame)
+
+
 def _calendar(event: str, anchors, start: int, end: int, kind: str = "solar") -> pd.DataFrame:
     calendar = pd.DataFrame({"event": event, "kind": kind, "anchor_date": pd.to_datetime(anchors),
                              "window_start_offset": start, "window_end_offset": end})
@@ -234,6 +303,9 @@ def test_event_kernel_recovers_a_known_bump():
     fitted = model.explain()["M"]["events"]["effect_pct_by_day_offset"]["fest"]
     for k, effect in true_kernel.items():
         assert np.log1p(fitted[k]) == pytest.approx(effect, abs=0.02), k
+    contributions = model.decompose(frame)["events"]
+    outside = ~frame["date"].isin([a + np.timedelta64(k, "D") for a in calendar["anchor_date"] for k in true_kernel])
+    assert (contributions[outside] == 0).all()  # zero baseline: an event contributes nothing outside its windows
 
 
 def test_one_off_periods_are_flagged_and_masked_from_training():

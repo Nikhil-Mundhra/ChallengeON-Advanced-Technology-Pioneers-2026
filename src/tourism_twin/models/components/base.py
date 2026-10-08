@@ -2,13 +2,15 @@
 
 A component explains part of y = log(target). It is fitted against an offset (the summed
 contributions of every other component), so components are independent in code and joint in
-fitting. Contributions are centred over the training rows, except for the one component that
-owns the level; this keeps the parts identifiable.
+fitting. Periodic terms are centred over the training rows; the one component that owns the
+level is not, and neither are sparse terms such as events (zero contribution when inactive), so
+the parts stay identifiable and an event's contribution reads as its effect.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, Protocol, Sequence, Tuple, runtime_checkable
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Protocol, Sequence, Tuple, runtime_checkable
 
 import numpy as np
 import pandas as pd
@@ -38,18 +40,28 @@ class LinearComponent:
     name: str = "linear"
     requires: Tuple[str, ...] = ()
     owns_level: bool = False
+    centred: bool = True
 
     def __init__(self) -> None:
         self.coef_: np.ndarray | None = None
         self.column_means_: pd.Series | None = None
+        self.unidentified_: List[str] = []
 
     def design(self, panel: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError
 
     def prepare(self, panel: pd.DataFrame) -> pd.DataFrame:
-        """Design matrix as fitted: centred on the training means unless this component owns the level."""
-        design = self.design(panel).astype(float)
-        if self.owns_level:
+        """Design matrix as fitted. Centred on the training means for centred components; the
+        means are captured on the first (fitting) call and reused afterwards."""
+        design = self.design(panel)
+        non_numeric = [c for c in design.columns if not pd.api.types.is_numeric_dtype(design[c])]
+        if non_numeric:
+            raise TypeError(f"Component {self.name!r}: non-numeric design columns {non_numeric}; encode them first")
+        design = design.astype(float)
+        bad = {c: int(n) for c, n in (~np.isfinite(design)).sum().items() if n}
+        if bad:
+            raise ValueError(f"Component {self.name!r}: non-finite values in design columns {bad}")
+        if self.owns_level or not self.centred:
             return design
         if self.column_means_ is None:
             self.column_means_ = design.mean()
@@ -66,40 +78,72 @@ class LinearComponent:
         solve_linear_block([self], panel, y - offset)
         return self
 
-    def contribution(self, panel: pd.DataFrame) -> pd.Series:
+    def _require_fitted(self) -> None:
         if self.coef_ is None:
             raise RuntimeError(f"Component {self.name!r} is not fitted")
+
+    def contribution(self, panel: pd.DataFrame) -> pd.Series:
+        self._require_fitted()
         return pd.Series(self.prepare(panel).to_numpy() @ self.coef_, index=panel.index, name=self.name)
 
     def explain(self) -> Dict[str, Any]:
-        columns = list(self.column_means_.index) if self.column_means_ is not None else None
-        return {"coef": dict(zip(columns, self.coef_.tolist())) if columns else self.coef_.tolist()}
+        self._require_fitted()
+        out: Dict[str, Any] = {"coef": self.coef_.tolist()}
+        if self.unidentified_:
+            out["unidentified"] = list(self.unidentified_)
+        return out
 
     def reset(self) -> None:
         self.coef_ = None
         self.column_means_ = None
+        self.unidentified_ = []
 
 
-def solve_linear_block(components: Sequence[LinearComponent], panel: pd.DataFrame, target: pd.Series) -> None:
-    """One least squares over the stacked designs, with each component's penalty rows appended."""
+@dataclass
+class BlockDiagnostics:
+    rank: int
+    columns: int
+    unidentified: List[str] = field(default_factory=list)
+
+    @property
+    def rank_deficient(self) -> bool:
+        return self.rank < self.columns
+
+
+def solve_linear_block(components: Sequence[LinearComponent], panel: pd.DataFrame, target: pd.Series) -> BlockDiagnostics:
+    """One least squares over the stacked designs, with each component's penalty rows appended.
+
+    A design column with no variation in the fitted rows carries no information; its coefficient
+    is the minimum-norm (penalty-driven) value and the column is reported as unidentified.
+    """
     designs = [component.prepare(panel) for component in components]
     stacked = np.hstack([design.to_numpy() for design in designs])
     rhs = target.to_numpy()
-    widths = [design.shape[1] for design in designs]
+    if not np.isfinite(rhs).all():
+        raise ValueError(f"Non-finite target values in {int((~np.isfinite(rhs)).sum())} rows")
+    rank = int(np.linalg.matrix_rank(stacked)) if stacked.size else 0
     penalty_blocks, start = [], 0
-    for component, width in zip(components, widths):
+    for component, design in zip(components, designs):
+        width = design.shape[1]
         rows = component.penalty_rows()
         if rows is not None:
             block = np.zeros((rows.shape[0], stacked.shape[1]))
             block[:, start:start + width] = rows
             penalty_blocks.append(block)
         start += width
+    system, system_rhs = stacked, rhs
     if penalty_blocks:
-        stacked = np.vstack([stacked, *penalty_blocks])
-        rhs = np.concatenate([rhs, np.zeros(sum(b.shape[0] for b in penalty_blocks))])
-    coef, *_ = np.linalg.lstsq(stacked, rhs, rcond=None)
+        system = np.vstack([stacked, *penalty_blocks])
+        system_rhs = np.concatenate([rhs, np.zeros(sum(b.shape[0] for b in penalty_blocks))])
+    coef, *_ = np.linalg.lstsq(system, system_rhs, rcond=None)
+
+    unidentified: List[str] = []
     start = 0
     for component, design in zip(components, designs):
         width = design.shape[1]
         component.set_coef(coef[start:start + width])
+        flat = [c for c in design.columns if np.ptp(design[c].to_numpy()) == 0 and not component.owns_level]
+        component.unidentified_ = flat
+        unidentified += [f"{component.name}:{c}" for c in flat]
         start += width
+    return BlockDiagnostics(rank=rank, columns=stacked.shape[1], unidentified=unidentified)

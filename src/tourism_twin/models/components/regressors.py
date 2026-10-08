@@ -19,4 +19,8 @@ class LinearRegressors(LinearComponent):
         return panel.loc[:, list(self.requires)]
 
     def explain(self) -> Dict[str, Any]:
-        return {"coef": dict(zip(self.requires, self.coef_.tolist()))}
+        self._require_fitted()
+        out: Dict[str, Any] = {"coef": dict(zip(self.requires, self.coef_.tolist()))}
+        if self.unidentified_:
+            out["unidentified"] = list(self.unidentified_)
+        return out
