@@ -1,7 +1,7 @@
 """Event calendar.
 
 events.csv is the event registry: one row per occurrence (event type, kind, anchor date, the
-day window around the anchor, provenance). Event kernels read it.
+day window around the anchor, the markets it applies to, provenance). Event kernels read it.
 
 HOLIDAY_WEEKS and MAJOR_EVENT_WEEKS are the legacy Monday week-start sets behind the
 is_holiday_week / is_major_event_week flags of the weekly panel and the residual layer. They are
@@ -17,6 +17,7 @@ from importlib.resources import files
 import pandas as pd
 
 EVENT_KINDS = ("lunar", "solar", "one_off")
+EVENT_SCOPES = ("all", "domestic", "international")
 
 # Event types fitted by EventKernel by default. new_years_eve is excluded: its window lies inside
 # christmas_new_year every year, so a separate kernel is not identifiable.
@@ -41,6 +42,9 @@ def load_event_calendar() -> pd.DataFrame:
     unknown = set(calendar["kind"]) - set(EVENT_KINDS)
     if unknown:
         raise ValueError(f"Unknown event kinds in events.csv: {sorted(unknown)}")
+    unknown = set(calendar["scope"]) - set(EVENT_SCOPES)
+    if unknown:
+        raise ValueError(f"Unknown event scopes in events.csv: {sorted(unknown)}")
     if (calendar["window_start_offset"] > calendar["window_end_offset"]).any():
         raise ValueError("events.csv has a window whose start offset is after its end offset")
     calendar["window_start"] = calendar["anchor_date"] + pd.to_timedelta(calendar["window_start_offset"], unit="D")
@@ -89,5 +93,5 @@ MAJOR_EVENT_WEEKS = {
     "2023-11-20",
     "2024-12-02",
     "2025-12-01",
-    "2026-12-07",
+    "2026-11-30",  # race Sunday 2026-12-06
 }

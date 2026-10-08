@@ -311,16 +311,45 @@ def test_event_kernel_recovers_a_known_bump():
 
 
 def test_one_off_periods_are_flagged_and_masked_from_training():
-    frame = _synthetic(season=0.0, event=0.0, noise=0.0)
+    shock = load_event_calendar().query("kind == 'one_off'").iloc[0]
+    assert shock["scope"] == "international"
+    frame = _synthetic(season=0.0, event=0.0, noise=0.0, market="UNITED KINGDOM")
     frame["date"] = pd.date_range("2022-01-01", periods=len(frame), freq="D")
-    shock = (frame["date"] >= "2022-01-17") & (frame["date"] <= "2022-02-13")
-    frame.loc[shock, "guests"] *= np.exp(-0.35)
+    window = (frame["date"] >= shock["window_start"]) & (frame["date"] <= shock["window_end"])
+    frame.loc[window, "guests"] *= np.exp(-0.35)
     masked = AdditiveLogModel([LinearTrend()], fitter=JointLinear(), exclude_flag="is_one_off_period").fit(frame)
     unmasked = AdditiveLogModel([LinearTrend()], fitter=JointLinear()).fit(frame)
-    assert masked.explain()["M"]["trend"]["slope_per_year"] == pytest.approx(0.05, abs=1e-9)
-    assert unmasked.explain()["M"]["trend"]["slope_per_year"] != pytest.approx(0.05, abs=1e-3)
-    flags = PANEL_FEATURES.apply(frame[["date"]], ["is_one_off_period"], anchor="date")["is_one_off_period"]
-    assert flags.sum() == 28 and (flags == shock.astype(int)).all()
+    assert masked.explain()["UNITED KINGDOM"]["trend"]["slope_per_year"] == pytest.approx(0.05, abs=1e-9)
+    assert unmasked.explain()["UNITED KINGDOM"]["trend"]["slope_per_year"] != pytest.approx(0.05, abs=1e-3)
+    both = pd.concat([frame, frame.assign(market="DOMESTIC")], ignore_index=True)
+    flags = PANEL_FEATURES.apply(both[["date", "market"]], ["is_one_off_period"], anchor="date")["is_one_off_period"]
+    assert flags[both["market"] == "UNITED KINGDOM"].sum() == 28 and flags[both["market"] == "DOMESTIC"].sum() == 0
+
+
+def test_event_kernel_penalty_never_couples_two_events():
+    kernel = EventKernel(["ramadan", "eid_al_fitr", "christmas_new_year"])
+    rows = kernel.penalty_rows()
+    blocks = np.cumsum([0] + [len(kernel.offsets[e]) for e in kernel.events])
+    for row in rows:
+        nonzero = np.flatnonzero(row)
+        assert np.searchsorted(blocks, nonzero.min(), side="right") == np.searchsorted(blocks, nonzero.max(), side="right")
+    short = EventKernel(["national_day"])  # 4-day window: unpenalised so its peak is not flattened
+    assert short.penalty_rows() is None
+
+
+GOLDEN_EVENT_DATES = {
+    ("ramadan", "2025-03-01"), ("eid_al_fitr", "2025-03-30"), ("eid_al_adha", "2025-06-06"),
+    ("ramadan", "2026-02-18"), ("eid_al_fitr", "2026-03-20"), ("eid_al_adha", "2026-05-27"),
+    ("islamic_new_year", "2025-06-27"), ("prophets_birthday", "2025-09-05"), ("national_day", "2025-12-02"),
+    ("f1_grand_prix", "2024-12-08"), ("f1_grand_prix", "2025-12-07"), ("f1_grand_prix", "2026-12-06"),
+    ("adipec", "2025-11-03"), ("christmas_new_year", "2025-12-25"), ("international_shock_2022", "2022-01-09"),
+}
+
+
+def test_event_registry_matches_golden_dates():
+    calendar = load_event_calendar()
+    anchors = set(zip(calendar["event"], calendar["anchor_date"].dt.strftime("%Y-%m-%d")))
+    assert GOLDEN_EVENT_DATES <= anchors
 
 
 def test_event_registry_is_consistent_and_covers_the_test_period():

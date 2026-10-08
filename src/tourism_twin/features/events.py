@@ -31,12 +31,20 @@ def event_day_offsets(frame: pd.DataFrame, anchor: str, **_) -> pd.DataFrame:
     return event_offsets(frame[anchor], load_event_calendar())
 
 
-@PANEL_FEATURES.feature(Kind.FLAG, requires=["@anchor"])
+def in_scope(markets: pd.Series, scope: str) -> pd.Series:
+    """Whether each market is covered by an event scope (all | domestic | international)."""
+    if scope == "all":
+        return pd.Series(True, index=markets.index)
+    domestic = markets == "DOMESTIC"
+    return domestic if scope == "domestic" else ~domestic
+
+
+@PANEL_FEATURES.feature(Kind.FLAG, requires=["@anchor", "market"])
 def is_one_off_period(frame: pd.DataFrame, anchor: str, **_) -> pd.Series:
-    """1 inside a one-off shock window (masked from training, not used as a feature)."""
+    """1 inside a one-off shock window for the markets it hit (masked from training)."""
     dates = pd.to_datetime(frame[anchor])
     calendar = load_event_calendar()
-    inside = np.zeros(len(frame), dtype=bool)
+    inside = pd.Series(False, index=frame.index)
     for row in calendar[calendar["kind"] == "one_off"].itertuples():
-        inside |= ((dates >= row.window_start) & (dates <= row.window_end)).to_numpy()
-    return pd.Series(inside.astype(int), index=frame.index)
+        inside |= (dates >= row.window_start) & (dates <= row.window_end) & in_scope(frame["market"], row.scope)
+    return inside.astype(int)
