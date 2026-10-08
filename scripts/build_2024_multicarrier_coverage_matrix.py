@@ -8,12 +8,13 @@ route-day extract does not identify a particular flight or operation date.
 from __future__ import annotations
 
 import csv
-from pathlib import Path
 
 import duckdb
 
+from engine.config import SETTINGS
 
-ROOT = Path(__file__).resolve().parents[1]
+
+ROOT = SETTINGS.root
 OUTPUT = ROOT / "research/real_world_validation/multicarrier_2024_coverage_matrix.csv"
 AIR_ARABIA_SOURCE = "https://press.airarabia.com/air-arabia-abu-dhabi-takes-off-to-yekaterinburg/"
 INDIGO_SOUTH = "https://www.goindigo.in/press-releases/indigo-brings-abu-dhabi-closer-to-southern-india.html"
@@ -47,7 +48,7 @@ INDIGO_ROUTES = [
 
 def main() -> None:
     con = duckdb.connect()
-    source = str(ROOT / "lake/curated/flight_daily.parquet")
+    source = str(SETTINGS.flight_daily_path)
     candidates = [
         ("Air Arabia Abu Dhabi", city, label, "2024-01-01", "network_list_2024_12_27", AIR_ARABIA_SOURCE)
         for city, label in AIR_ARABIA_CITIES.items()

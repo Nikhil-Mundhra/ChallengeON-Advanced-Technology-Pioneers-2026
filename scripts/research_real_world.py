@@ -15,13 +15,13 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from pathlib import Path
 
 import duckdb
 
 from audit_agent.local_model import OpenAICompatibleClient, parse_json_response
+from engine.config import SETTINGS
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = SETTINGS.root
 OUT = ROOT / "research" / "real_world_validation"
 MODEL = "mlx-community/Qwen3.5-4B-MLX-4bit"
 MAX_BYTES = 20_000_000
@@ -135,7 +135,7 @@ def fetch(url: str) -> dict:
 
 
 def data(kind: str, value: str) -> dict:
-    db = duckdb.connect(str(ROOT / "lake" / "analytics.duckdb"), read_only=True)
+    db = duckdb.connect(str(SETTINGS.database_path), read_only=True)
     try:
         if kind == "route":
             query = """select year(date) as year, airline_name, departure_city,

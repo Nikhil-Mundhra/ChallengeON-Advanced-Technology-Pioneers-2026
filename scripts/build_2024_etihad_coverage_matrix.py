@@ -7,12 +7,13 @@ It is a route presence audit, not a complete network or flight-operation audit.
 from __future__ import annotations
 
 import csv
-from pathlib import Path
 
 import duckdb
 
+from engine.config import SETTINGS
 
-ROOT = Path(__file__).resolve().parents[1]
+
+ROOT = SETTINGS.root
 OUTPUT = ROOT / "research/real_world_validation/etihad_2024_coverage_matrix.csv"
 SUMMER = "https://www.etihad.com/en-us/news/etihad-airways-celebrates-launch-flights-to-eight-more-destinations-this-june"
 SCHEDULE = "https://www.etihad.com/en-us/news/etihad-unleashes-sizzling-summer-schedule"
@@ -34,7 +35,7 @@ ROUTES = [
 
 def main() -> None:
     con = duckdb.connect()
-    source = str(ROOT / "lake/curated/flight_daily.parquet")
+    source = str(SETTINGS.flight_daily_path)
     rows = []
     for name, city_label, start, end, url in ROUTES:
         count, first, last, pax = con.execute(

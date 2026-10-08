@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Build and validate the curated weekly market panel from analytics.duckdb."""
 
-
-
 import pandas as pd
-from engine.panel import save_weekly_panel, OUTPUT_PANEL_PATH
+
+from engine.panel import save_weekly_panel
 
 
 def main():

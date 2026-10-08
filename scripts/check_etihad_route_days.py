@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from pathlib import Path
 
 import duckdb
 
+from engine.config import SETTINGS
 
-ROOT = Path(__file__).resolve().parents[1]
+
+ROOT = SETTINGS.root
 OUT = ROOT / "research" / "real_world_validation" / "etihad_2024_route_checks.json"
 CHECKS = [
     {"city": "Gassim", "airport": "ELQ", "flight": "EY0628", "start": "2024-06-24", "end": "2024-10-26", "weekdays": [0, 2, 4, 5], "local_arrival": "13:20", "source": "https://www.etihad.com/en-us/news/etihad-airways-explores-new-horizons-in-the-middle-east-with-the-launch-of-its-newest-destination"},
@@ -23,7 +24,7 @@ CHECKS = [
 
 def main() -> None:
     con = duckdb.connect()
-    source = str(ROOT / "lake" / "curated" / "flight_daily.parquet")
+    source = str(SETTINGS.flight_daily_path)
     results = []
     for check in CHECKS:
         start = dt.date.fromisoformat(check["start"])

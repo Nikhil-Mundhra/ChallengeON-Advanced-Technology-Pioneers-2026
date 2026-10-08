@@ -17,8 +17,10 @@ from urllib.request import urlopen
 import duckdb
 import openpyxl
 
+from engine.config import SETTINGS
 
-ROOT = Path(__file__).resolve().parents[1]
+
+ROOT = SETTINGS.root
 OUT = ROOT / "research" / "real_world_validation"
 SOURCES = OUT / "sources"
 BASE = "https://scad.gov.ae"
@@ -87,14 +89,14 @@ def challenge_months() -> tuple[dict[str, dict], dict[str, dict]]:
         WHERE date BETWEEN '2024-01-01' AND '2024-12-31'
           AND dataset_split = 'train' AND target_available
         GROUP BY 1 ORDER BY 1
-    """, [str(ROOT / "lake/curated/guest_daily.parquet")]).fetchall()
+    """, [str(SETTINGS.guest_daily_path)]).fetchall()
     flight = con.execute("""
         SELECT strftime(date, '%Y-%m') AS month,
                sum(total_p2p) AS p2p, sum(total_pax) AS pax
         FROM read_parquet(?)
         WHERE date BETWEEN '2024-01-01' AND '2024-12-31'
         GROUP BY 1 ORDER BY 1
-    """, [str(ROOT / "lake/curated/flight_daily.parquet")]).fetchall()
+    """, [str(SETTINGS.flight_daily_path)]).fetchall()
     return ({m: {"challenge_new_arrivals": a, "challenge_guests": g} for m, a, g in guest},
             {m: {"challenge_p2p": p, "challenge_pax": x} for m, p, x in flight})
 

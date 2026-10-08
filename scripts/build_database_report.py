@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 from datetime import date
-from pathlib import Path
 
 import duckdb
 from reportlab.lib import colors
@@ -29,11 +28,11 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from engine.config import SETTINGS
 
-ROOT = Path(__file__).resolve().parents[1]
-DATABASE = ROOT / "lake" / "analytics.duckdb"
-MANIFEST = ROOT / "lake" / "manifest.json"
-OUTPUT = ROOT / "output" / "pdf" / "challengeon_schema_database_report.pdf"
+DATABASE = SETTINGS.database_path
+MANIFEST = SETTINGS.manifest_path
+OUTPUT = SETTINGS.pdf_dir / "challengeon_schema_database_report.pdf"
 
 NAVY = colors.HexColor("#102A43")
 BLUE = colors.HexColor("#2563EB")
@@ -481,7 +480,7 @@ def build_story(data: dict, styles: dict[str, ParagraphStyle]) -> list:
     checks = manifest["checks"]
     total_rows = guest[0] + flight[0]
     parquet_bytes = sum(
-        (ROOT / path).stat().st_size for path in manifest["curated_tables"].values()
+        (SETTINGS.root / path).stat().st_size for path in manifest["curated_tables"].values()
     )
 
     story: list = []

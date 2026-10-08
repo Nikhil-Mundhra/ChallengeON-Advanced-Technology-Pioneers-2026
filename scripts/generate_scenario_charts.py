@@ -14,12 +14,13 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+from engine.config import SETTINGS
 from engine.simulator import TourismDigitalTwin
 from engine.structural import ScenarioLever
 
-OUTPUT_DIR = Path(__file__).resolve().parents[1] / "output" / "figures"
+OUTPUT_DIR = SETTINGS.figures_dir
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-RESULTS_PATH = Path(__file__).resolve().parents[1] / "lake" / "curated" / "evaluation_results.json"
+RESULTS_PATH = SETTINGS.evaluation_results_path
 
 plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
 plt.rcParams.update({

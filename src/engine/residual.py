@@ -18,10 +18,8 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import RidgeCV
 
+from engine.config import SETTINGS
 from engine.structural import ScenarioLever, SimulationResult, StructuralEngine
-
-ROOT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_MODEL_PATH = ROOT_DIR / "lake" / "curated" / "residual_engine.pkl"
 
 
 def extract_calendar_features(
@@ -217,7 +215,7 @@ class ResidualMLEngine:
             ),
         }
 
-    def save(self, model_path: Path = DEFAULT_MODEL_PATH) -> Path:
+    def save(self, model_path: Path = SETTINGS.residual_model_path) -> Path:
         """Serialize trained residual models to disk."""
         model_path.parent.mkdir(parents=True, exist_ok=True)
         with open(model_path, "wb") as f:
@@ -225,7 +223,7 @@ class ResidualMLEngine:
         return model_path
 
     @classmethod
-    def load(cls, model_path: Path = DEFAULT_MODEL_PATH) -> "ResidualMLEngine":
+    def load(cls, model_path: Path = SETTINGS.residual_model_path) -> "ResidualMLEngine":
         """Load trained residual models from disk."""
         with open(model_path, "rb") as f:
             return pickle.load(f)

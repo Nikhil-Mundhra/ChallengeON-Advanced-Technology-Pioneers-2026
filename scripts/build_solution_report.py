@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import datetime
 import json
-from pathlib import Path
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -25,15 +24,13 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-
-ROOT = Path(__file__).resolve().parents[1]
-
+from engine.config import SETTINGS
 from engine.simulator import TourismDigitalTwin
 from engine.structural import ScenarioLever
 
-OUTPUT_PDF = ROOT / "output" / "pdf" / "challengeon_solution_report.pdf"
-FIG_DIR = ROOT / "output" / "figures"
-RESULTS_PATH = ROOT / "lake" / "curated" / "evaluation_results.json"
+OUTPUT_PDF = SETTINGS.pdf_dir / "challengeon_solution_report.pdf"
+FIG_DIR = SETTINGS.figures_dir
+RESULTS_PATH = SETTINGS.evaluation_results_path
 
 # Palette
 NAVY = colors.HexColor("#102A43")

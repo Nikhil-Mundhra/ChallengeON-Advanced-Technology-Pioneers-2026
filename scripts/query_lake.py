@@ -8,15 +8,13 @@ from pathlib import Path
 
 import duckdb
 
-
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DATABASE = ROOT / "lake" / "analytics.duckdb"
+from engine.config import SETTINGS
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sql", help="SQL query to execute")
-    parser.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
+    parser.add_argument("--database", type=Path, default=SETTINGS.database_path)
     parser.add_argument("--limit", type=int, default=50)
     args = parser.parse_args()
 

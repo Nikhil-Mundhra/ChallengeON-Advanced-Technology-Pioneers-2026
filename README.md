@@ -47,6 +47,21 @@ python scripts/generate_scenario_charts.py
 python scripts/build_solution_report.py
 ```
 
+### Configuration
+
+Every file location is defined once in [`src/engine/config.py`](src/engine/config.py). Defaults point into the repository checkout; override them with environment variables, for example to rebuild into a scratch directory without touching the committed lake:
+
+| Variable | Default | Holds |
+| :--- | :--- | :--- |
+| `TWIN_ROOT` | repository root | Base for the defaults below |
+| `TWIN_SOURCE_DIR` | `01a - DCT Dataset/` | Raw competition workbooks |
+| `TWIN_LAKE_DIR` | `lake/` | DuckDB database, manifest, curated tables, model artifacts |
+| `TWIN_OUTPUT_DIR` | `output/` | Generated figures and PDF reports |
+
+```bash
+TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/output make all
+```
+
 ---
 
 ## 2. Core Architecture

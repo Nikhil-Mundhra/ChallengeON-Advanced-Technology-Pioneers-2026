@@ -22,10 +22,8 @@ from engine.archetypes import (
     TOP_15_INTERNATIONAL_MARKETS,
     get_market_archetype,
 )
+from engine.config import SETTINGS
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_DB_PATH = ROOT_DIR / "lake" / "analytics.duckdb"
-OUTPUT_PANEL_PATH = ROOT_DIR / "lake" / "curated" / "weekly_market_panel.parquet"
 
 
 HOLIDAY_WEEKS = {
@@ -106,7 +104,7 @@ def _build_market_case(top15_tuple: tuple) -> str:
     return "\n".join(lines)
 
 
-def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
+def build_weekly_panel(db_path: Path = SETTINGS.database_path) -> pd.DataFrame:
     """Build cleanly matched weekly panel from DuckDB.
 
     Filters to Jan 1, 2023 onward. Matches flight operations and guest records
@@ -248,8 +246,8 @@ def build_weekly_panel(db_path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
 
 
 def save_weekly_panel(
-    output_path: Path = OUTPUT_PANEL_PATH,
-    db_path: Path = DEFAULT_DB_PATH,
+    output_path: Path = SETTINGS.panel_path,
+    db_path: Path = SETTINGS.database_path,
 ) -> Path:
     """Build and save weekly panel to Parquet."""
     output_path.parent.mkdir(parents=True, exist_ok=True)

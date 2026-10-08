@@ -15,21 +15,20 @@ Outputs results to terminal and saves structured JSON to lake/curated/evaluation
 """
 
 import json
-from pathlib import Path
-
 
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import RidgeCV
 
+from engine.config import SETTINGS
 from engine.residual import extract_calendar_features
 from engine.structural import MarketSeasonParams, StructuralEngine
 
-RESULTS_PATH = Path(__file__).resolve().parents[1] / "lake" / "curated" / "evaluation_results.json"
+RESULTS_PATH = SETTINGS.evaluation_results_path
 
 
 def evaluate():
-    panel_path = Path(__file__).resolve().parents[1] / "lake" / "curated" / "weekly_market_panel.parquet"
+    panel_path = SETTINGS.panel_path
     df = pd.read_parquet(panel_path)
 
     # Filter strictly to complete 7-day weeks with complete guest reporting inputs in the training split
@@ -322,7 +321,7 @@ def evaluate():
     print(f"\nSaved structured evaluation metrics to: {RESULTS_PATH}")
 
     # Synchronize holdout coverage directly into conformal calibrator artifact
-    conformal_path = Path(__file__).resolve().parents[1] / "lake" / "curated" / "conformal_calibrator.json"
+    conformal_path = SETTINGS.conformal_path
     if conformal_path.exists():
         try:
             with open(conformal_path, "r", encoding="utf-8") as f:

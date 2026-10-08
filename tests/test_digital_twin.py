@@ -2,13 +2,12 @@
 
 import json
 import unittest
-from pathlib import Path
-
 
 import numpy as np
 import pandas as pd
 
 from engine.archetypes import get_cold_start_prior, get_market_archetype
+from engine.config import SETTINGS
 from engine.simulator import TourismDigitalTwin
 from engine.structural import ScenarioLever, StructuralEngine
 
@@ -17,7 +16,7 @@ class TestDigitalTwin(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.twin = TourismDigitalTwin()
-        cls.panel_path = Path(__file__).resolve().parents[1] / "lake" / "curated" / "weekly_market_panel.parquet"
+        cls.panel_path = SETTINGS.panel_path
         cls.df_panel = pd.read_parquet(cls.panel_path)
 
     def test_panel_integrity(self):
@@ -92,10 +91,9 @@ class TestDigitalTwin(unittest.TestCase):
 
     def test_deterministic_artifacts(self):
         """Verify saved model artifacts and conformal calibrator exist and load cleanly."""
-        lake_dir = Path(__file__).resolve().parents[1] / "lake" / "curated"
-        calib_file = lake_dir / "structural_calibration.json"
-        model_file = lake_dir / "residual_engine.pkl"
-        conf_file = lake_dir / "conformal_calibrator.json"
+        calib_file = SETTINGS.calibration_path
+        model_file = SETTINGS.residual_model_path
+        conf_file = SETTINGS.conformal_path
 
         self.assertTrue(calib_file.exists(), "structural_calibration.json does not exist.")
         self.assertTrue(model_file.exists(), "residual_engine.pkl does not exist.")
@@ -108,10 +106,9 @@ class TestDigitalTwin(unittest.TestCase):
 
     def test_data_contract_and_grain_separation(self):
         """Verify explicit data contracts, grain separation, and date grid completeness."""
-        lake_dir = Path(__file__).resolve().parents[1] / "lake" / "curated"
-        f_daily_path = lake_dir / "flight_daily.parquet"
-        f_monthly_path = lake_dir / "flight_monthly.parquet"
-        g_daily_path = lake_dir / "guest_daily.parquet"
+        f_daily_path = SETTINGS.flight_daily_path
+        f_monthly_path = SETTINGS.flight_monthly_path
+        g_daily_path = SETTINGS.guest_daily_path
 
         self.assertTrue(f_daily_path.exists())
         self.assertTrue(f_monthly_path.exists())

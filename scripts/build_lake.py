@@ -13,13 +13,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = ROOT / "01a - DCT Dataset"
-LAKE_DIR = ROOT / "lake"
-CURATED_DIR = LAKE_DIR / "curated"
-DATABASE_PATH = LAKE_DIR / "analytics.duckdb"
-MANIFEST_PATH = LAKE_DIR / "manifest.json"
+from engine.config import SETTINGS
 
 GUEST_FILES = (
     ("data domestic_train.xlsx", "train", "Domestic"),
@@ -70,7 +64,7 @@ def sha256(path: Path) -> str:
 
 
 def read_guest_file(filename: str, split: str, residence_group: str) -> pd.DataFrame:
-    path = SOURCE_DIR / filename
+    path = SETTINGS.source_dir / filename
     frame = pd.read_excel(path, sheet_name="Export")
     frame.columns = [snake_case(str(column)) for column in frame.columns]
 
@@ -142,7 +136,7 @@ def build_guest_frame() -> pd.DataFrame:
 
 def build_flight_frame() -> pd.DataFrame:
     filename = "flight_data.xlsx"
-    frame = pd.read_excel(SOURCE_DIR / filename, sheet_name="Export")
+    frame = pd.read_excel(SETTINGS.source_dir / filename, sheet_name="Export")
     frame.columns = [snake_case(str(column)) for column in frame.columns]
     frame["date"] = pd.to_datetime(frame["date"], errors="raise")
     for column in COUNT_COLUMNS:
@@ -260,8 +254,8 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
        same mount point — the live lake is never destroyed before the new build exists.
     4. On any failure the staging directory is cleaned up; the live lake is untouched.
     """
-    CURATED_DIR.mkdir(parents=True, exist_ok=True)
-    staging_dir = LAKE_DIR / ".staging_build"
+    SETTINGS.curated_dir.mkdir(parents=True, exist_ok=True)
+    staging_dir = SETTINGS.lake_dir / ".staging_build"
     staging_curated = staging_dir / "curated"
     staging_db = staging_dir / "analytics.duckdb"
 
@@ -413,10 +407,10 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
     # Atomic swap: move staged files over the live files only after successful build.
     # os.rename() is atomic on POSIX when src and dst share the same filesystem.
     for staged, live in [
-        (staging_curated / "guest_daily.parquet", CURATED_DIR / "guest_daily.parquet"),
-        (staging_curated / "flight_daily.parquet", CURATED_DIR / "flight_daily.parquet"),
-        (staging_curated / "flight_monthly.parquet", CURATED_DIR / "flight_monthly.parquet"),
-        (staging_db, DATABASE_PATH),
+        (staging_curated / "guest_daily.parquet", SETTINGS.guest_daily_path),
+        (staging_curated / "flight_daily.parquet", SETTINGS.flight_daily_path),
+        (staging_curated / "flight_monthly.parquet", SETTINGS.flight_monthly_path),
+        (staging_db, SETTINGS.database_path),
     ]:
         live.unlink(missing_ok=True)   # remove the previous live file right before atomic replace
         os.rename(staged, live)
@@ -425,19 +419,19 @@ def write_lake(guests: pd.DataFrame, flights: pd.DataFrame) -> None:
 
 
 def write_manifest(checks: dict[str, int | float]) -> None:
-    source_files = [SOURCE_DIR / spec[0] for spec in GUEST_FILES]
+    source_files = [SETTINGS.source_dir / spec[0] for spec in GUEST_FILES]
     source_files.extend(
-        [SOURCE_DIR / "flight_data.xlsx", SOURCE_DIR / "Data_Dictionary.pdf"]
+        [SETTINGS.source_dir / "flight_data.xlsx", SETTINGS.source_dir / "Data_Dictionary.pdf"]
     )
     manifest = {
         "format_version": 2,
-        "raw_location": "01a - DCT Dataset",
+        "raw_location": SETTINGS.display_path(SETTINGS.source_dir),
         "curated_tables": {
-            "guest_daily": "lake/curated/guest_daily.parquet",
-            "flight_daily": "lake/curated/flight_daily.parquet",
-            "flight_monthly": "lake/curated/flight_monthly.parquet",
+            "guest_daily": SETTINGS.display_path(SETTINGS.guest_daily_path),
+            "flight_daily": SETTINGS.display_path(SETTINGS.flight_daily_path),
+            "flight_monthly": SETTINGS.display_path(SETTINGS.flight_monthly_path),
         },
-        "database": "lake/analytics.duckdb",
+        "database": SETTINGS.display_path(SETTINGS.database_path),
         "sources": {
             path.name: {"bytes": path.stat().st_size, "sha256": sha256(path)}
             for path in source_files
@@ -454,12 +448,12 @@ def write_manifest(checks: dict[str, int | float]) -> None:
             "guests and new_arrivals are non-negative for all present source rows.",
         ],
     }
-    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    SETTINGS.manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
 def main() -> None:
-    if not SOURCE_DIR.exists():
-        raise FileNotFoundError(f"Source directory not found: {SOURCE_DIR}")
+    if not SETTINGS.source_dir.exists():
+        raise FileNotFoundError(f"Source directory not found: {SETTINGS.source_dir}")
 
     guests = build_guest_frame()
     flights = build_flight_frame()
@@ -468,7 +462,7 @@ def main() -> None:
     write_manifest(checks)
 
     print(json.dumps(checks, indent=2))
-    print(f"Built {DATABASE_PATH.relative_to(ROOT)}")
+    print(f"Built {SETTINGS.display_path(SETTINGS.database_path)}")
 
 
 if __name__ == "__main__":

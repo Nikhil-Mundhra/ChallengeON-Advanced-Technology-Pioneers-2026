@@ -30,10 +30,7 @@ from engine.archetypes import (
     get_cold_start_prior,
     get_market_archetype,
 )
-
-ROOT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_PANEL_PATH = ROOT_DIR / "lake" / "curated" / "weekly_market_panel.parquet"
-DEFAULT_CALIBRATION_PATH = ROOT_DIR / "lake" / "curated" / "structural_calibration.json"
+from engine.config import SETTINGS
 
 
 @dataclass
@@ -114,8 +111,8 @@ class StructuralEngine:
     @classmethod
     def calibrate_from_panel(
         cls,
-        panel_path: Path = DEFAULT_PANEL_PATH,
-        save_path: Optional[Path] = DEFAULT_CALIBRATION_PATH,
+        panel_path: Path = SETTINGS.panel_path,
+        save_path: Optional[Path] = SETTINGS.calibration_path,
         max_date: str = "2025-07-27",
     ) -> "StructuralEngine":
         """Calibrate baseline parameters from complete training weeks."""
@@ -183,7 +180,7 @@ class StructuralEngine:
         return engine
 
     @classmethod
-    def load(cls, calibration_path: Path = DEFAULT_CALIBRATION_PATH) -> "StructuralEngine":
+    def load(cls, calibration_path: Path = SETTINGS.calibration_path) -> "StructuralEngine":
         """Load calibrated engine from saved JSON."""
         with open(calibration_path, "r", encoding="utf-8") as f:
             data = json.load(f)

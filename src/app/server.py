@@ -7,12 +7,12 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
+from engine.config import SETTINGS
 from engine.simulator import TourismDigitalTwin
 from engine.structural import ScenarioLever
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-RESULTS_PATH = ROOT_DIR / "lake" / "curated" / "evaluation_results.json"
+RESULTS_PATH = SETTINGS.evaluation_results_path
 
 TWIN = TourismDigitalTwin()
 

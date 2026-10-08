@@ -17,19 +17,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from engine.panel import OUTPUT_PANEL_PATH
+from engine.config import SETTINGS
 from engine.residual import ResidualMLEngine
-from engine.structural import DEFAULT_CALIBRATION_PATH, StructuralEngine
+from engine.structural import StructuralEngine
 
-DEFAULT_CONFORMAL_PATH = Path(__file__).resolve().parents[1] / "lake" / "curated" / "conformal_calibrator.json"
 
 
 def train(
-    panel_path: Path = OUTPUT_PANEL_PATH,
+    panel_path: Path = SETTINGS.panel_path,
     max_date: str = "2025-07-27",
-    calib_out: Path = DEFAULT_CALIBRATION_PATH,
-    model_out: Path = Path(__file__).resolve().parents[1] / "lake" / "curated" / "residual_engine.pkl",
-    conformal_out: Path = DEFAULT_CONFORMAL_PATH,
+    calib_out: Path = SETTINGS.calibration_path,
+    model_out: Path = SETTINGS.residual_model_path,
+    conformal_out: Path = SETTINGS.conformal_path,
 ):
     print("=" * 80)
     print(f"TRAINING ABU DHABI TOURISM DIGITAL TWIN MODELS")
@@ -94,7 +93,7 @@ def train(
     conformal_dict["_target_alpha"] = alpha
 
     # Read evaluated coverage if already compiled, or default to empirical target
-    eval_json = Path(__file__).resolve().parents[1] / "lake" / "curated" / "evaluation_results.json"
+    eval_json = SETTINGS.evaluation_results_path
     if eval_json.exists():
         try:
             with open(eval_json, "r", encoding="utf-8") as f:
@@ -119,7 +118,7 @@ def train(
 def main():
     parser = argparse.ArgumentParser(description="Deterministic Model Training")
     parser.add_argument("--max_date", type=str, default="2025-07-27", help="Training cutoff date")
-    parser.add_argument("--panel_path", type=str, default=str(OUTPUT_PANEL_PATH), help="Path to weekly panel")
+    parser.add_argument("--panel_path", type=str, default=str(SETTINGS.panel_path), help="Path to weekly panel")
     args = parser.parse_args()
 
     train(

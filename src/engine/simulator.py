@@ -19,17 +19,14 @@ import numpy as np
 import pandas as pd
 
 from engine.archetypes import get_market_archetype
+from engine.config import SETTINGS
 from engine.residual import ResidualMLEngine
 from engine.structural import (
-    DEFAULT_CALIBRATION_PATH,
     ScenarioLever,
     SimulationResult,
     StructuralEngine,
 )
 from engine.uncertainty import UncertaintyBands, UncertaintyEngine
-
-ROOT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_CONFORMAL_PATH = ROOT_DIR / "lake" / "curated" / "conformal_calibrator.json"
 
 
 @dataclass
@@ -57,7 +54,7 @@ class TourismDigitalTwin:
         self,
         structural_engine: Optional[StructuralEngine] = None,
         residual_engine: Optional[ResidualMLEngine] = None,
-        conformal_path: Path = DEFAULT_CONFORMAL_PATH,
+        conformal_path: Path = SETTINGS.conformal_path,
     ):
         self.structural_engine = structural_engine or StructuralEngine.load()
         self.residual_engine = residual_engine or ResidualMLEngine.load()
