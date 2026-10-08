@@ -1,6 +1,6 @@
 # Abu Dhabi Tourism Digital Twin — Model Design
 
-Design of the guest models: what is in `src/`, what has been measured outside it, and what is proposed. Method and shipped results: [solution documentation](solution_documentation.md). Commands: [user guide](user_guide.md).
+Design of the guest models: what is in `src/`, what has been measured outside it, and what is proposed. Method and shipped results: [solution documentation](solution_documentation.md). Commands: [user guide](user_guide.md). Decisions and their evidence: [decision log](decisions.md).
 
 **Status legend** (every section is marked):
 
@@ -168,6 +168,58 @@ A spec is a named component list (`intl_nowcast`, `domestic_time`, `planning`, `
 ### 5.5 Noise model
 
 Fitted on back-test residuals: Gaussian in log, σ per month, AR(1) φ for growth with horizon. Replaces the in-sample conformal margins.
+
+### 5.6 Feature contract (analysis issues → model)
+
+Every feature table delivered by an analysis issue has this shape, so it joins the daily panel and enters a back-test without reshaping:
+
+| date | market | `<feature_1>` | `<feature_2>` | … |
+| --- | --- | --- | --- | --- |
+| 2023-01-01 | DOMESTIC | 1240 | 0.12 | |
+| 2023-01-01 | INDIA | 8312 | 0.74 | |
+| … | | | | |
+| 2026-02-28 | UZBEKISTAN | 57 | NaN | |
+
+- `date`: daily, `YYYY-MM-DD`, 2023-01-01 to 2026-02-28 (**includes the test period**).
+- `market`: `DOMESTIC` or the nationality exactly as in the guest workbooks (uppercase). Features from departure countries are mapped to nationality, and the mapping is stated as approximate (§ solution documentation 4.2 item 2). A feature that does not vary by market uses `market = ALL`.
+- One column per feature, raw values: no scaling, no one-hot, no log. Missing stays NaN; imputed values get a `<col>_imputed` flag.
+- Nothing derived from `Guests`. The value for date *t* uses only data from *t* or earlier.
+- Each feature is described once: kind (count / ratio 0–1 / continuous / categorical / flag), unit, range, meaning of missing.
+
+Inside `src/`, such a feature becomes a `@PANEL_FEATURES.feature` spec (AGENTS.md "Data access and features").
+
+### 5.7 Implementation rules for the guest model
+
+Apply these when building any part of §3–§5. Each comes from a measured failure or result.
+
+| Rule | Why |
+| --- | --- |
+| Encoding in linear/GLM parts: categoricals (day of week, month, market, holiday type) one-hot, never integer-coded; annual season as Fourier terms on day of year; continuous inputs (arrivals, P2P, seats) in log; load factor (bounded, saturating) as spline or bins | Integer-coded categoricals make a linear model look worse than a GBM for the wrong reason (*analysis*: holiday and encoding fixes cut ridge MAE 3,137 → 2,623) |
+| Lunar holidays from explicit dates per year, never a fixed month | They move ~11 days earlier each year |
+| Kernel: `w = triu(ones) @ d`, `d ≥ 0` (non-increasing); **not** `triu(ones).T` (non-decreasing) | Reversed matrix silently gives a non-physical kernel (*analysis*, bug found) |
+| Centre the calendar on the training window after every calendar step; the kernel owns the level | Otherwise the overall scale drifts into the calendar intercept and the kernel collapses toward zero (*analysis*) |
+| Never fit a power α together with a free kernel | They trade off without limit and diverge; estimate α with the kernel fixed (*analysis*) |
+| Joint fit (backfitting to convergence), never one greedy pass | Greedy order changes the answer by up to 8.6 points (§4.1) |
+| No feature derived from `Guests` in the nowcast; lags of `New Arrivals` are allowed in both splits | Guests is the withheld target (D2) |
+| Hyperparameters (K, H, λ, event windows, detector thresholds, ridge α) chosen on validation folds only; tuning CV is time-ordered (`TimeSeriesSplit`), never shuffled | Shuffled CV leaks the future; `models/residual.py` `RidgeCV` currently uses non-temporal CV |
+| Event-detector z-scores, conformal margins and noise σ computed from training-fold residuals only | Whole-series statistics leak the test period |
+| Report domestic and international separately, never only pooled | Pooled raw-scale metrics are dominated by domestic (MAE 17,485 vs 2,466) |
+| A new component ships with a synthetic-data test: it must recover a known kernel / bump / sine | A component that can't recover its own truth can't be trusted on real data |
+| Keep a component only if it passes the acceptance gate (decision D12) | Effective sample size is small (§4.4) |
+
+**Reference evaluation** (to reproduce §4.1 before changing anything): daily totals per series (domestic; international summed over nationalities), train from 2023-01-01, folds test 2024-02-01 → 2024-07-31 and 2025-02-01 → 2025-07-31, K = 21, H = 4, ridge α = 1, WAPE on each fold. Expected: joint model ≈ 4.9 domestic / 4.7 international (mean of the two folds).
+
+### 5.8 Flight-side findings for feature work — *Analysis finding*
+
+| Finding | Consequence |
+| --- | --- |
+| `Total PAX = P2P + Transfer + Transit` on 100% of rows; transfer ≈ 50% of passengers | Use P2P as hotel-eligible passengers (D3) |
+| Etihad: 73% of passengers transfer; low-cost carriers ≈ 0% | Transfer rate is an airline-mix feature, not a cabin feature |
+| Business vs economy transfer: 64% vs 49% pooled, 69% vs 74% within Etihad (reversal) | Cabin-class effects need an airline control (D4) |
+| Premium share vs transfer rate across Etihad routes: r = 0.44; spread narrows above ~9% premium share | Both track route type (long-haul hub feed vs regional); not causal |
+| First-class transfer share 3.6% (Etihad 6.5%) | Implausible for a hub carrier; treat first-class transfer columns as suspect |
+| Cabin columns exclude infants (gap to `Total P2P`: median 1, max 28) | Not a data error |
+| Load factor up to 108% in daily data | Bounded, saturating input (§5.7 encoding) |
 
 ## 6. Open items and known gaps
 

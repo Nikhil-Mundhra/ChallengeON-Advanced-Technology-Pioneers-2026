@@ -2,7 +2,7 @@
 
 Rules for coding agents in this repository. If this file disagrees with the code, trust the code and fix this file.
 
-Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, web UI/JSON API, PDF reports. Human docs: `README.md`, `docs/`; model design (implemented vs. measured vs. proposed): `docs/model_design.md`.
+Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, web UI/JSON API, PDF reports. Human docs: `README.md`, `docs/`; model design (implemented vs. measured vs. proposed): `docs/model_design.md`; decision log: `docs/decisions.md`.
 
 ## Setup
 
@@ -48,7 +48,7 @@ config.py   all filesystem paths (stdlib only)
 domain/     markets, archetypes, seasons, events, scenario types
 features/   registry + ratios, flags, calendar, lags (imports domain only)
 data/       ingest, validation, lake_writer, manifest, lake, repository, imputation, panel, daily_panel
-models/     structural, features, residual, uncertainty, conformal, training, evaluation
+models/     protocol, components/, fitters, composite, structural, features, residual, uncertainty, conformal, training, evaluation
 services/   simulator, sensitivity, briefing
 reporting/  charts, solution_report, database_report/, palette, pdf_palette
 cli/        the `twin` command
@@ -65,6 +65,18 @@ cli/        the `twin` command
 - Define every derived column once in `tourism_twin/features` with `@PANEL_FEATURES.feature(kind, requires=[...])` and request it by name via `PANEL_FEATURES.apply(frame, [names])`.
 - Never recompute a ratio inline. Recompute ratios from summed parts at each grain; never sum or average a ratio.
 - Lags shift within one market's series only; never across markets.
+
+## Modeling (guest model)
+
+- Read `docs/model_design.md` (§3 form, §5 structure, §5.7 rules) and `docs/decisions.md` before changing any model. A decision changes only by a new entry in `docs/decisions.md`.
+- Build new model parts as components (`models/components/`, `Component` protocol) composed by `models/composite.py`; never hard-wire a new model into `training.py` or `evaluation.py`.
+- The competition task is a nowcast: test-split `New Arrivals` are inputs; never use a feature derived from `Guests`.
+- Fit components jointly (`models/fitters.py`); centre every contribution except the one level owner.
+- Arrivals kernel: non-negative, non-increasing (`w = triu(ones) @ d`, `d >= 0`), `w_0 <= 1`.
+- Encode categoricals one-hot, season as Fourier terms, continuous inputs in log, lunar holidays from explicit dates.
+- Tune hyperparameters on validation folds with time-ordered splits only; compute calibration statistics (z-scores, conformal margins, σ) from training folds only.
+- Report domestic and international separately. Keep a component only if it passes the acceptance gate (decision D12).
+- Every new component needs a synthetic-data test in `tests/test_tourism_twin.py` that recovers a known truth.
 
 ## Data and artifacts
 
