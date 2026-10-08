@@ -23,13 +23,12 @@ def calibrate_conformal(
 ) -> Dict[str, Any]:
     """Fit the (1 - alpha) quantile of relative planning-mode error per market.
 
+    Errors are measured against StructuralEngine.planning_guests, the same prediction the
+    simulator and the back-test use.
+
     The demonstrated holdout coverage is copied from the back-test results when present.
     """
     conformal_dict: Dict[str, Any] = {}
-
-    # Compute domestic seasonal priors from training split for planning mode
-    dom_train_df = train_df[train_df["market"] == "DOMESTIC"]
-    dom_season_priors = dom_train_df.groupby("season")["guests"].mean().to_dict()
 
     for m in train_df["market"].unique():
         m_df = train_df[train_df["market"] == m]
@@ -38,15 +37,7 @@ def calibrate_conformal(
             s_df = m_df[m_df["season"] == s]
             if s not in struct_engine.params.get(m, {}):
                 continue
-            p = struct_engine.params[m][s]
-            if m == "DOMESTIC":
-                preds = np.full(len(s_df), dom_season_priors.get(s, p.baseline_weekly_guests))
-            else:
-                seats = s_df["seats"].values
-                pax = seats * p.baseline_load_factor
-                p2p = pax * p.baseline_p2p_share
-                arr = p2p * p.effective_response_multiplier
-                preds = arr * p.baseline_los
+            preds = np.array([struct_engine.planning_guests(m, s, seats) for seats in s_df["seats"].values])
             errs = np.abs(s_df["guests"].values - preds) / np.maximum(preds, 100.0)
             rel_errors.extend(errs.tolist())
 

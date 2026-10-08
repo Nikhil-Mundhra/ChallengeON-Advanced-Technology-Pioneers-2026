@@ -102,6 +102,15 @@ def build_callout(text: str, styles: dict, title: str = "EXECUTIVE TAKEAWAY", bg
     return t
 
 
+def leader_status(name: str, leaders: dict[str, str]) -> str:
+    """'Lowest WMAPE, MAE & RMSE'-style status for the metrics this model leads; '' if none."""
+    labels = {"wmape": "WMAPE", "bias": "|Bias|", "mae": "MAE", "rmse": "RMSE"}
+    won = [labels[metric] for metric in ("wmape", "bias", "mae", "rmse") if leaders.get(metric) == name]
+    if not won:
+        return ""
+    return "Lowest " + (won[0] if len(won) == 1 else ", ".join(won[:-1]) + " & " + won[-1])
+
+
 def build_solution_report() -> Path:
     # Load dynamic evaluation results
     if not RESULTS_PATH.exists():
@@ -256,12 +265,13 @@ def build_solution_report() -> Path:
     bench_data = [
         [Paragraph("Model Architecture", styles["th"]), Paragraph("WMAPE", styles["th"]), Paragraph("Directional Bias", styles["th"]), Paragraph("MAE", styles["th"]), Paragraph("RMSE", styles["th"]), Paragraph("Model Status", styles["th"])],
     ]
+    leaders = res["benchmark_leaders"]
     for name, m in bench.items():
-        is_hyb = "Hybrid" in name
-        row_style = styles["td_bold"] if is_hyb else styles["td"]
-        status = "Champion (Lowest RMSE & WMAPE)" if is_hyb else ("Planning Baseline" if "Structural" in name else "Comparison")
+        is_leader = leaders["wmape"] == name
+        row_style = styles["td_bold"] if is_leader else styles["td"]
+        status = leader_status(name, leaders) or ("Planning Baseline" if "Structural" in name else "Comparison")
         bench_data.append([
-            Paragraph(f"<b>{name}</b>" if is_hyb else name, row_style),
+            Paragraph(f"<b>{name}</b>" if is_leader else name, row_style),
             Paragraph(f"{m['wmape']:.2%}", styles["td_center"]),
             Paragraph(f"{m['bias']:+.2%}", styles["td_center"]),
             Paragraph(f"{m['mae']:,.1f}", styles["td_center"]),

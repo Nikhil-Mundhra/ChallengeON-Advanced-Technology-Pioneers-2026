@@ -134,14 +134,8 @@ def plot_model_benchmark(out_path: Path) -> Path | None:
     with open(RESULTS_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Clean display labels
     bench = data["benchmark"]
-    labels = [
-        "1. Seasonal Prior",
-        "2. Pure ML / Calendar",
-        "3. Structural-Only",
-        "4. Hybrid Digital Twin",
-    ]
+    labels = list(bench)
     wmapes = [m["wmape"] * 100 for m in bench.values()]
     biases = [m["bias"] * 100 for m in bench.values()]
 
@@ -161,9 +155,12 @@ def plot_model_benchmark(out_path: Path) -> Path | None:
     ax1.set_ylim(0, 30)
     ax2.set_ylim(0, 15)
 
+    leader = data["benchmark_leaders"]["wmape"]
+    baseline = next(iter(bench))
+    gap_pp = (bench[baseline]["wmape"] - bench[leader]["wmape"]) * 100
     ax1.set_title(
         f"Strict Forward Holdout Benchmark (Jan 2025 – Jul 2025)\n"
-        f"Structural & Hybrid Models Outperform Seasonal Baseline by >1.8% WMAPE",
+        f"Lowest WMAPE: {leader.split('. ', 1)[-1]}, {gap_pp:.2f} pp below the {baseline.split('. ', 1)[-1]}",
         pad=15,
         fontweight="bold",
         color=NAVY,

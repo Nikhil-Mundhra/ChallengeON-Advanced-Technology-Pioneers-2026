@@ -97,5 +97,64 @@ def train(args: argparse.Namespace) -> None:
 
 def evaluate(args: argparse.Namespace) -> None:
     from tourism_twin.models.evaluation import evaluate as run_evaluation
+    from tourism_twin.models.evaluation import save_evaluation
 
-    run_evaluation()
+    payload = run_evaluation()
+    _print_evaluation(payload)
+    synced = save_evaluation(payload)
+    print(f"\nSaved structured evaluation metrics to: {SETTINGS.evaluation_results_path}")
+    if synced:
+        print(f"Synchronized holdout coverage ({payload['demonstrated_coverage_pct']}%) into: {SETTINGS.conformal_path}")
+
+
+def _metric_row(label: str, m: dict, width: int = 45) -> str:
+    return f"{label:<{width}} {m['wmape']:>9.2%} {m['bias']:>+9.2%} {m['mae']:>12,.1f} {m['rmse']:>14,.1f}"
+
+
+def _print_evaluation(payload: dict) -> None:
+    window = payload["evaluation_window"]
+    diag = payload["diagnostics"]
+    print("=" * 90)
+    print("STRICT FULL-WEEK FORWARD HOLDOUT BACK-TEST")
+    print(f"Calibration Window: {window['train_weeks']} complete weeks ({window['train_range'][0]} to {window['train_range'][1]})")
+    print(f"Forward Holdout:    {window['test_weeks']} complete weeks ({window['test_range'][0]} to {window['test_range'][1]})")
+    print(f"Observations:       Train {window['observations_train']:,} | Test {window['observations_test']:,}")
+    print("=" * 90)
+
+    header = f"{'Evaluation Setting':<45} {'WMAPE':>10} {'Bias':>10} {'MAE':>12} {'RMSE':>14}"
+    print("\n1. SEPARATION OF PLANNING, REALIZED-CHAIN, AND DOMESTIC DIAGNOSTICS:")
+    print("-" * 90)
+    print(header)
+    print("-" * 90)
+    print(_metric_row("International Planning Mode (Seats + Priors)", diag["international_planning_mode"]))
+    print(_metric_row("International Realized-Chain (Realized P2P)", diag["international_realized_chain"]))
+    print(_metric_row("Domestic Forecast Mode (Seasonal Prior)", diag["domestic_forecast_mode"]))
+    print(_metric_row("Combined Planning-Mode Diagnostic", diag["combined_planning_mode"]))
+    print(_metric_row("Combined Realized-Chain Diagnostic", diag["combined_realized_chain"]))
+    print("-" * 90)
+
+    print("\n2. MODEL BENCHMARK (Combined International & Domestic Forward Holdout):")
+    print("-" * 90)
+    print(header.replace("Evaluation Setting", "Model Architecture"))
+    print("-" * 90)
+    for name, m in payload["benchmark"].items():
+        print(_metric_row(name, m))
+    print("-" * 90)
+    print(f"Demonstrated Holdout Interval Coverage: {payload['demonstrated_coverage_pct'] / 100:.1%} (Target nominal: ~80.0%)")
+    print("=" * 90)
+
+    print("\n3. MARKET-BY-MARKET ACCURACY BREAKDOWN (Combined Planning Mode):")
+    print("-" * 90)
+    print(f"{'Market':<30} {'Archetype':<20} {'Holdout Obs':>12} {'WMAPE':>10} {'Bias':>12}")
+    print("-" * 90)
+    for market, m in payload["market_breakdown"].items():
+        print(f"{market:<30} {m['archetype']:<20} {m['observations']:>12} {m['wmape']:>9.2%} {m['bias']:>+11.2%}")
+    print("-" * 90)
+
+    print("\n4. SEASON-BY-SEASON ACCURACY BREAKDOWN:")
+    print("-" * 75)
+    print(f"{'Season':<25} {'Holdout Obs':>12} {'WMAPE':>10} {'Bias':>12}")
+    print("-" * 75)
+    for season, m in payload["season_breakdown"].items():
+        print(f"{season:<25} {m['observations']:>12} {m['wmape']:>9.2%} {m['bias']:>+11.2%}")
+    print("-" * 75)

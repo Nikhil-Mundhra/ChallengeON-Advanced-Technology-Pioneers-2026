@@ -55,7 +55,15 @@ class StructuralEngine:
     ) -> "StructuralEngine":
         """Calibrate baseline parameters from complete training weeks."""
         train_df = training_window(pd.read_parquet(panel_path), max_date)
+        return cls.calibrate(train_df, save_path=save_path)
 
+    @classmethod
+    def calibrate(
+        cls,
+        train_df: pd.DataFrame,
+        save_path: Optional[Path] = None,
+    ) -> "StructuralEngine":
+        """Calibrate seasonal baseline parameters per market from a window of weekly panel rows."""
         engine = cls()
         calibration_dict: Dict[str, Any] = {}
 
@@ -146,6 +154,29 @@ class StructuralEngine:
             historical_weeks=0,
             is_cold_start=True,
         )
+
+    def planning_guests(self, market: str, season: str, seats: float) -> float:
+        """Weekly hotel guests predicted from scheduled seats and the calibrated seasonal priors.
+
+        The same conversion chain simulate() applies to its baseline, evaluated at an arbitrary
+        seat count: realized load factor and P2P share are never used, which is what makes it
+        valid before flights operate. Served routes with no seats produce no aviation arrivals;
+        unserved markets keep their calibrated non-aviation arrivals; DOMESTIC ignores seats.
+        """
+        market_norm = market.upper().strip()
+        p = self.get_or_create_params(market_norm, season)
+        is_domestic = (market_norm == "DOMESTIC") or (p.archetype == MarketArchetype.DOMESTIC_STAYCATION.value)
+        if is_domestic:
+            return p.baseline_weekly_arrivals * p.baseline_los
+
+        p2p = seats * p.baseline_load_factor * p.baseline_p2p_share
+        if p2p > 0:
+            arrivals = p2p * p.effective_response_multiplier
+        elif p.baseline_weekly_seats > 0:
+            arrivals = 0.0
+        else:
+            arrivals = p.baseline_weekly_arrivals
+        return arrivals * p.baseline_los
 
     def simulate(
         self,
