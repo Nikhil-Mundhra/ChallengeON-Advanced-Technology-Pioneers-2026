@@ -8,7 +8,7 @@ owns the level; this keeps the parts identifiable.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Protocol, Tuple, runtime_checkable
+from typing import Any, Dict, Protocol, Sequence, Tuple, runtime_checkable
 
 import numpy as np
 import pandas as pd
@@ -55,13 +55,15 @@ class LinearComponent:
             self.column_means_ = design.mean()
         return design - self.column_means_
 
+    def penalty_rows(self) -> np.ndarray | None:
+        """Rows D of a quadratic penalty |D @ coef|^2 added to the least squares; None = unpenalised."""
+        return None
+
     def set_coef(self, coef: np.ndarray) -> None:
         self.coef_ = np.asarray(coef, dtype=float)
 
     def fit(self, panel: pd.DataFrame, offset: pd.Series, y: pd.Series) -> "LinearComponent":
-        design = self.prepare(panel)
-        coef, *_ = np.linalg.lstsq(design.to_numpy(), (y - offset).to_numpy(), rcond=None)
-        self.set_coef(coef)
+        solve_linear_block([self], panel, y - offset)
         return self
 
     def contribution(self, panel: pd.DataFrame) -> pd.Series:
@@ -76,3 +78,28 @@ class LinearComponent:
     def reset(self) -> None:
         self.coef_ = None
         self.column_means_ = None
+
+
+def solve_linear_block(components: Sequence[LinearComponent], panel: pd.DataFrame, target: pd.Series) -> None:
+    """One least squares over the stacked designs, with each component's penalty rows appended."""
+    designs = [component.prepare(panel) for component in components]
+    stacked = np.hstack([design.to_numpy() for design in designs])
+    rhs = target.to_numpy()
+    widths = [design.shape[1] for design in designs]
+    penalty_blocks, start = [], 0
+    for component, width in zip(components, widths):
+        rows = component.penalty_rows()
+        if rows is not None:
+            block = np.zeros((rows.shape[0], stacked.shape[1]))
+            block[:, start:start + width] = rows
+            penalty_blocks.append(block)
+        start += width
+    if penalty_blocks:
+        stacked = np.vstack([stacked, *penalty_blocks])
+        rhs = np.concatenate([rhs, np.zeros(sum(b.shape[0] for b in penalty_blocks))])
+    coef, *_ = np.linalg.lstsq(stacked, rhs, rcond=None)
+    start = 0
+    for component, design in zip(components, designs):
+        width = design.shape[1]
+        component.set_coef(coef[start:start + width])
+        start += width

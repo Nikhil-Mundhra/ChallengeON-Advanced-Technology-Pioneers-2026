@@ -25,6 +25,7 @@ class AdditiveLogModel:
         group_by: Optional[str] = "market",
         target: str = "guests",
         feature_params: Optional[Dict[str, Any]] = None,
+        exclude_flag: Optional[str] = None,
     ) -> None:
         names = [c.name for c in components]
         if len(set(names)) != len(names):
@@ -37,10 +38,13 @@ class AdditiveLogModel:
         self.group_by = group_by
         self.target = target
         self.feature_params = feature_params or {"anchor": "date"}
+        self.exclude_flag = exclude_flag
         self.fitted_: Dict[Hashable, Tuple[List[Component], FitReport]] = {}
 
     def _with_features(self, panel: pd.DataFrame) -> pd.DataFrame:
         needed = {r for c in self.components for r in c.requires if r not in panel.columns}
+        if self.exclude_flag and self.exclude_flag not in panel.columns:
+            needed.add(self.exclude_flag)
         registered = [name for name in needed if name in PANEL_FEATURES]
         missing = needed - set(registered)
         if missing:
@@ -55,6 +59,8 @@ class AdditiveLogModel:
     def fit(self, panel: pd.DataFrame) -> "AdditiveLogModel":
         panel = self._with_features(panel)
         train = panel[panel[self.target].notna()]
+        if self.exclude_flag:
+            train = train[train[self.exclude_flag] != 1]
         self.fitted_ = {}
         for key, rows in self._groups(train):
             components = copy.deepcopy(self.components)

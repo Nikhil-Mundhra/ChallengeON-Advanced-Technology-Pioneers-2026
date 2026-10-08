@@ -1,0 +1,51 @@
+event,kind,anchor_date,window_start_offset,window_end_offset,label,source
+ramadan,lunar,2022-04-02,-5,29,Ramadan 1443,detected
+ramadan,lunar,2023-03-23,-5,28,Ramadan 1444,detected
+ramadan,lunar,2024-03-11,-5,29,Ramadan 1445,detected
+ramadan,lunar,2025-03-01,-5,28,Ramadan 1446,detected
+ramadan,lunar,2026-02-18,-5,29,Ramadan 1447 (expected),detected
+eid_al_fitr,lunar,2022-05-02,0,4,Eid al-Fitr 1443,manual
+eid_al_fitr,lunar,2023-04-21,0,4,Eid al-Fitr 1444,manual
+eid_al_fitr,lunar,2024-04-10,0,4,Eid al-Fitr 1445,manual
+eid_al_fitr,lunar,2025-03-30,0,4,Eid al-Fitr 1446,manual
+eid_al_fitr,lunar,2026-03-20,0,4,Eid al-Fitr 1447 (expected),manual
+eid_al_adha,lunar,2022-07-09,-1,3,Eid al-Adha 1443,manual
+eid_al_adha,lunar,2023-06-28,-1,3,Eid al-Adha 1444,manual
+eid_al_adha,lunar,2024-06-16,-1,3,Eid al-Adha 1445,manual
+eid_al_adha,lunar,2025-06-06,-1,3,Eid al-Adha 1446,manual
+eid_al_adha,lunar,2026-05-27,-1,3,Eid al-Adha 1447 (expected),manual
+islamic_new_year,lunar,2022-07-30,-1,1,Islamic New Year 1444,manual
+islamic_new_year,lunar,2023-07-21,-1,1,Islamic New Year 1445,manual
+islamic_new_year,lunar,2024-07-07,-1,1,Islamic New Year 1446,manual
+islamic_new_year,lunar,2025-06-27,-1,1,Islamic New Year 1447,manual
+islamic_new_year,lunar,2026-06-16,-1,1,Islamic New Year 1448 (expected),manual
+prophets_birthday,lunar,2022-10-08,-1,1,Prophet's Birthday 1444,manual
+prophets_birthday,lunar,2023-09-29,-1,1,Prophet's Birthday 1445,manual
+prophets_birthday,lunar,2024-09-15,-1,1,Prophet's Birthday 1446,manual
+prophets_birthday,lunar,2025-09-05,-1,1,Prophet's Birthday 1447,manual
+prophets_birthday,lunar,2026-08-25,-1,1,Prophet's Birthday 1448 (expected),manual
+national_day,solar,2022-12-02,-2,1,UAE National Day 2022 (incl. Commemoration Day),manual
+national_day,solar,2023-12-02,-2,1,UAE National Day 2023 (incl. Commemoration Day),manual
+national_day,solar,2024-12-02,-2,1,UAE National Day 2024 (incl. Commemoration Day),manual
+national_day,solar,2025-12-02,-2,1,UAE National Day 2025 (incl. Commemoration Day),manual
+national_day,solar,2026-12-02,-2,1,UAE National Day 2026 (incl. Commemoration Day),manual
+christmas_new_year,solar,2021-12-25,-3,13,Christmas-New Year 2021/22,detected
+christmas_new_year,solar,2022-12-25,-3,13,Christmas-New Year 2022/23,detected
+christmas_new_year,solar,2023-12-25,-3,13,Christmas-New Year 2023/24,detected
+christmas_new_year,solar,2024-12-25,-3,13,Christmas-New Year 2024/25,detected
+christmas_new_year,solar,2025-12-25,-3,13,Christmas-New Year 2025/26,detected
+new_years_eve,solar,2022-12-31,-1,1,New Year's Eve 2022,manual
+new_years_eve,solar,2023-12-31,-1,1,New Year's Eve 2023,manual
+new_years_eve,solar,2024-12-31,-1,1,New Year's Eve 2024,manual
+new_years_eve,solar,2025-12-31,-1,1,New Year's Eve 2025,manual
+f1_grand_prix,solar,2022-11-20,-3,1,Abu Dhabi Grand Prix 2022,manual
+f1_grand_prix,solar,2023-11-26,-3,1,Abu Dhabi Grand Prix 2023,manual
+f1_grand_prix,solar,2024-12-08,-3,1,Abu Dhabi Grand Prix 2024,manual
+f1_grand_prix,solar,2025-12-07,-3,1,Abu Dhabi Grand Prix 2025,manual
+f1_grand_prix,solar,2026-12-06,-3,1,Abu Dhabi Grand Prix 2026,manual
+adipec,solar,2022-10-31,0,3,ADIPEC 2022,manual
+adipec,solar,2023-10-02,0,3,ADIPEC 2023,manual
+adipec,solar,2024-11-04,0,3,ADIPEC 2024,manual
+adipec,solar,2025-11-03,0,3,ADIPEC 2025,manual
+adipec,solar,2026-11-02,0,3,ADIPEC 2026,manual
+houthi_strike_2022,one_off,2022-01-17,0,27,Houthi strike on Abu Dhabi: international -29% for 28 days,detected

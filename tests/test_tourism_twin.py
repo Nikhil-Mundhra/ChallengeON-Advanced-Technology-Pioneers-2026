@@ -10,8 +10,10 @@ import pytest
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.data.panel import build_weekly_panel
-from tourism_twin.features import FeatureRegistry, FeatureSpec, Kind
-from tourism_twin.models.components import LinearRegressors, LinearTrend
+from tourism_twin.features import PANEL_FEATURES, FeatureRegistry, FeatureSpec, Kind
+from tourism_twin.domain.events import DEFAULT_KERNEL_EVENTS, load_event_calendar
+from tourism_twin.features.events import offset_column
+from tourism_twin.models.components import EventKernel, LinearRegressors, LinearTrend
 from tourism_twin.models.composite import AdditiveLogModel
 from tourism_twin.models.fitters import Backfitting, JointLinear
 from tourism_twin.features.lags import DEFAULT_MAX_LAG, lag_column
@@ -211,6 +213,62 @@ def test_composite_requires_exactly_one_level_owner_and_unique_names():
         AdditiveLogModel([LinearTrend(), LinearTrend(name="trend2")])
     with pytest.raises(ValueError, match="unique"):
         AdditiveLogModel([LinearTrend(), LinearRegressors(["sin"], name="trend")])
+
+
+def _calendar(event: str, anchors, start: int, end: int, kind: str = "solar") -> pd.DataFrame:
+    calendar = pd.DataFrame({"event": event, "kind": kind, "anchor_date": pd.to_datetime(anchors),
+                             "window_start_offset": start, "window_end_offset": end})
+    calendar["window_start"] = calendar["anchor_date"] + pd.to_timedelta(start, unit="D")
+    calendar["window_end"] = calendar["anchor_date"] + pd.to_timedelta(end, unit="D")
+    return calendar
+
+
+def test_event_kernel_recovers_a_known_bump():
+    true_kernel = {-1: 0.1, 0: 0.4, 1: 0.6, 2: 0.3, 3: 0.1}
+    calendar = _calendar("fest", ["2023-04-10", "2024-04-10"], -1, 3)
+    frame = _synthetic(season=0.0, event=0.0, noise=0.005)
+    for anchor in calendar["anchor_date"]:
+        for k, effect in true_kernel.items():
+            frame.loc[frame["date"] == anchor + np.timedelta64(k, "D"), "guests"] *= np.exp(effect)
+    model = AdditiveLogModel([LinearTrend(), EventKernel(["fest"], smoothing=0.01, calendar=calendar)], fitter=JointLinear()).fit(frame)
+    fitted = model.explain()["M"]["events"]["effect_pct_by_day_offset"]["fest"]
+    for k, effect in true_kernel.items():
+        assert np.log1p(fitted[k]) == pytest.approx(effect, abs=0.02), k
+
+
+def test_one_off_periods_are_flagged_and_masked_from_training():
+    frame = _synthetic(season=0.0, event=0.0, noise=0.0)
+    frame["date"] = pd.date_range("2022-01-01", periods=len(frame), freq="D")
+    shock = (frame["date"] >= "2022-01-17") & (frame["date"] <= "2022-02-13")
+    frame.loc[shock, "guests"] *= np.exp(-0.35)
+    masked = AdditiveLogModel([LinearTrend()], fitter=JointLinear(), exclude_flag="is_one_off_period").fit(frame)
+    unmasked = AdditiveLogModel([LinearTrend()], fitter=JointLinear()).fit(frame)
+    assert masked.explain()["M"]["trend"]["slope_per_year"] == pytest.approx(0.05, abs=1e-9)
+    assert unmasked.explain()["M"]["trend"]["slope_per_year"] != pytest.approx(0.05, abs=1e-3)
+    flags = PANEL_FEATURES.apply(frame[["date"]], ["is_one_off_period"], anchor="date")["is_one_off_period"]
+    assert flags.sum() == 28 and (flags == shock.astype(int)).all()
+
+
+def test_event_registry_is_consistent_and_covers_the_test_period():
+    calendar = load_event_calendar()
+    assert set(DEFAULT_KERNEL_EVENTS) <= set(calendar["event"])
+    for event, rows in calendar.groupby("event"):
+        rows = rows.sort_values("anchor_date")
+        assert (rows["window_start"].iloc[1:].to_numpy() > rows["window_end"].iloc[:-1].to_numpy()).all(), event
+    anchors = set(zip(calendar["event"], calendar["anchor_date"].dt.strftime("%Y-%m-%d")))
+    assert {("national_day", "2025-12-02"), ("christmas_new_year", "2025-12-25"), ("ramadan", "2026-02-18")} <= anchors
+    # Eid al-Fitr must not share a day with Ramadan, or the two kernels are not identifiable.
+    ramadan, fitr = calendar[calendar["event"] == "ramadan"], calendar[calendar["event"] == "eid_al_fitr"]
+    for start, end in zip(fitr["window_start"], fitr["window_end"]):
+        assert not ((ramadan["window_start"] <= end) & (ramadan["window_end"] >= start)).any()
+
+
+def test_event_offsets_on_the_daily_panel(daily_panel: pd.DataFrame):
+    domestic = daily_panel[daily_panel["market"] == "DOMESTIC"]
+    offsets = PANEL_FEATURES.apply(domestic, ["event_day_offsets"], anchor="date").set_index("date")
+    ramadan = offsets[offset_column("ramadan")]
+    assert ramadan.loc["2026-02-18"] == 0 and ramadan.loc["2026-02-13"] == -5 and np.isnan(ramadan.loc["2026-02-12"])
+    assert offsets.loc["2025-12-02", offset_column("national_day")] == 0
 
 
 # --- simulator ------------------------------------------------------------------------------

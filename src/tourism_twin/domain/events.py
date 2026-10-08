@@ -1,4 +1,52 @@
-"""Calendar of holiday and major-event weeks (Monday week-start dates) that shift hotel demand."""
+"""Event calendar.
+
+events.csv is the event registry: one row per occurrence (event type, kind, anchor date, the
+day window around the anchor, provenance). Event kernels read it.
+
+HOLIDAY_WEEKS and MAJOR_EVENT_WEEKS are the legacy Monday week-start sets behind the
+is_holiday_week / is_major_event_week flags of the weekly panel and the residual layer. They are
+kept unchanged so the shipped models and their published results stay reproducible; they are not
+derived from events.csv (deriving them would move several weeks).
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from importlib.resources import files
+
+import pandas as pd
+
+EVENT_KINDS = ("lunar", "solar", "one_off")
+
+# Event types fitted by EventKernel by default. new_years_eve is excluded: its window lies inside
+# christmas_new_year every year, so a separate kernel is not identifiable.
+DEFAULT_KERNEL_EVENTS = (
+    "ramadan",
+    "eid_al_fitr",
+    "eid_al_adha",
+    "islamic_new_year",
+    "prophets_birthday",
+    "national_day",
+    "christmas_new_year",
+    "f1_grand_prix",
+    "adipec",
+)
+
+
+@lru_cache(maxsize=1)
+def load_event_calendar() -> pd.DataFrame:
+    """The event registry with parsed dates and absolute window bounds (window_start, window_end)."""
+    with files("tourism_twin.domain").joinpath("events.csv").open("r", encoding="utf-8") as handle:
+        calendar = pd.read_csv(handle, parse_dates=["anchor_date"])
+    unknown = set(calendar["kind"]) - set(EVENT_KINDS)
+    if unknown:
+        raise ValueError(f"Unknown event kinds in events.csv: {sorted(unknown)}")
+    if (calendar["window_start_offset"] > calendar["window_end_offset"]).any():
+        raise ValueError("events.csv has a window whose start offset is after its end offset")
+    calendar["window_start"] = calendar["anchor_date"] + pd.to_timedelta(calendar["window_start_offset"], unit="D")
+    calendar["window_end"] = calendar["anchor_date"] + pd.to_timedelta(calendar["window_end_offset"], unit="D")
+    return calendar
+
 
 HOLIDAY_WEEKS = {
     # Eid al-Fitr weeks (Monday week-start dates)

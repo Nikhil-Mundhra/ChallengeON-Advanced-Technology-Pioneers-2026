@@ -14,7 +14,7 @@ from typing import Dict, List, Sequence
 import numpy as np
 import pandas as pd
 
-from tourism_twin.models.components.base import Component, LinearComponent
+from tourism_twin.models.components.base import Component, LinearComponent, solve_linear_block
 
 
 @dataclass
@@ -22,17 +22,6 @@ class FitReport:
     iterations: int
     converged: bool
     max_change: float
-
-
-def solve_linear_block(components: Sequence[LinearComponent], panel: pd.DataFrame, target: pd.Series) -> None:
-    designs = [component.prepare(panel) for component in components]
-    stacked = np.hstack([design.to_numpy() for design in designs])
-    coef, *_ = np.linalg.lstsq(stacked, target.to_numpy(), rcond=None)
-    start = 0
-    for component, design in zip(components, designs):
-        width = design.shape[1]
-        component.set_coef(coef[start:start + width])
-        start += width
 
 
 class JointLinear:
