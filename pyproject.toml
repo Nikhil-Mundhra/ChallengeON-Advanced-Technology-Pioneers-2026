@@ -19,9 +19,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# PDF dossiers built by scripts/build_solution_report.py and scripts/build_database_report.py.
+# PDF dossiers built by `twin report solution` and `twin report database`.
 report = ["reportlab>=4.0"]
 dev = ["pytest>=8.0"]
+
+[project.scripts]
+twin = "tourism_twin.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

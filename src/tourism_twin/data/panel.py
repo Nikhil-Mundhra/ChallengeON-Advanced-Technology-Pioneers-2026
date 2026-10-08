@@ -21,6 +21,19 @@ from tourism_twin.domain.events import HOLIDAY_WEEKS, MAJOR_EVENT_WEEKS
 from tourism_twin.domain.markets import REGIONAL_CLUSTERS, TOP_15_INTERNATIONAL_MARKETS
 from tourism_twin.domain.seasons import assign_season
 
+# Last complete Monday-Sunday week of the train split; models are calibrated up to here.
+TRAINING_CUTOFF = "2025-07-27"
+
+
+def training_window(panel: pd.DataFrame, max_date: str = TRAINING_CUTOFF) -> pd.DataFrame:
+    """Complete train-split weeks with complete guest inputs, up to and including max_date."""
+    return panel[
+        (panel["dataset_split"] == "train") &
+        (panel["is_complete_week"] == 1) &
+        (panel["is_complete_guest_inputs"] == 1) &
+        (panel["week_start"] <= pd.to_datetime(max_date).date())
+    ].copy()
+
 
 def _build_market_case(top15_tuple: tuple) -> str:
     """Build a SQL CASE expression mapping departure country / nationality to market label.

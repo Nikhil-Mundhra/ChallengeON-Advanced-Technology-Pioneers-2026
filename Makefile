@@ -1,5 +1,6 @@
 PYTHON := .venv/bin/python
 PYTEST  := .venv/bin/pytest
+TWIN    := .venv/bin/twin
 
 .PHONY: all install evaluate train charts report test clean
 
@@ -17,19 +18,19 @@ install:
 
 ## Step 1 — evaluate models, write evaluation_results.json + sync calibrator
 evaluate:
-	$(PYTHON) scripts/evaluate_models.py
+	$(TWIN) evaluate
 
 ## Step 2 — re-calibrate structural params, residual ML, conformal bounds
 train:
-	$(PYTHON) scripts/train_models.py
+	$(TWIN) train
 
 ## Step 3 — regenerate scenario charts (waterfall, tornado, benchmark)
 charts:
-	$(PYTHON) scripts/generate_scenario_charts.py
+	$(TWIN) charts
 
 ## Step 4 — build final PDF solution report
 report:
-	$(PYTHON) scripts/build_solution_report.py
+	$(TWIN) report solution
 
 ## Step 5 — build DATA_ISSUES.pdf from DATA_ISSUES.md
 data-issues-pdf:

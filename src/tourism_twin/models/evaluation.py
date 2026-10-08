@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Rigorous back-testing harness comparing Structural, ML-only, and Hybrid models.
 
 Performs strict full-week forward-chaining temporal holdout evaluation:
@@ -11,7 +10,7 @@ Strictly separates:
 3. Domestic Dedicated Model (trained strictly on domestic historical guests, NO holdout arrivals).
 4. Combined Planning Mode Diagnostic.
 
-Outputs results to terminal and saves structured JSON to lake/curated/evaluation_results.json.
+Prints results to the terminal and saves structured JSON to the evaluation results path.
 """
 
 import json
@@ -336,7 +335,4 @@ def evaluate():
 
     return output_payload
 
-
-if __name__ == "__main__":
-    evaluate()
 

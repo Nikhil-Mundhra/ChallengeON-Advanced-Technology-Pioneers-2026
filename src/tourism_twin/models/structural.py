@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from tourism_twin.config import SETTINGS
+from tourism_twin.data.panel import TRAINING_CUTOFF, training_window
 from tourism_twin.domain.archetypes import (
     MarketArchetype,
     get_cold_start_prior,
@@ -50,16 +51,10 @@ class StructuralEngine:
         cls,
         panel_path: Path = SETTINGS.panel_path,
         save_path: Optional[Path] = SETTINGS.calibration_path,
-        max_date: str = "2025-07-27",
+        max_date: str = TRAINING_CUTOFF,
     ) -> "StructuralEngine":
         """Calibrate baseline parameters from complete training weeks."""
-        df = pd.read_parquet(panel_path)
-        train_df = df[
-            (df["dataset_split"] == "train") &
-            (df["is_complete_week"] == 1) &
-            (df["is_complete_guest_inputs"] == 1) &
-            (df["week_start"] <= pd.to_datetime(max_date).date())
-        ].copy()
+        train_df = training_window(pd.read_parquet(panel_path), max_date)
 
         engine = cls()
         calibration_dict: Dict[str, Any] = {}

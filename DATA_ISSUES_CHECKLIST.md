@@ -441,7 +441,7 @@
       "objective": "Do ingestion conversions preserve raw values, dates, numeric precision, and status strings?",
       "risk": "Coercion can turn malformed values into nulls, round counts, or misparse dates.",
       "scope": {
-        "files": ["scripts/build_lake.py", "01a - DCT Dataset/*.xlsx", "lake/curated/guest_daily.parquet", "lake/curated/flight_daily.parquet", "lake/curated/flight_monthly.parquet"],
+        "files": ["src/tourism_twin/data/*.py", "01a - DCT Dataset/*.xlsx", "lake/curated/guest_daily.parquet", "lake/curated/flight_daily.parquet", "lake/curated/flight_monthly.parquet"],
         "tables_or_sheets": ["Export"],
         "fields": ["Date", "all numeric fields", "all categorical fields"],
         "date_or_population": "ALL"
@@ -452,7 +452,7 @@
         "For each field, compare raw nonblank values with parsed values using stable row keys.",
         "Report values changed, rejected, rounded, overflowed, or converted to null."
       ],
-      "suggested_commands": ["rg -n 'to_datetime|to_numeric|astype|fillna|round|replace|errors=' scripts/build_lake.py"],
+      "suggested_commands": ["rg -n 'to_datetime|to_numeric|astype|fillna|round|replace|errors=' src/tourism_twin/data/*.py"],
       "assertions": ["Every value-changing conversion is documented and counted.", "Counts remain integral and numeric precision is sufficient for identities."],
       "reconciliation": {
         "source_measure": "raw nonblank cells",
@@ -569,7 +569,7 @@
       "objective": "Do guest-flight and market mappings create one-to-many or many-to-many fan-out?",
       "risk": "Join multiplication can fabricate seats, passengers, arrivals, or demand.",
       "scope": {
-        "files": ["scripts/build_lake.py", "src/tourism_twin/data/panel.py"],
+        "files": ["src/tourism_twin/data/*.py", "src/tourism_twin/data/panel.py"],
         "tables_or_sheets": ["guest_daily", "flight_daily", "guest_flight_daily", "weekly_market_panel"],
         "fields": ["date", "market", "nationality", "departure_country_name", "dataset_split"],
         "date_or_population": "2023 onward"
@@ -697,7 +697,7 @@
       "objective": "Are all split windows adjacent or intentionally separated, non-overlapping, and reproducible?",
       "risk": "Overlap or mislabeled dates invalidates performance claims.",
       "scope": {
-        "files": ["src/tourism_twin/data/panel.py", "scripts/train_models.py", "scripts/evaluate_models.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/evaluation_results.json"],
+        "files": ["src/tourism_twin/data/panel.py", "src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/evaluation_results.json"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["date", "week_start", "dataset_split", "target_available"],
         "date_or_population": "2022 through 2026"
@@ -729,7 +729,7 @@
       "objective": "Do lags, rolling values, priors, events, or aggregates use observations later than each row's decision date?",
       "risk": "Future-derived features create temporal leakage even when split labels look correct.",
       "scope": {
-        "files": ["src/tourism_twin/**/*.py", "scripts/train_models.py", "scripts/evaluate_models.py"],
+        "files": ["src/tourism_twin/**/*.py", "src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py"],
         "tables_or_sheets": ["weekly_market_panel", "model inputs"],
         "fields": ["all derived features and fitted parameters"],
         "date_or_population": "Every training and evaluation cutoff"
@@ -793,7 +793,7 @@
       "objective": "Are materially different status states preserved rather than collapsed?",
       "risk": "Treating unavailable or suppressed observations as zero biases totals and training targets.",
       "scope": {
-        "files": ["Data_Dictionary.pdf", "scripts/build_lake.py", "lake/curated/guest_daily.parquet", "lake/manifest.json"],
+        "files": ["Data_Dictionary.pdf", "src/tourism_twin/data/*.py", "lake/curated/guest_daily.parquet", "lake/manifest.json"],
         "tables_or_sheets": ["guest_daily"],
         "fields": ["is_source_present", "target_available", "is_suppressed_arrival", "is_suppressed_same_day", "guests", "new_arrivals", "same_day_guests"],
         "date_or_population": "ALL"
@@ -953,7 +953,7 @@
       "objective": "Which source values are extreme, and are raw and modelling versions both retained when clipping occurs?",
       "risk": "Clipping can conceal operational anomalies and bias model parameters.",
       "scope": {
-        "files": ["scripts/build_lake.py", "src/tourism_twin/data/panel.py", "src/tourism_twin/models/structural.py", "lake/curated/*.parquet"],
+        "files": ["src/tourism_twin/data/*.py", "src/tourism_twin/data/panel.py", "src/tourism_twin/models/structural.py", "lake/curated/*.parquet"],
         "tables_or_sheets": ["flight_daily", "weekly_market_panel"],
         "fields": ["load_factor_raw", "load_factor", "p2p_share", "implied_los", "effective_response_multiplier", "all volume fields"],
         "date_or_population": "ALL"
@@ -1081,7 +1081,7 @@
       "objective": "Does the implementation equate departure country with guest nationality, allocate across entities, or use another bridge?",
       "risk": "False entity equivalence can invalidate market-level demand estimates.",
       "scope": {
-        "files": ["src/tourism_twin/data/panel.py", "src/tourism_twin/models/structural.py", "scripts/evaluate_models.py"],
+        "files": ["src/tourism_twin/data/panel.py", "src/tourism_twin/models/structural.py", "src/tourism_twin/models/evaluation.py"],
         "tables_or_sheets": ["flight_daily", "guest_daily", "weekly_market_panel"],
         "fields": ["departure_country_name", "nationality", "market", "effective_response_multiplier"],
         "date_or_population": "ALL"
@@ -1209,7 +1209,7 @@
       "objective": "Is each SUM, AVG, weighted mean, MIN, MAX, first/last, count, and deduplication appropriate to native grain?",
       "risk": "A single wrong operator can distort all downstream values.",
       "scope": {
-        "files": ["scripts/build_lake.py", "src/tourism_twin/data/panel.py", "scripts/train_models.py", "scripts/evaluate_models.py", "sql/*.sql"],
+        "files": ["src/tourism_twin/data/*.py", "src/tourism_twin/data/panel.py", "src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py", "sql/*.sql"],
         "tables_or_sheets": ["ALL transformed objects"],
         "fields": ["ALL aggregated fields"],
         "date_or_population": "ALL"
@@ -1241,7 +1241,7 @@
       "objective": "Are load factor, P2P share, implied LOS, effective multiplier, bias, and WMAPE computed from correct totals and denominators?",
       "risk": "Averaging row ratios instead of dividing totals can materially change parameters and metrics.",
       "scope": {
-        "files": ["src/tourism_twin/data/panel.py", "src/tourism_twin/models/structural.py", "scripts/evaluate_models.py"],
+        "files": ["src/tourism_twin/data/panel.py", "src/tourism_twin/models/structural.py", "src/tourism_twin/models/evaluation.py"],
         "tables_or_sheets": ["weekly_market_panel", "evaluation results"],
         "fields": ["load_factor", "p2p_share", "implied_los", "effective_response_multiplier", "bias", "wmape"],
         "date_or_population": "ALL relevant groups"
@@ -1305,7 +1305,7 @@
       "objective": "Do rounding, high-volume segments, or Simpson's paradox change reported aggregate conclusions?",
       "risk": "Combined metrics may conceal weak international or sparse-market performance.",
       "scope": {
-        "files": ["scripts/evaluate_models.py", "lake/curated/evaluation_results.json", "README.md", "docs/*.md"],
+        "files": ["src/tourism_twin/models/evaluation.py", "lake/curated/evaluation_results.json", "README.md", "docs/*.md"],
         "tables_or_sheets": ["evaluation populations"],
         "fields": ["actual", "prediction", "wmape", "bias", "mae", "rmse", "market", "is_domestic"],
         "date_or_population": "holdout"
@@ -1337,7 +1337,7 @@
       "objective": "Does every source row enter the database exactly once with preserved control totals and statuses?",
       "risk": "Loss or multiplication at ingestion contaminates every downstream result.",
       "scope": {
-        "files": ["01a - DCT Dataset/*.xlsx", "scripts/build_lake.py", "lake/analytics.duckdb"],
+        "files": ["01a - DCT Dataset/*.xlsx", "src/tourism_twin/data/*.py", "lake/analytics.duckdb"],
         "tables_or_sheets": ["Export", "guest_daily", "flight_all"],
         "fields": ["all keys, counts, ratios, categories, source_file"],
         "date_or_population": "ALL"
@@ -1369,7 +1369,7 @@
       "objective": "Are source-present, grid-absent, labeled, and prediction rows accounted for exactly?",
       "risk": "Incorrect grid expansion changes missingness, targets, and split populations.",
       "scope": {
-        "files": ["scripts/build_lake.py", "lake/curated/guest_daily.parquet", "lake/manifest.json"],
+        "files": ["src/tourism_twin/data/*.py", "lake/curated/guest_daily.parquet", "lake/manifest.json"],
         "tables_or_sheets": ["guest_daily", "guest_actuals", "guest_prediction_rows"],
         "fields": ["date", "nationality", "residence_group", "dataset_split", "is_source_present", "target_available", "guests", "new_arrivals", "same_day_guests"],
         "date_or_population": "ALL"
@@ -1401,7 +1401,7 @@
       "objective": "Does the daily/monthly partition preserve every flight row and control total?",
       "risk": "Incorrect grain partitioning or lost rows breaks the aviation baseline.",
       "scope": {
-        "files": ["scripts/build_lake.py", "lake/curated/flight_daily.parquet", "lake/curated/flight_monthly.parquet", "lake/manifest.json"],
+        "files": ["src/tourism_twin/data/*.py", "lake/curated/flight_daily.parquet", "lake/curated/flight_monthly.parquet", "lake/manifest.json"],
         "tables_or_sheets": ["flight_all", "flight_daily", "flight_monthly"],
         "fields": ["date", "source_grain", "all additive flight measures", "is_load_factor_outlier"],
         "date_or_population": "ALL"
@@ -1465,7 +1465,7 @@
       "objective": "Can every structural parameter and residual-model training population be regenerated from eligible panel rows?",
       "risk": "Artifact values may be stale, leaky, or generated from a different population.",
       "scope": {
-        "files": ["scripts/train_models.py", "src/tourism_twin/models/structural.py", "src/tourism_twin/models/residual.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/structural_calibration.json", "lake/curated/residual_engine.pkl"],
+        "files": ["src/tourism_twin/models/training.py", "src/tourism_twin/models/structural.py", "src/tourism_twin/models/residual.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/structural_calibration.json", "lake/curated/residual_engine.pkl"],
         "tables_or_sheets": ["weekly_market_panel", "model training inputs"],
         "fields": ["all parameter fields, features, residuals, market, season, historical_weeks"],
         "date_or_population": "artifact training cutoff"
@@ -1497,7 +1497,7 @@
       "objective": "Do actual evaluation rows, predictions, counts, and metrics reproduce evaluation_results.json?",
       "risk": "Non-reproducible headline metrics undermine the central accuracy claim.",
       "scope": {
-        "files": ["scripts/evaluate_models.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/evaluation_results.json"],
+        "files": ["src/tourism_twin/models/evaluation.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/evaluation_results.json"],
         "tables_or_sheets": ["evaluation populations"],
         "fields": ["actual", "prediction", "market", "season", "wmape", "bias", "mae", "rmse", "coverage"],
         "date_or_population": "104 training weeks and 30 holdout weeks as claimed"
@@ -1593,7 +1593,7 @@
       "objective": "How are calendar, event, seasonal, structural, residual, normalization, and encoding features produced and fitted?",
       "risk": "Feature lineage errors and global fitting create hidden leakage.",
       "scope": {
-        "files": ["src/tourism_twin/data/panel.py", "src/tourism_twin/models/residual.py", "scripts/train_models.py", "scripts/evaluate_models.py"],
+        "files": ["src/tourism_twin/data/panel.py", "src/tourism_twin/models/residual.py", "src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py"],
         "tables_or_sheets": ["weekly_market_panel", "residual model inputs"],
         "fields": ["year", "quarter", "month", "iso_week", "season", "holiday/event flags", "all residual features"],
         "date_or_population": "ALL training and evaluation rows"
@@ -1657,7 +1657,7 @@
       "objective": "Which row keys enter each fit, calibration, evaluation, and competition-test operation?",
       "risk": "Ambiguous membership makes leakage impossible to exclude.",
       "scope": {
-        "files": ["scripts/train_models.py", "scripts/evaluate_models.py", "src/tourism_twin/models/structural.py", "src/tourism_twin/models/residual.py", "lake/curated/weekly_market_panel.parquet"],
+        "files": ["src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py", "src/tourism_twin/models/structural.py", "src/tourism_twin/models/residual.py", "lake/curated/weekly_market_panel.parquet"],
         "tables_or_sheets": ["weekly_market_panel"],
         "fields": ["week_start", "market", "dataset_split", "is_complete_week", "is_complete_guest_inputs"],
         "date_or_population": "ALL"
@@ -1689,7 +1689,7 @@
       "objective": "Would every planning feature and prior have been known on the planner's decision date?",
       "risk": "Realized PAX, load factor, P2P, arrivals, or guests in planning inputs invalidates the planning claim.",
       "scope": {
-        "files": ["src/tourism_twin/**/*.py", "scripts/train_models.py", "scripts/evaluate_models.py", "src/app/server.py"],
+        "files": ["src/tourism_twin/**/*.py", "src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py", "src/app/server.py"],
         "tables_or_sheets": ["model and simulator inputs"],
         "fields": ["seats", "pax", "load_factor", "p2p", "p2p_share", "new_arrivals", "guests", "priors"],
         "date_or_population": "planning-mode evaluation and live scenarios"
@@ -1753,7 +1753,7 @@
       "objective": "Were uncertainty margins fitted and assessed on temporally distinct observations?",
       "risk": "Using the same residuals for calibration and coverage makes coverage claims circular.",
       "scope": {
-        "files": ["scripts/train_models.py", "scripts/evaluate_models.py", "src/tourism_twin/models/uncertainty.py", "lake/curated/conformal_calibrator.json"],
+        "files": ["src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py", "src/tourism_twin/models/uncertainty.py", "lake/curated/conformal_calibrator.json"],
         "tables_or_sheets": ["calibration and holdout populations"],
         "fields": ["nonconformity scores", "market margins", "_target_alpha", "_demonstrated_holdout_coverage"],
         "date_or_population": "ALL calibration and coverage rows"
@@ -1817,7 +1817,7 @@
       "objective": "Do metric formulas, sign conventions, denominators, units, and population filters match reported results?",
       "risk": "Incorrect metrics invalidate headline accuracy claims.",
       "scope": {
-        "files": ["scripts/evaluate_models.py", "lake/curated/evaluation_results.json"],
+        "files": ["src/tourism_twin/models/evaluation.py", "lake/curated/evaluation_results.json"],
         "tables_or_sheets": ["evaluation observations"],
         "fields": ["actual", "prediction", "wmape", "bias", "mae", "rmse"],
         "date_or_population": "Every reported diagnostic, benchmark, market, and season population"
@@ -1849,7 +1849,7 @@
       "objective": "How do exclusions and weighting affect domestic, international, market, season, volume-tier, archetype, and cold-start performance?",
       "risk": "Complete-case filtering or high-volume markets can make aggregate performance unrepresentative.",
       "scope": {
-        "files": ["scripts/evaluate_models.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/evaluation_results.json"],
+        "files": ["src/tourism_twin/models/evaluation.py", "lake/curated/weekly_market_panel.parquet", "lake/curated/evaluation_results.json"],
         "tables_or_sheets": ["evaluation populations"],
         "fields": ["is_complete_week", "is_complete_guest_inputs", "market", "season", "archetype", "guests", "predictions"],
         "date_or_population": "holdout"
@@ -1881,7 +1881,7 @@
       "objective": "Do baseline, calendar, structural, and hybrid models receive comparable information and evaluation rows?",
       "risk": "An unfair benchmark can overstate model improvement.",
       "scope": {
-        "files": ["scripts/evaluate_models.py", "src/tourism_twin/models/residual.py", "lake/curated/evaluation_results.json"],
+        "files": ["src/tourism_twin/models/evaluation.py", "src/tourism_twin/models/residual.py", "lake/curated/evaluation_results.json"],
         "tables_or_sheets": ["benchmark populations"],
         "fields": ["baseline features", "calendar features", "structural inputs", "hybrid inputs", "predictions"],
         "date_or_population": "holdout"
@@ -1977,7 +1977,7 @@
       "objective": "Do errors show temporal, market, seasonal, or volume structure, and are results robust to cutoffs, grain, and outlier policies?",
       "risk": "Structured residuals and fragile choices undermine model and uncertainty assumptions.",
       "scope": {
-        "files": ["scripts/evaluate_models.py", "src/tourism_twin/models/residual.py", "lake/curated/weekly_market_panel.parquet"],
+        "files": ["src/tourism_twin/models/evaluation.py", "src/tourism_twin/models/residual.py", "lake/curated/weekly_market_panel.parquet"],
         "tables_or_sheets": ["evaluation observations"],
         "fields": ["residual", "market", "season", "week_start", "volume", "archetype"],
         "date_or_population": "training and holdout"
@@ -2009,7 +2009,7 @@
       "objective": "What observations fit uncertainty margins, and do intervals represent levels, incremental effects, parameters, or mixtures?",
       "risk": "An interval calibrated for one quantity cannot support a different claim.",
       "scope": {
-        "files": ["scripts/train_models.py", "scripts/evaluate_models.py", "src/tourism_twin/models/uncertainty.py", "lake/curated/conformal_calibrator.json"],
+        "files": ["src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py", "src/tourism_twin/models/uncertainty.py", "lake/curated/conformal_calibrator.json"],
         "tables_or_sheets": ["calibration observations"],
         "fields": ["market margins", "_target_alpha", "p10", "p50", "p90", "delta_p10", "delta_p50", "delta_p90"],
         "date_or_population": "ALL uncertainty fitting and evaluation rows"
@@ -2041,7 +2041,7 @@
       "objective": "What coverage and width are demonstrated overall and by market, season, archetype, volume, and cold-start status?",
       "risk": "Overall 66.7% coverage may conceal severely undercovered segments and does not support an 80% label.",
       "scope": {
-        "files": ["scripts/evaluate_models.py", "lake/curated/evaluation_results.json", "lake/curated/conformal_calibrator.json"],
+        "files": ["src/tourism_twin/models/evaluation.py", "lake/curated/evaluation_results.json", "lake/curated/conformal_calibrator.json"],
         "tables_or_sheets": ["holdout observations"],
         "fields": ["actual", "lower", "upper", "coverage", "width", "market", "season", "archetype"],
         "date_or_population": "temporally separate holdout"
@@ -2297,7 +2297,7 @@
       "objective": "Can committed artifacts be reproduced from source data and code without relying on existing lake state?",
       "risk": "Non-reproducible artifacts make all saved evidence suspect.",
       "scope": {
-        "files": ["Makefile", "requirements.txt", "scripts/build_lake.py", "scripts/build_panels.py", "scripts/train_models.py", "scripts/evaluate_models.py", "lake/**/*"],
+        "files": ["Makefile", "requirements.txt", "src/tourism_twin/data/*.py", "src/tourism_twin/data/panel.py", "src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py", "lake/**/*"],
         "tables_or_sheets": ["ALL generated objects"],
         "fields": ["ALL"],
         "date_or_population": "Complete build"
@@ -2393,7 +2393,7 @@
       "objective": "Do README, documentation, JSON, reports, figures, API, and UI show identical metrics, populations, and coverage meanings?",
       "risk": "Conflicting headline numbers create immediate credibility failure.",
       "scope": {
-        "files": ["README.md", "docs/*.md", "lake/curated/evaluation_results.json", "lake/curated/conformal_calibrator.json", "src/app/**/*", "output/**/*", "scripts/build_*report.py", "scripts/generate_scenario_charts.py"],
+        "files": ["README.md", "docs/*.md", "lake/curated/evaluation_results.json", "lake/curated/conformal_calibrator.json", "src/app/**/*", "output/**/*", "scripts/build_*report.py", "src/tourism_twin/reporting/charts.py"],
         "tables_or_sheets": ["evaluation results"],
         "fields": ["WMAPE", "bias", "MAE", "RMSE", "coverage", "P10", "P90"],
         "date_or_population": "ALL published claims"
@@ -2489,7 +2489,7 @@
       "objective": "Are simulator defaults, supported markets, domestic behavior, cold-start behavior, and planning-versus-realized modes consistent everywhere?",
       "risk": "A correct engine can still mislead if the interface or guide describes different behavior.",
       "scope": {
-        "files": ["scripts/run_scenario.py", "src/tourism_twin/**/*.py", "src/app/server.py", "src/app/static/index.html", "README.md", "docs/*.md"],
+        "files": ["src/tourism_twin/cli/simulate.py", "src/tourism_twin/**/*.py", "src/app/server.py", "src/app/static/index.html", "README.md", "docs/*.md"],
         "tables_or_sheets": ["GET /api/simulate"],
         "fields": ["default market", "season", "gauge", "all lever defaults", "supported markets", "mode labels"],
         "date_or_population": "ALL"
@@ -2937,7 +2937,7 @@
       "objective": "Is domestic staycation demand kept separate from international aviation inputs and metrics at every stage?",
       "risk": "Domestic volume can contaminate aviation interpretation and headline performance.",
       "scope": {
-        "files": ["01a - DCT Dataset/data domestic_*.xlsx", "lake/**/*", "src/tourism_twin/**/*.py", "scripts/evaluate_models.py", "src/app/**/*"],
+        "files": ["01a - DCT Dataset/data domestic_*.xlsx", "lake/**/*", "src/tourism_twin/**/*.py", "src/tourism_twin/models/evaluation.py", "src/app/**/*"],
         "tables_or_sheets": ["ALL lifecycle stages"],
         "fields": ["residence_group", "market", "is_domestic", "guests", "domestic priors", "aviation fields"],
         "date_or_population": "One complete domestic holdout week and all domestic evaluation rows"
@@ -3001,7 +3001,7 @@
       "objective": "Does a week near the 2024-12-30 training/holdout boundary remain complete, unique, and leakage-free through evaluation?",
       "risk": "Boundary contamination directly invalidates forward-holdout claims.",
       "scope": {
-        "files": ["01a - DCT Dataset/*", "lake/**/*", "src/tourism_twin/data/panel.py", "scripts/train_models.py", "scripts/evaluate_models.py"],
+        "files": ["01a - DCT Dataset/*", "lake/**/*", "src/tourism_twin/data/panel.py", "src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py"],
         "tables_or_sheets": ["ALL data and model stages"],
         "fields": ["date", "week_start", "dataset_split", "days_in_week", "is_complete_week", "model role"],
         "date_or_population": "Weeks immediately before, containing, and after 2024-12-30"
@@ -3033,7 +3033,7 @@
       "objective": "Are missing, absent, and suppressed observations preserved and prevented from becoming complete zero-valued model inputs?",
       "risk": "Status collapse can fabricate demand declines or false complete periods.",
       "scope": {
-        "files": ["01a - DCT Dataset/data *.xlsx", "scripts/build_lake.py", "lake/**/*", "src/tourism_twin/data/panel.py", "scripts/*.py", "src/app/**/*"],
+        "files": ["01a - DCT Dataset/data *.xlsx", "src/tourism_twin/data/*.py", "lake/**/*", "src/tourism_twin/data/panel.py", "scripts/*.py", "src/app/**/*"],
         "tables_or_sheets": ["ALL lifecycle stages"],
         "fields": ["source markers", "is_source_present", "suppression flags", "missing_arrival_records", "is_complete_guest_inputs", "targets"],
         "date_or_population": "One reproducibly selected missing-row case and one suppressed-value case"

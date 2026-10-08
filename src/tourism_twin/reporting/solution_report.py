@@ -1,13 +1,12 @@
-#!/usr/bin/env python3
 """Build publication-grade Solution & Architecture PDF Report dynamically from evaluation_results.json."""
 
 from __future__ import annotations
 
 import datetime
 import json
+from pathlib import Path
 
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -26,24 +25,12 @@ from reportlab.platypus import (
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import ScenarioLever
+from tourism_twin.reporting.pdf_palette import BLUE, INK, LINE, MINT, MUTED, NAVY, PALE, SKY, TEAL, WHITE
 from tourism_twin.services.simulator import TourismDigitalTwin
 
 OUTPUT_PDF = SETTINGS.pdf_dir / "challengeon_solution_report.pdf"
 FIG_DIR = SETTINGS.figures_dir
 RESULTS_PATH = SETTINGS.evaluation_results_path
-
-# Palette
-NAVY = colors.HexColor("#102A43")
-BLUE = colors.HexColor("#2563EB")
-TEAL = colors.HexColor("#0F766E")
-SKY = colors.HexColor("#EAF2FF")
-MINT = colors.HexColor("#E8F5F2")
-AMBER = colors.HexColor("#D97706")
-INK = colors.HexColor("#243B53")
-MUTED = colors.HexColor("#627D98")
-LINE = colors.HexColor("#D9E2EC")
-PALE = colors.HexColor("#F5F7FA")
-WHITE = colors.white
 
 
 class NumberedCanvas(canvas.Canvas):
@@ -115,10 +102,10 @@ def build_callout(text: str, styles: dict, title: str = "EXECUTIVE TAKEAWAY", bg
     return t
 
 
-def build_pdf():
+def build_solution_report() -> Path:
     # Load dynamic evaluation results
     if not RESULTS_PATH.exists():
-        raise FileNotFoundError(f"Missing {RESULTS_PATH}. Run 'python scripts/evaluate_models.py' first.")
+        raise FileNotFoundError(f"Missing {RESULTS_PATH}. Run 'twin evaluate' first.")
     with open(RESULTS_PATH, "r", encoding="utf-8") as f:
         res = json.load(f)
 
@@ -366,11 +353,11 @@ def build_pdf():
     story.append(Paragraph("7. Deterministic Pipeline & CLI Commands", styles["h1"]))
     cmd_data = [
         [Paragraph("Pipeline Step", styles["th"]), Paragraph("Deterministic Terminal Command", styles["th"])],
-        [Paragraph("<b>Rebuild Lake & Panel</b>", styles["td"]), Paragraph("<code>python scripts/build_lake.py && python scripts/build_panels.py</code>", styles["td"])],
-        [Paragraph("<b>Train & Calibrate Models</b>", styles["td"]), Paragraph("<code>python scripts/train_models.py --max_date 2025-07-27</code>", styles["td"])],
-        [Paragraph("<b>Run Planner Scenario CLI</b>", styles["td"]), Paragraph("<code>python scripts/run_scenario.py --market 'UNITED KINGDOM' --delta_freq 2.0 --delta_lf 0.02</code>", styles["td"])],
-        [Paragraph("<b>Run Holdout Back-Tests</b>", styles["td"]), Paragraph("<code>python scripts/evaluate_models.py</code>", styles["td"])],
-        [Paragraph("<b>Launch Interactive UI</b>", styles["td"]), Paragraph("<code>python scripts/run_app.py --port 8080</code>", styles["td"])],
+        [Paragraph("<b>Rebuild Lake & Panel</b>", styles["td"]), Paragraph("<code>twin build-lake && twin build-panel</code>", styles["td"])],
+        [Paragraph("<b>Train & Calibrate Models</b>", styles["td"]), Paragraph("<code>twin train --max-date 2025-07-27</code>", styles["td"])],
+        [Paragraph("<b>Run Planner Scenario CLI</b>", styles["td"]), Paragraph("<code>twin simulate --market 'UNITED KINGDOM' --delta-freq 2.0 --delta-lf 0.02</code>", styles["td"])],
+        [Paragraph("<b>Run Holdout Back-Tests</b>", styles["td"]), Paragraph("<code>twin evaluate</code>", styles["td"])],
+        [Paragraph("<b>Launch Interactive UI</b>", styles["td"]), Paragraph("<code>twin serve --port 8080</code>", styles["td"])],
     ]
     t_cmd = Table(cmd_data, colWidths=[45 * mm, 125 * mm])
     t_cmd.setStyle(TableStyle([
@@ -383,8 +370,4 @@ def build_pdf():
     story.append(t_cmd)
 
     doc.build(story, canvasmaker=NumberedCanvas)
-    print(f"Successfully generated dynamic PDF: {OUTPUT_PDF}")
-
-
-if __name__ == "__main__":
-    build_pdf()
+    return OUTPUT_PDF

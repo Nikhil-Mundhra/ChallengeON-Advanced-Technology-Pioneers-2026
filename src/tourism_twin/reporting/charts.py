@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generate presentation charts for the Abu Dhabi Tourism Digital Twin.
 
 Produces:
@@ -7,19 +6,20 @@ Produces:
 3. model_benchmark.png - Back-test performance comparison (read dynamically from evaluation_results.json)
 """
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
-
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import ScenarioLever
+from tourism_twin.reporting.palette import AMBER, BLUE, NAVY, TEAL
 from tourism_twin.services.simulator import TourismDigitalTwin
 
 OUTPUT_DIR = SETTINGS.figures_dir
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 RESULTS_PATH = SETTINGS.evaluation_results_path
 
 plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
@@ -32,14 +32,9 @@ plt.rcParams.update({
     "figure.titlesize": 15,
 })
 
-NAVY = "#102A43"
-BLUE = "#2563EB"
-TEAL = "#0F766E"
-AMBER = "#D97706"
-GRAY = "#627D98"
 
 
-def plot_waterfall(report, out_path: Path):
+def plot_waterfall(report, out_path: Path) -> Path:
     s = report.structural_result
     labels = [
         "1. Added Seats",
@@ -90,10 +85,10 @@ def plot_waterfall(report, out_path: Path):
     plt.tight_layout()
     fig.savefig(out_path, dpi=300)
     plt.close(fig)
-    print(f"Generated: {out_path}")
+    return out_path
 
 
-def plot_tornado(report, out_path: Path):
+def plot_tornado(report, out_path: Path) -> Path:
     tornado = report.tornado_sensitivity
     labels = [r["lever_name"].split(" (")[0] for r in reversed(tornado)]
     spreads = [r["swing_spread"] for r in reversed(tornado)]
@@ -127,14 +122,14 @@ def plot_tornado(report, out_path: Path):
     plt.tight_layout()
     fig.savefig(out_path, dpi=300)
     plt.close(fig)
-    print(f"Generated: {out_path}")
+    return out_path
 
 
-def plot_model_benchmark(out_path: Path):
+def plot_model_benchmark(out_path: Path) -> Path | None:
+    """Plot the back-test benchmark; None when evaluation results do not exist yet."""
     # Read dynamically from evaluation_results.json
     if not RESULTS_PATH.exists():
-        print("evaluation_results.json not found; skipping dynamic benchmark plot.")
-        return
+        return None
 
     with open(RESULTS_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -185,10 +180,12 @@ def plot_model_benchmark(out_path: Path):
     fig.tight_layout()
     fig.savefig(out_path, dpi=300)
     plt.close(fig)
-    print(f"Generated: {out_path}")
+    return out_path
 
 
-def main():
+def generate_charts() -> list[Path]:
+    """Render the presentation figures; returns the paths written."""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     twin = TourismDigitalTwin()
     lever = ScenarioLever(
         market="UNITED KINGDOM",
@@ -198,10 +195,9 @@ def main():
     )
     report = twin.run_scenario("UNITED KINGDOM", "Winter_Peak", lever)
 
-    plot_waterfall(report, OUTPUT_DIR / "waterfall_attribution.png")
-    plot_tornado(report, OUTPUT_DIR / "tornado_sensitivity.png")
-    plot_model_benchmark(OUTPUT_DIR / "model_benchmark.png")
-
-
-if __name__ == "__main__":
-    main()
+    written = [
+        plot_waterfall(report, OUTPUT_DIR / "waterfall_attribution.png"),
+        plot_tornado(report, OUTPUT_DIR / "tornado_sensitivity.png"),
+        plot_model_benchmark(OUTPUT_DIR / "model_benchmark.png"),
+    ]
+    return [path for path in written if path is not None]

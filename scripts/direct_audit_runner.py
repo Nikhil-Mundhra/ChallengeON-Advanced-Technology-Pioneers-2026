@@ -39,7 +39,7 @@ def build_evidence(source: str, locator: str, observation: str, evidence_level: 
 def audit_REPRO_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
     """Test deterministic seeds and execution-order independence."""
     # 1. Repeat identical scenarios in fresh processes
-    cmd = [sys.executable, "scripts/run_scenario.py", "--market", "UNITED KINGDOM", "--season", "Winter_Peak", "--delta_freq", "2.0"]
+    cmd = [sys.executable, "-m", "tourism_twin", "simulate", "--market", "UNITED KINGDOM", "--season", "Winter_Peak", "--delta-freq", "2.0"]
     out1 = subprocess.check_output(cmd, cwd=ROOT_DIR).decode()
     out2 = subprocess.check_output(cmd, cwd=ROOT_DIR).decode()
     fresh_proc_match = (out1 == out2)
@@ -61,7 +61,7 @@ def audit_REPRO_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dic
     )
 
     evidence = [
-        build_evidence("subprocess_run", "scripts/run_scenario.py", f"Identical byte output across fresh processes: {fresh_proc_match}", "REPRODUCED"),
+        build_evidence("subprocess_run", "python -m tourism_twin simulate", f"Identical byte output across fresh processes: {fresh_proc_match}", "REPRODUCED"),
         build_evidence("in_memory_simulation", "TourismDigitalTwin.run_scenario", f"In-process order permutation yields exact identical uncertainty percentiles: {order_indep}", "REPRODUCED"),
         build_evidence("code_inspection", "engine/uncertainty.py:94-96", "Deterministic SHA-256 digest scenario key seeding replaces randomized Python hash()", "INSPECTED"),
     ]
@@ -90,10 +90,10 @@ def audit_REPRO_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dic
     import tempfile
 
     # Check execution from outside working directory
-    scripts = ["scripts/run_scenario.py", "scripts/evaluate_models.py", "scripts/build_solution_report.py"]
+    commands = [["simulate"], ["evaluate"], ["report", "solution"]]
     cwd_success = True
-    for s in scripts:
-        res = subprocess.run([sys.executable, str(ROOT_DIR / s)], cwd="/tmp", capture_output=True, text=True)
+    for command in commands:
+        res = subprocess.run([sys.executable, "-m", "tourism_twin", *command], cwd="/tmp", capture_output=True, text=True)
         if res.returncode != 0:
             cwd_success = False
 

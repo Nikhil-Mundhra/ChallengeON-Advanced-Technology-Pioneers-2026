@@ -1,75 +1,37 @@
-#!/usr/bin/env python3
-"""Run a planner scenario on the Abu Dhabi Tourism Digital Twin."""
+"""`twin simulate`: run one planner scenario and print the decision briefing."""
+
+from __future__ import annotations
 
 import argparse
 
-
 from tourism_twin.domain.scenario import ScenarioLever
+from tourism_twin.domain.seasons import SEASONS
 from tourism_twin.services.simulator import TourismDigitalTwin
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Abu Dhabi Tourism Digital Twin - Scenario Simulator"
-    )
-    parser.add_argument(
-        "--market",
-        type=str,
-        default="UNITED KINGDOM",
-        help="Target source market (e.g. 'UNITED KINGDOM', 'INDIA', 'SWEDEN', 'BRAZIL')",
-    )
-    parser.add_argument(
-        "--season",
-        type=str,
-        default="Winter_Peak",
-        choices=["Winter_Peak", "Spring_Shoulder", "Summer_Trough", "Autumn_Shoulder"],
-        help="Season for simulation",
-    )
-    parser.add_argument(
-        "--delta_freq",
-        type=float,
-        default=2.0,
-        help="Additional weekly round-trip flights (e.g. +2.0)",
-    )
-    parser.add_argument(
-        "--gauge",
-        type=float,
-        default=290.0,
-        help="Aircraft seat capacity gauge for added frequency (default 290 for B787)",
-    )
-    parser.add_argument(
-        "--delta_seats_pct",
-        type=float,
-        default=0.0,
-        help="Proportional shift in seat capacity (e.g. 0.10 for +10%)",
-    )
-    parser.add_argument(
-        "--delta_lf",
-        type=float,
-        default=0.02,
-        help="Absolute shift in load factor (e.g. +0.02 for +2%)",
-    )
-    parser.add_argument(
-        "--delta_p2p",
-        type=float,
-        default=0.0,
-        help="Shift in P2P share (e.g. +0.02)",
-    )
-    parser.add_argument(
-        "--delta_mult_pct",
-        type=float,
-        default=0.0,
-        help="Proportional shift in response multiplier from marketing (e.g. +0.05)",
-    )
-    parser.add_argument(
-        "--delta_los",
-        type=float,
-        default=0.0,
-        help="Absolute shift in length of stay days (e.g. +0.3)",
-    )
+def register(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser("simulate", help="Run a planner scenario and print the briefing")
+    parser.add_argument("--market", default="UNITED KINGDOM",
+                        help="Target source market (e.g. 'UNITED KINGDOM', 'INDIA', 'SWEDEN', 'BRAZIL')")
+    parser.add_argument("--season", default="Winter_Peak", choices=SEASONS, help="Season for simulation")
+    parser.add_argument("--delta-freq", dest="delta_freq", type=float, default=2.0,
+                        help="Additional weekly round-trip flights (e.g. +2.0)")
+    parser.add_argument("--gauge", type=float, default=290.0,
+                        help="Aircraft seat capacity gauge for added frequency (default 290 for B787)")
+    parser.add_argument("--delta-seats-pct", dest="delta_seats_pct", type=float, default=0.0,
+                        help="Proportional shift in seat capacity (e.g. 0.10 for +10%%)")
+    parser.add_argument("--delta-lf", dest="delta_lf", type=float, default=0.02,
+                        help="Absolute shift in load factor (e.g. +0.02 for +2%%)")
+    parser.add_argument("--delta-p2p", dest="delta_p2p", type=float, default=0.0,
+                        help="Shift in P2P share (e.g. +0.02)")
+    parser.add_argument("--delta-mult-pct", dest="delta_mult_pct", type=float, default=0.0,
+                        help="Proportional shift in response multiplier from marketing (e.g. +0.05)")
+    parser.add_argument("--delta-los", dest="delta_los", type=float, default=0.0,
+                        help="Absolute shift in length of stay days (e.g. +0.3)")
+    parser.set_defaults(func=run)
 
-    args = parser.parse_args()
 
+def run(args: argparse.Namespace) -> None:
     twin = TourismDigitalTwin()
 
     lever = ScenarioLever(
@@ -156,6 +118,3 @@ def main():
         print(f"{idx:<5} {row['lever_name']:<35} {row['swing_spread']:>16,.0f} {row['relative_sensitivity']:>17.1%}")
     print("=" * 80)
 
-
-if __name__ == "__main__":
-    main()
