@@ -8,6 +8,8 @@ not a neural network. c_t >= 0 is a slowly varying base stock (long stays, resid
 linear between knots spread evenly from the first to the last training day (about one per
 `knot_days`); a first-difference penalty keeps it from jumping at the ends, and it is flat
 beyond the training days. Faster-moving seasonality belongs to the season component.
+With base="arrivals", c_t = rho * (trailing 90-day mean arrivals), rho >= 0: the base stock then
+moves with the arrival level, so a carrier exit that halves arrivals also shrinks it.
 
 Fitting happens on the original scale: inside backfitting the target is exp(y - offset), the
 guests left after dividing out every other component's multiplier. With w = U d (U upper
@@ -51,14 +53,17 @@ class ArrivalsConvolution:
     owns_level = True
 
     def __init__(self, max_lag: int = 21, knot_days: int = 365, base_smoothing: float = 1.0,
-                 name: str = "arrivals", date_column: str = "date") -> None:
+                 name: str = "arrivals", date_column: str = "date", base: str = "knots") -> None:
+        if base not in ("knots", "arrivals"):
+            raise ValueError(f"base must be 'knots' or 'arrivals', got {base!r}")
+        self.base = base
         self.max_lag = max_lag
         self.knot_days = knot_days
         self.base_smoothing = base_smoothing
         self.name = name
         self.date_column = date_column
         self.lag_columns = [lag_column(k) for k in range(max_lag + 1)]
-        self.requires = (date_column, *self.lag_columns)
+        self.requires = (date_column, *self.lag_columns) + (("arrivals_mean_90",) if base == "arrivals" else ())
         self.reset()
 
     def reset(self) -> None:
@@ -98,13 +103,15 @@ class ArrivalsConvolution:
             raise ValueError(f"Component {self.name!r}: arrival lags are incomplete; fit on lag_complete rows")
         target = np.exp((y - offset).to_numpy())
         survival = lags @ np.triu(np.ones((self.max_lag + 1, self.max_lag + 1)))  # column j: sum_{k<=j} A_{t-k}
-        design = np.hstack([survival, self._base(dates)])
+        design = np.hstack([survival, self._base_design(panel)])
         k = self.max_lag + 1
-        # First-difference penalty on the base-stock knots, weighted like the rows each knot covers.
+        # First-difference penalty on the base-stock knots, weighted like the rows each knot covers
+        # (none for the arrivals-proportional base: one coefficient).
         n_knots = design.shape[1] - k
-        penalty = np.zeros((n_knots - 1, design.shape[1]))
-        penalty[:, k:] = np.sqrt(self.base_smoothing * len(target) / n_knots) * np.diff(np.eye(n_knots), axis=0)
-        system, system_target = np.vstack([design, penalty]), np.r_[target, np.zeros(n_knots - 1)]
+        penalty = np.zeros((n_knots - 1 if self.base == "knots" else 0, design.shape[1]))
+        if self.base == "knots":
+            penalty[:, k:] = np.sqrt(self.base_smoothing * len(target) / n_knots) * np.diff(np.eye(n_knots), axis=0)
+        system, system_target = np.vstack([design, penalty]), np.r_[target, np.zeros(len(penalty))]
         lower = np.zeros(design.shape[1])  # d >= 0 (survival curve) and c >= 0 (a base stock of guests)
         # Unit-norm columns: cumulative arrivals and the base-stock basis differ by ~10^4 in scale.
         norms = np.linalg.norm(system, axis=0)
@@ -127,7 +134,7 @@ class ArrivalsConvolution:
         self.params_ = params
         self.w_ = np.cumsum(d[::-1])[::-1]  # w_k = sum_{j>=k} d_j
         flow = self._flow(panel)
-        base = self._base(dates) @ self.c_
+        base = self._base_design(panel) @ self.c_
         self.base_share_ = float(base.sum() / flow.sum()) if flow.sum() > 0 else 0.0
         self.floor_ = max(1e-6, 0.01 * float(np.mean(flow[flow > 0])) if (flow > 0).any() else 1e-6)
         self.floored_training_rows_ = int((flow < self.floor_).sum())  # rows where contribution() departs from the fitted objective
@@ -161,9 +168,13 @@ class ArrivalsConvolution:
         self.penalty_value_ = float(np.sum((penalty @ chosen) ** 2))
         return chosen
 
+    def _base_design(self, panel: pd.DataFrame) -> np.ndarray:
+        if self.base == "arrivals":
+            return panel[["arrivals_mean_90"]].to_numpy(dtype=float)
+        return self._base(pd.to_datetime(panel[self.date_column]))
+
     def _flow(self, panel: pd.DataFrame) -> np.ndarray:
-        dates = pd.to_datetime(panel[self.date_column])
-        return panel[self.lag_columns].to_numpy(dtype=float) @ self.w_ + self._base(dates) @ self.c_
+        return panel[self.lag_columns].to_numpy(dtype=float) @ self.w_ + self._base_design(panel) @ self.c_
 
     def contribution(self, panel: pd.DataFrame) -> pd.Series:
         if self.w_ is None:
@@ -184,7 +195,8 @@ class ArrivalsConvolution:
             "w0_constraint_binds": self.projected_,
             "solver_success": self.solver_success_,
             "w0": float(self.w_[0]),
-            "base_stock_by_knot": {str(k.date()): float(c) for k, c in zip(self.knots_, self.c_)},
+            **({"base_stock_by_knot": {str(k.date()): float(c) for k, c in zip(self.knots_, self.c_)}} if self.base == "knots"
+               else {"base_stock_per_mean_arrival": float(self.c_[0])}),
             "floored_rows_last_call": self.floored_rows_,
             "floored_training_rows": self.floored_training_rows_,
         }

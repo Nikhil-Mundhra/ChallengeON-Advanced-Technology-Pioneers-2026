@@ -38,6 +38,7 @@ PUBLICATION_MIN = 10  # test rows exist only where New Arrivals >= 10; train row
 # Derived columns of the daily panel, in output order (definitions live in tourism_twin.features).
 DAILY_FEATURES = [
     "arrival_lags",
+    "arrivals_mean_90",
     "dow",
     "iso_week",
     "month",

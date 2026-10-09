@@ -29,23 +29,23 @@ BACKFIT_MAX_ITER, BACKFIT_TOL = 200, 1e-6  # converged fits stop well before the
 GBM_FEATURES = ("dow", "month", "iso_week", "is_holiday_week", lag_column(0), lag_column(7))
 
 
-def intl_nowcast(gbm: bool = False) -> AdditiveLogModel:
+def intl_nowcast(gbm: bool = False, base: str = "knots") -> AdditiveLogModel:
     """International nowcast (docs/model_design.md §3, §4.6): arrivals kernel (owns the level) +
     season + weekday + events, no trend (+ residual GBM, gated). Every block minimises the same
     log-scale objective, so backfitting descends and converges; results do not depend on the pass cap."""
-    components = [ArrivalsConvolution(max_lag=21), AnnualFourier(4), DayOfWeek(), EventKernel()]
+    components = [ArrivalsConvolution(max_lag=21, base=base), AnnualFourier(4), DayOfWeek(), EventKernel()]
     if gbm:
         components.append(ResidualGBM(GBM_FEATURES))
     return AdditiveLogModel(components, fitter=Backfitting(max_iter=BACKFIT_MAX_ITER, tol=BACKFIT_TOL),
                             exclude_flag="is_one_off_period", include_flag="lag_complete")
 
 
-def domestic_nowcast() -> AdditiveLogModel:
+def domestic_nowcast(base: str = "knots") -> AdditiveLogModel:
     """Domestic nowcast (docs/model_design.md §3, §4.6): arrivals kernel (owns the level) + centred
     log-slope + season + weekday; no event kernels. Weekday × season beat plain weekday by only 0.07 pp
     daily WAPE on 13 rolling origins (scripts/compare_domestic_weekday.py), under the 0.3 pp gate, so
     the simpler one ships."""
-    components = [ArrivalsConvolution(max_lag=21), CentredSlope(), AnnualFourier(4), DayOfWeek()]
+    components = [ArrivalsConvolution(max_lag=21, base=base), CentredSlope(), AnnualFourier(4), DayOfWeek()]
     return AdditiveLogModel(components, fitter=Backfitting(max_iter=BACKFIT_MAX_ITER, tol=BACKFIT_TOL),
                             exclude_flag="is_one_off_period", include_flag="lag_complete")
 
@@ -58,13 +58,16 @@ def domestic_time() -> AdditiveLogModel:
     return AdditiveLogModel(components, fitter=JointLinear(), exclude_flag="is_one_off_period")
 
 
-# twin_daily_gbm is the gated ablation: the residual GBM is kept only if it improves back-test WMAPE
-# by >= 0.3 pp on both domestic and international. Rolling-origin result (8 monthly origins,
-# 6-month horizon): +0.14 pp international, 0 domestic, so twin_daily ships without it.
+# Gated ablations (8 monthly origins 2024-07..2025-02, 6-month horizon, mean fold WMAPE):
+# twin_daily_gbm adds the residual GBM: international 9.09 vs 9.42, domestic unchanged, so it fails
+# the >= 0.3 pp-on-both rule. twin_daily_base90 ties the base stock to trailing 90-day arrivals (to
+# follow a carrier exit): domestic 11.23 vs 6.49, international 13.39 vs 9.42, so it is not shipped;
+# the knot base already follows a 0.55x arrival shock in the Wizz markets within 1.5%.
 DAILY_SPECS: Dict[str, Callable[[], Model]] = {
     "naive_364": SeasonalNaive,
     "arrivals_ratio": ArrivalsRatio,
     "twin_daily": lambda: MarketRouter(domestic_nowcast, lambda: intl_nowcast(gbm=False)),
     "twin_daily_gbm": lambda: MarketRouter(domestic_nowcast, lambda: intl_nowcast(gbm=True)),
+    "twin_daily_base90": lambda: MarketRouter(lambda: domestic_nowcast(base="arrivals"), lambda: intl_nowcast(base="arrivals")),
     "domestic_time": domestic_time,
 }

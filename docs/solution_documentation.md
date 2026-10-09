@@ -317,6 +317,8 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 81%
 
 **Same-day guests** (`same_day_backtest`, 8 origins 2024-07..2025-02, 6-month horizon, mean Poisson deviance, lower is better, suppressed values as 0): domestic 11.8 vs 15.3 for the market mean; international 4.87 vs 5.61.
 
+**Base stock tied to arrivals** (`twin_daily_base90`, not shipped): c_t = ρ × trailing 90-day mean arrivals; domestic 11.23%, international 13.39%.
+
 **Time-varying survival curve** (not shipped): per-regime curves 8.72% overall WMAPE vs 8.39% for one shared curve × calendar (both measured with the earlier raw-scale kernel fit; the shipped fit now scores 8.31%); recency weighting destabilised domestic. `twin_daily` uses one curve per market.
 
 **Fit diagnostics.** All 168 fits (21 markets × 8 origins) converge; `BacktestResult.diagnostics` counts non-converged fits. Domestic results are identical for caps of 20, 50, 200 and 1,000 passes (13 rolling origins 2024-02..2025-02, daily WAPE 5.97%).

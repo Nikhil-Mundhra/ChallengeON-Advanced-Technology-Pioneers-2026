@@ -497,6 +497,26 @@ def test_arrivals_convolution_enforces_w0_at_most_one_when_it_binds():
     assert all(a >= b - 1e-12 for a, b in zip(fitted["survival_w"], fitted["survival_w"][1:]))
 
 
+def test_an_arrivals_proportional_base_stock_follows_an_arrival_shock():
+    # A carrier exit halves arrivals (Wizz Air, Sep 2025): with c_t = rho * mean arrivals over 90 days
+    # the whole stock scales with arrivals; a base stock fixed in time does not.
+    rng = np.random.default_rng(4)
+    n, true_w = 1000, np.exp(-np.arange(8) / 3.0)
+    arrivals = 1000 * np.exp(rng.normal(0, 0.1, n))
+    mean_90 = pd.Series(arrivals).rolling(90, min_periods=1).mean().to_numpy()
+    lags = np.column_stack([np.r_[np.full(k, np.nan), arrivals[:n - k]] for k in range(8)])
+    frame = _daily(np.log(0.5 * mean_90 + np.nan_to_num(lags) @ true_w), new_arrivals_filled=arrivals)
+    frame = PANEL_FEATURES.apply(frame, ["arrival_lags", "arrivals_mean_90"], max_lag=7)
+    shocked = frame.assign(new_arrivals_filled=np.where(np.arange(n) >= 800, 0.55, 1.0) * arrivals)
+    shocked = PANEL_FEATURES.apply(shocked.drop(columns=[c for c in frame.columns if c.startswith("arrivals_") or c == "lag_complete"]),
+                                   ["arrival_lags", "arrivals_mean_90"], max_lag=7)
+    late = slice(900, n)  # beyond the 90-day window after the shock
+    for base, follows in (("arrivals", True), ("knots", False)):
+        model = AdditiveLogModel([ArrivalsConvolution(max_lag=7, base=base)], fitter=Backfitting(), include_flag="lag_complete").fit(frame.iloc[:800])
+        ratio = (model.predict(shocked.iloc[late]) / model.predict(frame.iloc[late])).to_numpy()
+        assert (np.abs(ratio - 0.55) < 0.01).all() == follows, base
+
+
 def test_arrivals_convolution_base_stock_is_flat_beyond_the_training_days():
     frame = _conv_frame(np.exp(-np.arange(8) / 3.0), base=300.0, noise=0.0)
     model = AdditiveLogModel([ArrivalsConvolution(max_lag=7)], fitter=Backfitting(), include_flag="lag_complete").fit(frame.iloc[:600])

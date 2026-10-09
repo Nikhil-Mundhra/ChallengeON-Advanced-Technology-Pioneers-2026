@@ -338,7 +338,7 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Pooling across nationalities | Pooled markets are split by arrival share; per-nationality kernels (shared shape + per-market scale, §3.2) are untested | Proposed |
 | Total-guests interval | §3.3: needs back-test errors of the summed series | Proposed |
 | Analysis outside the repository | `analysis/*.py` read the raw workbooks directly; figures in §4 are not reproducible from this repository | Analysis finding |
-| Test-period regime change | Wizz Air exit; constant base stock and pooled scales do not follow arrivals (§4.7) | Open |
+| Test-period regime change | Wizz Air exit. Stress test (fit before 2025-02-01, the five nationalities' arrivals × 0.55, days 100–180): predicted guests / arrivals ratio KAZAKHSTAN 0.558 / 0.550, OTHER_EURASIA 0.663 / 0.660, OTHER_EUROPE 0.961 / 0.942. A base stock proportional to 90-day arrivals (`twin_daily_base90`) follows exactly but loses on the rolling back-test (domestic 11.23 vs 6.49, international 13.39 vs 9.42); the other intl terms are multipliers of the flow and scale with it | Checked; knot base kept |
 | Row-presence rules differ between train and test | Absent test days need arrival fill ≈ 5 and a floor of 10 on predictions (§4.7) | Open |
 | Missing events / blocks | Chinese New Year (China), Morocco winter block (§4.7) | Open |
 | Edge effect | Decompositions disagree on residual memory (last 1–2 days vs ~1–2 weeks); centred smoothers are unreliable near series ends | Analysis finding, unresolved |
