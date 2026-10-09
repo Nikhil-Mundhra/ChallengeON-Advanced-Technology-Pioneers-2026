@@ -2,7 +2,7 @@
 
 Rules for coding agents in this repository. If this file disagrees with the code, trust the code and fix this file.
 
-Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, web UI/JSON API, PDF reports. Human docs: `README.md`, `docs/`; model design (implemented vs. measured vs. proposed): `docs/model_design.md`; decision log: `docs/decisions.md`.
+Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, web UI/JSON API, PDF reports. Competition output: daily guest nowcast from composable log-scale components (`twin predict`). Human docs: `README.md`, `docs/`; model design (implemented vs. measured vs. proposed): `docs/model_design.md`; decision log: `docs/decisions.md`.
 
 ## Setup
 
@@ -20,7 +20,8 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin build-panel` | Curated Parquet → weekly market panel | lake |
 | `twin build-daily-panel [--max-lag K]` | Daily (market, date) panel with arrival lags 0..K (default 21) | lake |
 | `twin train [--max-date D] [--panel-path P]` | Structural, residual, conformal artifacts | lake |
-| `twin evaluate` | Forward-holdout back-test → `evaluation_results.json`; syncs coverage into `conformal_calibrator.json` | lake |
+| `twin evaluate` | Weekly benchmarks through the back-test harness → `evaluation_results.json` (run before `train`, which reads its coverage) | lake |
+| `twin predict [--spec S] [--no-intervals]` | Daily nowcast of the test split (default spec `twin_daily`); refuses output failing `validate_predictions` | output (`predictions/`) |
 | `twin simulate --market M --season S [levers]` | Print a scenario briefing | — |
 | `twin charts` | Waterfall, tornado, benchmark figures | output |
 | `twin report {solution,database}` | PDF report (needs `report` extra) | output |
@@ -28,6 +29,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin query "SQL" [--database P] [--limit N]` | Read-only SQL on `analytics.duckdb` | — |
 
 - `twin query` and `twin report database` need `lake/analytics.duckdb` (gitignored; built by `twin build-lake`).
+- `twin predict` needs the raw test workbooks; it writes `{domestic,international}_test_guests.csv`, `test_guests_intervals.csv` and `market_outputs.json` (neither with `--no-intervals`), `test_predictions.png`.
 - Makefile targets: `install`, `lake`, `panel` (weekly + daily), `evaluate`, `train`, `charts`, `report` (solution), `test`, `all` (lake → panel → evaluate → train → charts → report → test), `clean`.
 
 ## Tests
@@ -35,7 +37,8 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 - Run `.venv/bin/pytest -q` (or `make test`). If you report counts, run pytest and quote its actual output.
 - `test_monthly_flights_are_isolated_to_2022` skips when `lake/curated/flight_monthly.parquet` is not built (it is not committed).
 - Product suite is one file: `tests/test_tourism_twin.py`; shared fixtures in `tests/conftest.py`. Audit-tool tests: `tests/test_audit_agent.py`.
-- Add product tests to `test_tourism_twin.py` in the matching pipeline-order section: domain, lake, feature registry, panels, simulator, API. Never create a new product test file.
+- Add product tests to `test_tourism_twin.py` in the matching pipeline-order section: domain, lake, feature registry, panels, model components, back-test harness, competition predictions, simulator, API. Never create a new product test file.
+- `test_benchmarks_through_the_harness_reproduce_the_committed_evaluation` pins `evaluation_results.json`; a diff there is a metric change.
 
 ## Layout and layering
 
@@ -48,9 +51,11 @@ config.py   all filesystem paths (stdlib only)
 domain/     markets, archetypes, seasons, events, scenario types
 features/   registry + ratios, flags, calendar, lags (imports domain only)
 data/       ingest, validation, lake_writer, manifest, lake, repository, imputation, panel, daily_panel
-models/     protocol, components/, fitters, composite, specs, baselines, backtest, structural, features, residual, uncertainty, conformal, training, evaluation
-services/   simulator, sensitivity, briefing
-reporting/  charts, solution_report, database_report/, palette, pdf_palette
+models/     protocol, components/ (base + one module per component), fitters, composite, specs,
+            baselines, backtest, noise, same_day, structural, features, residual, uncertainty,
+            conformal, training, evaluation
+services/   simulator, sensitivity, briefing, predictions, outputs
+reporting/  charts, predictions_plot, solution_report, database_report/, palette, pdf_palette
 cli/        the `twin` command
 ```
 
@@ -69,24 +74,35 @@ cli/        the `twin` command
 ## Modeling (guest model)
 
 - Read `docs/model_design.md` (§3 form, §5 structure, §5.7 rules) and `docs/decisions.md` before changing any model. A decision changes only by a new entry in `docs/decisions.md`.
-- Build new model parts as components (`models/components/`, `Component` protocol) composed by `models/composite.py`; never hard-wire a new model into `training.py` or `evaluation.py`.
+- Add a model part as: one module in `models/components/` (`Component` protocol or `LinearComponent`), its export in `components/__init__.py`, a synthetic test in `tests/test_tourism_twin.py` that recovers a known truth, and a spec entry in `models/specs.py`. Edit nothing else; never hard-wire a model into `training.py` or `evaluation.py`.
+- Compose components only via `AdditiveLogModel` (`models/composite.py`); exactly one component per model sets `owns_level=True` (it raises otherwise).
+- Mark residual learners `final_stage = True` (fitted once, after the rest converge).
+- Add an ablation as a new spec entry, not a code branch.
 - The competition task is a nowcast: test-split `New Arrivals` are inputs; never use a feature derived from `Guests`.
 - Fit components jointly (`models/fitters.py`); centre periodic contributions; the one level owner and event terms (zero outside their windows) are not centred.
 - Nowcast specs are per series (decisions D19, D20): the arrivals kernel owns the level; DOMESTIC adds a centred slope and no events; INTERNATIONAL has events and no slope.
 - Before changing a nowcast model, reproduce the reference evaluation in `docs/model_design.md` §5.7 and compare with its expected values.
+- Compare models only through `models/backtest.backtest` with `RollingOrigin`/`HoldoutSplit`; pass `period_days=7` for weekly panels (else look-ahead leakage).
+- Never rank `DIAGNOSTIC_SPECS` with forecast specs; they read realized test-period data.
 - Judge event components only on back-test folds that contain their windows (decision D16). Decide specs on rolling origins, not on the two reference folds alone.
 - Arrivals kernel: non-negative, non-increasing (`w = triu(ones) @ d`, `d >= 0`), `w_0 <= 1`.
 - Encode categoricals one-hot, season as Fourier terms, continuous inputs in log, lunar holidays from explicit dates.
-- Tune hyperparameters on validation folds with time-ordered splits only; compute calibration statistics (z-scores, conformal margins, σ) from training folds only.
-- Report domestic and international separately. Keep a component only if it passes the acceptance gate (decision D12).
-- Every new component needs a synthetic-data test in `tests/test_tourism_twin.py` that recovers a known truth.
+- Tune hyperparameters on validation folds with time-ordered splits only, never on the reported folds; compute calibration statistics (z-scores, conformal margins, σ) from training folds only.
+- Fit interval models (`models/noise.NoiseModel`) on out-of-sample back-test errors only.
+- Report domestic and international separately. Ship a component only if it lowers rolling-origin WMAPE by ≥ 0.3 pp on both (decision D12); `ResidualGBM` failed, keep it out of `twin_daily`.
+- Add event occurrences to `domain/events.csv` (with `scope`); `kind=one_off` rows are masked from training via `is_one_off_period`.
+- Never derive legacy `HOLIDAY_WEEKS` / `MAJOR_EVENT_WEEKS` from `events.csv`; that moves shipped weekly results.
+- No `.iterrows(` anywhere in `models/` (a test enforces it).
 
 ## Data and artifacts
 
 - `01a - DCT Dataset/` holds the raw workbooks: gitignored, supplied locally (or via `TWIN_SOURCE_DIR`). Never edit or commit them.
-- Committed despite `.gitignore`: `lake/manifest.json` and tracked files in `lake/curated/` (check with `git ls-files lake`). `build-lake`, `build-panel`, `build-daily-panel`, `train`, `evaluate`, and `make all` overwrite lake artifacts with default dirs; `charts`/`report` overwrite `output/`.
+- Committed despite `.gitignore`: `lake/manifest.json` and tracked files in `lake/curated/` (check with `git ls-files lake`). `build-lake`, `build-panel`, `build-daily-panel`, `train`, `evaluate`, and `make all` overwrite lake artifacts with default dirs; `charts`/`report`/`predict` overwrite `output/`.
 - Do not run those commands against the checkout casually; rebuild into scratch: `TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/out make all`.
 - `make clean` removes only uncommitted generated files (figures, PDFs, `analytics.duckdb`, staging leftovers); it honours the same dir overrides.
+- Run `twin predict` with a scratch `TWIN_OUTPUT_DIR` when testing.
+- Never use a submission file unless `validate_predictions` returns no problems.
+- Narration and LLM text read `market_outputs.json` fields only and never compute numbers (`briefing.weekly_nowcast_summary`); add new numbers in `services/outputs.py`.
 - `residual_engine.pkl` must pickle a plain dict of scikit-learn estimators, never a project class (survives module moves).
 
 ## Change discipline

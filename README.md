@@ -1,6 +1,11 @@
 # ChallengeON DCT Analytics Lake & Abu Dhabi Tourism Digital Twin
 
-Analytics lake and scenario simulator for the [ChallengeON DCT Abu Dhabi Hackathon](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en). The twin converts aviation levers (weekly frequency, aircraft gauge, seats, load factor, P2P share, response multiplier, length of stay) into weekly hotel-guest effects by source market and season.
+Analytics lake, daily guest nowcast and scenario simulator for the [ChallengeON DCT Abu Dhabi Hackathon](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en).
+
+| Model | Question | Grain | Command |
+| :--- | :--- | :--- | :--- |
+| Daily nowcast (`twin_daily`) | Hotel guests on the withheld test days (2025-08-01 to 2026-02-28), given that period's new arrivals | Market-day, written per test-file row | `twin predict` |
+| Weekly planning model | Guest effect of aviation levers (weekly frequency, aircraft gauge, seats, load factor, P2P share, response multiplier, length of stay) | Market × season, weekly | `twin simulate`, `twin serve` |
 
 - Method, data contract, results, limitations: [docs/solution_documentation.md](docs/solution_documentation.md)
 - CLI, web UI, Python API, outputs: [docs/user_guide.md](docs/user_guide.md)
@@ -14,20 +19,23 @@ make install                      # python3 -m venv .venv && .venv/bin/pip insta
 source .venv/bin/activate         # 'report' = reportlab (PDFs), 'dev' = pytest
 ```
 
-The raw competition workbooks are not in the repository. Place the organizer-provided files in `01a - DCT Dataset/` (or set `TWIN_SOURCE_DIR`) before `twin build-lake`. The curated lake tables and model artifacts in `lake/` are committed, so `simulate`, `serve`, `charts`, `report solution` and the tests run without the raw files.
+The raw competition workbooks are not in the repository. Place the organizer-provided files in `01a - DCT Dataset/` (or set `TWIN_SOURCE_DIR`). `twin build-lake` and `twin predict` read them. `lake/curated/{guest_daily,flight_daily,weekly_market_panel}.parquet` and the weekly model artifacts are committed, so `simulate`, `serve`, `charts`, `report solution` and the tests run without the raw files.
 
-`make all` rebuilds everything from the raw workbooks: lake → panels → evaluate → train → charts → report → test. With default settings it overwrites the committed lake artifacts; see [Configuration](#configuration) for a scratch rebuild.
+`make all` rebuilds the lake, panels, weekly evaluation and training, charts and report, then runs the tests. With default settings it overwrites the committed lake artifacts; see [Configuration](#configuration) for a scratch rebuild. `make all` does not run `twin predict`.
 
 | Step | Command (`make` target) | Writes |
 | :--- | :--- | :--- |
 | 1 | `twin build-lake` (`make lake`) | `lake/curated/{guest_daily,flight_daily,flight_monthly}.parquet`, `lake/analytics.duckdb`, `lake/manifest.json` |
-| 2 | `twin build-panel` (`make panel`) | `lake/curated/weekly_market_panel.parquet` (reads the curated Parquet; no `analytics.duckdb` needed) |
-| 2 | `twin build-daily-panel [--max-lag K]` (`make panel`) | `lake/curated/daily_market_panel.parquet` (gitignored; default K = 21) |
-| 3 | `twin evaluate` (`make evaluate`) | `lake/curated/evaluation_results.json`; copies holdout coverage into `conformal_calibrator.json` |
-| 4 | `twin train [--max-date 2025-07-27] [--panel-path P]` (`make train`) | `structural_calibration.json`, `residual_engine.pkl`, `conformal_calibrator.json` |
+| 2 | `twin build-panel` (`make panel`) | `lake/curated/weekly_market_panel.parquet` |
+| 2 | `twin build-daily-panel [--max-lag K]` (`make panel`) | `lake/curated/daily_market_panel.parquet` (not committed; default K = 21) |
+| 3 | `twin evaluate` (`make evaluate`) | `lake/curated/evaluation_results.json` |
+| 4 | `twin train [--max-date 2025-07-27] [--panel-path P]` (`make train`) | `structural_calibration.json`, `residual_engine.pkl`, `conformal_calibrator.json` (coverage read from `evaluation_results.json`) |
 | 5 | `twin charts` (`make charts`) | `output/figures/*.png` |
 | 6 | `twin report solution` (`make report`) | `output/pdf/challengeon_solution_report.pdf` |
 | 7 | `pytest tests/ -v` (`make test`) | — |
+| — | `twin predict [--spec S] [--no-intervals]` | `output/predictions/`: test-split Guests CSVs, P10/P50/P90 CSV, `market_outputs.json`, `test_predictions.png` |
+
+`twin predict` builds the daily panel in memory from `guest_daily.parquet`; it does not need `daily_market_panel.parquet`.
 
 Other commands:
 
@@ -40,7 +48,7 @@ twin report database                                # schema & database PDF (nee
 
 Every command is also available as `python -m tourism_twin <command>`; `twin <command> --help` lists options.
 
-**Tests:** 78 tests (54 in `tests/test_tourism_twin.py`, 24 in `tests/test_audit_agent.py`). On a fresh clone 77 pass and 1 skips: `test_monthly_flights_are_isolated_to_2022` needs `lake/curated/flight_monthly.parquet`, which `twin build-lake` creates and which is not committed.
+**Tests:** 102 tests (78 in `tests/test_tourism_twin.py`, 24 in `tests/test_audit_agent.py`). On a fresh clone 101 pass and 1 skips: `test_monthly_flights_are_isolated_to_2022` needs `lake/curated/flight_monthly.parquet`, which `twin build-lake` creates and which is not committed.
 
 ### Configuration
 
@@ -51,10 +59,11 @@ All paths are defined in [`src/tourism_twin/config.py`](src/tourism_twin/config.
 | `TWIN_ROOT` | repository root | Base for the defaults below |
 | `TWIN_SOURCE_DIR` | `01a - DCT Dataset/` | Raw competition workbooks |
 | `TWIN_LAKE_DIR` | `lake/` | DuckDB database, manifest, curated tables, model artifacts |
-| `TWIN_OUTPUT_DIR` | `output/` | Figures and PDF reports |
+| `TWIN_OUTPUT_DIR` | `output/` | Figures, PDF reports, predictions |
 
 ```bash
 TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/output make all   # rebuild without touching the checkout
+TWIN_OUTPUT_DIR=/tmp/output twin predict                       # predictions outside the checkout
 ```
 
 `make clean` removes only uncommitted generated files (`output/figures`, `output/pdf`, `lake/analytics.duckdb`, staging leftovers), honours the same variables, and never deletes committed lake artifacts.
@@ -68,35 +77,58 @@ TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/output make all   # rebuild without
 ```text
 src/tourism_twin/
 ├── config.py      every file location (env-overridable, stdlib only)
-├── domain/        value types and reference data: markets, archetypes, seasons, event weeks, scenario types
-├── features/      FeatureRegistry: derived columns (ratios, flags, calendar, arrival lags) declared once
-│                  with their inputs and resolved in dependency order
-├── data/          raw workbooks → validated lake; LakeRepository (lake reader for the panel builders;
-│                  DuckDB views over the curated Parquet); weekly and daily panels; imputation policy
-├── models/        structural chain, residual calendar features, residual ML, uncertainty, conformal, training, evaluation
-├── services/      simulator, tornado sensitivity, executive briefing
-├── reporting/     scenario charts, solution PDF, schema & database PDF
+├── domain/        value types and reference data: markets, archetypes, seasons, scenario types,
+│                  event registry (events.csv) and the legacy holiday / major-event weeks
+├── features/      FeatureRegistry: derived columns (ratios, flags, calendar, arrival lags, event-day
+│                  offsets) declared once with their inputs and resolved in dependency order
+├── data/          raw workbooks → validated lake; LakeRepository; weekly and daily panels; imputation
+├── models/
+│   ├── components/   additive log-scale terms: LinearTrend, CentredSlope, LinearRegressors, EventKernel,
+│   │                 AnnualFourier, DayOfWeek, LocalLevel, ArrivalsConvolution, ResidualGBM
+│   ├── composite.py, fitters.py, protocol.py   AdditiveLogModel; JointLinear, Backfitting; Model (fit/predict)
+│   ├── backtest.py, specs.py, baselines.py     harness (HoldoutSplit, RollingOrigin); named specs; benchmarks
+│   ├── noise.py, same_day.py                   interval model; same-day guests Poisson GLM
+│   └── structural.py, residual.py, uncertainty.py, conformal.py, training.py, evaluation.py   weekly planning model
+├── services/      predictions (`twin predict`), market outputs JSON, simulator, tornado sensitivity, briefing
+├── reporting/     scenario charts, test-prediction plot, solution PDF, schema & database PDF
 └── cli/           the `twin` command
 ```
 
 `src/app/` (`server.py` + `static/index.html`) is the web server; it calls `config`, `domain` and `services`. `src/audit_agent/` is a separate LLM data-audit tool ([manual](src/audit_agent/README.md)) and does not import `tourism_twin`.
 
-Model components:
+Model parts:
 
-| Component | Module | What it does |
+| Part | Module | What it does |
 | :--- | :--- | :--- |
-| Structural chain | `models/structural.py` | Seats × load factor → passengers × P2P share → P2P × response multiplier $M_{m,s}$ → hotel arrivals × length of stay $L_{m,s}$ → weekly guests, per market $m$ and season $s$. Sequential waterfall attribution over 5 levers; the parts sum to the total lift (tested to < 1e-9). |
-| Residual ML | `models/residual.py`, `models/features.py` | One RidgeCV per market on week-of-year harmonics, quarter, season, holiday-week and major-event-week flags. No aviation inputs, so the residual does not change with capacity levers. Target: actual guests − planning-mode structural prediction (`StructuralEngine.planning_guests`: scheduled seats × calibrated seasonal priors), the same prediction the simulator serves. |
-| Archetypes | `domain/archetypes.py` | 7 archetypes (Direct Leisure, Resident/VFR, Regional GCC, Hub-Mediated, Highly Seasonal, Emerging/Sparse, Domestic Staycation). Unmodeled countries (e.g. `SWEDEN`) get the default parameters of their archetype (cold start). |
-| Uncertainty & sensitivity | `models/uncertainty.py`, `models/conformal.py`, `services/sensitivity.py` | Monte Carlo P10/P50/P90 from Beta draws of load factor and P2P share, parameter shocks and 4-week block-bootstrap residuals; per-market conformal margins; tornado ranking of lever swings. |
+| Daily nowcast | `models/specs.py` (`twin_daily`) | Per market, log guests = log(c_t + Σ_{k=0..21} w_k · arrivals_{t−k}) + season + weekday (+ events for international, + centred slope for domestic). `w` is a non-increasing survival curve with w₀ ≤ 1. |
+| Noise model | `models/noise.py` | AR(1) log errors along the horizon, fitted on rolling-origin back-test errors; Gaussian intervals in log. |
+| Structural chain | `models/structural.py` | Seats × load factor → passengers × P2P share → P2P × response multiplier $M_{m,s}$ → hotel arrivals × length of stay $L_{m,s}$ → weekly guests, per market $m$ and season $s$. Sequential waterfall over 5 levers; the parts sum to the total lift (tested to < 1e-9). |
+| Residual ML | `models/residual.py`, `models/features.py` | One RidgeCV per market on week-of-year harmonics, quarter, season, holiday-week and major-event-week flags. No aviation inputs. Target: actual guests − planning-mode structural prediction. |
+| Archetypes | `domain/archetypes.py` | 7 archetypes; unmodeled countries (e.g. `SWEDEN`) get their archetype's default parameters (cold start). |
+| Weekly uncertainty & sensitivity | `models/uncertainty.py`, `models/conformal.py`, `services/sensitivity.py` | Monte Carlo P10/P50/P90, per-market conformal margins, tornado ranking. |
 
-**Market bridge.** The data has no passenger-level link between departure country and guest nationality, and an unrestricted 45 × 33 nationality-by-country matrix (1,485 parameters) is not identifiable from aggregate weekly series. The twin links departure country $k$ to nationality $k$ and calibrates $M_{m,s} = \text{arrivals}_{m,s} / \text{P2P}_{m,s}$, which absorbs non-national passengers, indirect connections and overland arrivals.
+**Market bridge.** The data has no passenger-level link between departure country and guest nationality; a 45 × 33 nationality-by-country matrix (1,485 parameters) is not identifiable from aggregate weekly series. The planning model links departure country $k$ to nationality $k$ and calibrates $M_{m,s} = \text{arrivals}_{m,s} / \text{P2P}_{m,s}$.
 
 ---
 
-## 3. Forward-holdout results
+## 3. Results
 
-Calibration: 104 complete weeks (2023-01-02 to 2024-12-23 week starts, 2,132 market-weeks). Holdout: 30 complete weeks (2024-12-30 to 2025-07-21 week starts, 621 market-weeks, 21 markets). Only weeks with complete guest inputs are used. The back-test fits the shipped structural, residual and conformal trainers on the calibration window only. Bias = (Σ predicted − Σ actual) / Σ actual; positive means over-forecast. Source: `lake/curated/evaluation_results.json`.
+### 3.1 Daily nowcast (rolling-origin back-test)
+
+8 monthly origins (2024-07-01 to 2025-02-01), 6-month horizon, model refitted before each origin. Mean fold WMAPE:
+
+| Spec | Domestic | International |
+| :--- | :---: | :---: |
+| `naive_364` (same weekday 364 days earlier) | 20.4% | 26.6% |
+| `arrivals_ratio` (arrivals × training guests / arrivals) | 15.9% | 19.2% |
+| **`twin_daily`** | **6.7%** | **9.4%** |
+| `twin_daily_gbm` (+ residual GBM; not shipped) | 6.7% | 9.3% |
+
+80% interval coverage of `twin_daily`: 81.4% with each origin's intervals fitted on the other origins; 79.6% when origins within ±3 months are also excluded. Week-to-week direction accuracy (1,154 market-weeks, a nowcast given observed arrivals): 86.0% vs 83.4% for the direction of new arrivals and 63.1% for last year's direction. Details: [solution documentation §9.3](docs/solution_documentation.md#93-daily-nowcast).
+
+### 3.2 Weekly planning model (forward holdout)
+
+Calibration: 104 complete weeks (2023-01-02 to 2024-12-23 week starts, 2,132 market-weeks). Holdout: 30 complete weeks (2024-12-30 to 2025-07-21 week starts, 621 market-weeks, 21 markets). Bias = (Σ predicted − Σ actual) / Σ actual; positive means over-forecast. Source: `lake/curated/evaluation_results.json`.
 
 | Setting | WMAPE | Bias | MAE | RMSE | Inputs |
 | :--- | :---: | :---: | :---: | :---: | :--- |
@@ -113,9 +145,9 @@ Calibration: 104 complete weeks (2023-01-02 to 2024-12-23 week starts, 2,132 mar
 | 3. Structural only (planning mode) | 23.14% | +5.93% | 3,192.1 | 6,007.8 |
 | 4. Hybrid digital twin (structural + residual) | **21.74%** | **+5.36%** | **2,999.2** | **5,673.6** |
 
-The hybrid model is lowest on all four metrics (`benchmark_leaders`; bias by absolute value). Its WMAPE margin over the calendar model is 0.26 pp; the structural-only engine does not beat the seasonal prior on WMAPE.
+The hybrid is lowest on all four metrics; its WMAPE margin over the calendar model is 0.26 pp. Interval coverage: 65.2% of holdout market-weeks fall inside structural prediction × (1 ± per-market conformal margin), against a nominal 80%.
 
-Interval coverage on the holdout: 65.2% of market-weeks fall inside structural prediction × (1 ± per-market conformal margin), against a nominal 80%.
+The two tables are not comparable: the nowcast uses the predicted period's new arrivals, the planning model does not.
 
 ---
 
@@ -129,17 +161,22 @@ Interval coverage on the holdout: 65.2% of market-weeks fall inside structural p
 | `lake/curated/weekly_market_panel.parquet` | Market-week | 3,507 | 21 markets (top 15 + 5 regional clusters + `DOMESTIC`), both splits, 39 columns |
 | `lake/curated/daily_market_panel.parquet` | Market-day | 31,920 | 21 markets × 1,520 days, both splits, arrival lags 0–21 (not committed) |
 | `lake/curated/structural_calibration.json` | Market-season | 21 markets × 4 seasons | Calibrated seats, load factor, P2P share, multiplier, LOS |
-| `lake/curated/residual_engine.pkl` | — | 21 models | RidgeCV residual models (plain dict of scikit-learn estimators) |
+| `lake/curated/residual_engine.pkl` | — | 21 models | RidgeCV residual models |
 | `lake/curated/conformal_calibrator.json` | Market | 21 markets | Conformal margins, target alpha 0.2, demonstrated coverage |
-| `lake/curated/evaluation_results.json` | — | — | Back-test metrics, benchmark leaders, market and season breakdowns |
+| `lake/curated/evaluation_results.json` | — | — | Weekly back-test metrics, benchmark leaders, market and season breakdowns |
 | `lake/analytics.duckdb` | — | — | Query database with analytical views (built by `build-lake`; not committed) |
+| `src/tourism_twin/domain/events.csv` | Event occurrence | 52 | Event, kind, anchor date, window offsets, market scope, label, source; 2022–2026 |
 
 ---
 
-## 5. Deliverables
+## 5. Outputs
 
-- Solution specification: [`docs/solution_documentation.md`](docs/solution_documentation.md)
-- User guide and market directory: [`docs/user_guide.md`](docs/user_guide.md)
-- Solution PDF: `output/pdf/challengeon_solution_report.pdf` (`twin report solution`)
-- Schema & database PDF: `output/pdf/challengeon_schema_database_report.pdf` (`twin report database`)
-- Web UI: `twin serve --port 8080`, then open `http://127.0.0.1:8080`
+| Output | Command |
+| :--- | :--- |
+| `output/predictions/domestic_test_guests.csv`, `international_test_guests.csv` | `twin predict` (test workbooks row for row + `Guests`) |
+| `output/predictions/test_guests_intervals.csv` | `twin predict` (P10/P50/P90; not written with `--no-intervals`, nor is `market_outputs.json`) |
+| `output/predictions/market_outputs.json`, `test_predictions.png` | `twin predict` |
+| `output/figures/{waterfall_attribution,tornado_sensitivity,model_benchmark}.png` | `twin charts` |
+| `output/pdf/challengeon_solution_report.pdf` | `twin report solution` |
+| `output/pdf/challengeon_schema_database_report.pdf` | `twin report database` |
+| Web UI and JSON API at `http://127.0.0.1:8080` | `twin serve --port 8080` |
