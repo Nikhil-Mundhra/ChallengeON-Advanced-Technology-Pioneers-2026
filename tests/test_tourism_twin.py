@@ -487,6 +487,53 @@ def test_rolling_origin_never_trains_on_the_future_and_scores_segments():
     assert set(result.metrics["segment"]) == {"all", "domestic", "international"}
 
 
+def test_weekly_rows_straddling_an_origin_never_train():
+    weeks = pd.date_range("2024-01-01", periods=60, freq="W-MON")
+    frame = pd.DataFrame({"market": "UNITED KINGDOM", "date": weeks, "guests": 100.0})
+    _LastTrainDate.seen = []
+    backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2024-10-01", "2024-10-01", horizon_months=1), period_days=7)
+    assert _LastTrainDate.seen[0] + np.timedelta64(6, "D") < pd.Timestamp("2024-10-01")  # week of 2024-09-30 excluded
+
+
+def test_segments_hold_the_right_markets():
+    frame = pd.concat([_synthetic(market="DOMESTIC"), _synthetic(market="UNITED KINGDOM", level=6.0, seed=1)], ignore_index=True)
+    result = backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2024-03-01", "2024-03-01", horizon_months=1))
+    metrics = result.metrics.set_index("segment")
+    assert metrics.loc["domestic", "n"] == metrics.loc["international", "n"] == 31
+    predictions = result.predictions
+    domestic = predictions[predictions["market"] == "DOMESTIC"]
+    assert metrics.loc["domestic", "mae"] == pytest.approx((domestic["actual"] - domestic["pred"]).abs().mean())
+
+
+class _BadIndex(_LastTrainDate):
+    def predict(self, panel):
+        return pd.Series(self.mean, index=range(len(panel)))
+
+
+class _Gaps(_LastTrainDate):
+    def predict(self, panel):
+        return pd.Series(np.nan, index=panel.index)
+
+
+def test_harness_rejects_misindexed_or_missing_predictions_and_reports_skipped_folds():
+    frame = _synthetic()
+    with pytest.raises(ValueError, match="indexed like the test rows"):
+        backtest({"bad": _BadIndex}, frame, RollingOrigin("2024-03-01", "2024-03-01", 1))
+    with pytest.raises(ValueError, match="missing predictions"):
+        backtest({"gaps": _Gaps}, frame, RollingOrigin("2024-03-01", "2024-03-01", 1))
+    with pytest.warns(UserWarning, match="Skipped folds"):
+        result = backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2022-11-01", "2023-02-01", 1))
+    assert result.skipped == ["origin_2022-11-01", "origin_2022-12-01", "origin_2023-01-01"]
+    with pytest.raises(ValueError, match="No fold"):
+        backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2030-01-01", "2030-01-01", 1))
+
+
+def test_oracle_diagnostics_are_not_ranked_with_forecast_models():
+    from tourism_twin.models.specs import DIAGNOSTIC_SPECS, MODEL_SPECS
+
+    assert "realized_chain" in DIAGNOSTIC_SPECS and "realized_chain" not in MODEL_SPECS
+
+
 def test_models_package_has_no_row_loops():
     from pathlib import Path
 

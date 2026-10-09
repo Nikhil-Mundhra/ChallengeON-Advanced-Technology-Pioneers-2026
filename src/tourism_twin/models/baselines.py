@@ -17,11 +17,15 @@ class SeasonalPrior:
 
     def fit(self, panel: pd.DataFrame) -> "SeasonalPrior":
         self.priors_ = panel.groupby(["market", "season"])["guests"].mean().to_dict()
+        self.market_means_ = panel.groupby("market")["guests"].mean().to_dict()
         self.overall_ = panel["guests"].mean()
         return self
 
     def predict(self, panel: pd.DataFrame) -> pd.Series:
-        values = [self.priors_.get(key, self.overall_) for key in zip(panel["market"], panel["season"])]
+        """Market-season mean; the market's own mean for an unseen season; the pooled mean only
+        for an unseen market."""
+        values = [self.priors_.get((m, s), self.market_means_.get(m, self.overall_))
+                  for m, s in zip(panel["market"], panel["season"])]
         return pd.Series(values, index=panel.index, dtype=float)
 
 
@@ -39,6 +43,9 @@ class CalendarRidge:
         return self
 
     def predict(self, panel: pd.DataFrame) -> pd.Series:
+        unseen = sorted(set(panel["market"]) - set(self.models_))
+        if unseen:
+            raise ValueError(f"CalendarRidge has no model for markets {unseen}")
         out = pd.Series(np.nan, index=panel.index, dtype=float)
         for market, rows in panel.groupby("market", sort=False):
             out.loc[rows.index] = np.maximum(0.0, self.models_[market].predict(calendar_feature_matrix(rows)))

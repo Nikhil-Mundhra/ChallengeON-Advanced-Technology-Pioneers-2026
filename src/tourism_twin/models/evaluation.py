@@ -29,7 +29,7 @@ from tourism_twin.data.panel import training_window
 from tourism_twin.domain.seasons import SEASONS
 from tourism_twin.models.backtest import HoldoutSplit, backtest, forecast_metrics
 from tourism_twin.models.conformal import calibrate_conformal
-from tourism_twin.models.specs import WEEKLY_SPECS
+from tourism_twin.models.specs import DIAGNOSTIC_SPECS, WEEKLY_SPECS
 from tourism_twin.models.structural import StructuralEngine
 
 # First Monday of the forward holdout; everything before it is the calibration window.
@@ -61,8 +61,8 @@ def evaluate(panel_path: Path = SETTINGS.panel_path) -> Dict[str, Any]:
     """Run the back-test and return the results payload (see save_evaluation)."""
     complete = training_window(pd.read_parquet(panel_path))
     result = backtest(
-        {**{spec: WEEKLY_SPECS[spec] for spec in BENCHMARK_SPECS.values()}, "realized_chain": WEEKLY_SPECS["realized_chain"]},
-        complete, HoldoutSplit(HOLDOUT_START), date_column="week_start",
+        {**{spec: WEEKLY_SPECS[spec] for spec in BENCHMARK_SPECS.values()}, "realized_chain": DIAGNOSTIC_SPECS["realized_chain"]},
+        complete, HoldoutSplit(HOLDOUT_START), date_column="week_start", period_days=7,
     )
     predictions = result.predictions.pivot(index="row", columns="model", values="pred")
     test = complete.loc[result.predictions.loc[result.predictions["model"] == "structural_planning", "row"]].copy()

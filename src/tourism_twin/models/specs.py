@@ -29,6 +29,11 @@ WEEKLY_SPECS: Dict[str, Callable[[], Model]] = {
     "calendar_ridge": CalendarRidge,
     "structural_planning": StructuralPlanning,
     "hybrid_legacy": LegacyHybrid,
+}
+
+# Diagnostics that read realized test-period data (oracle covariates); never rank them with
+# planning or nowcast models.
+DIAGNOSTIC_SPECS: Dict[str, Callable[[], Model]] = {
     "realized_chain": RealizedChain,
 }
 
