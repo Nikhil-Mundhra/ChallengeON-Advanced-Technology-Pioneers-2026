@@ -17,6 +17,7 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 class ResidualGBM:
     owns_level = False
     final_stage = True
+    group = "residual"
 
     def __init__(self, features: Iterable[str], name: str = "gbm", max_iter: int = 200, learning_rate: float = 0.05,
                  max_leaf_nodes: int = 15, random_state: int = 0) -> None:

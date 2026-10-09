@@ -122,6 +122,12 @@ class AdditiveLogModel:
             raise ValueError(f"Missing contributions: {missing[missing > 0].to_dict()}")
         return decomposition
 
+    def decompose_by_group(self, panel: pd.DataFrame) -> pd.DataFrame:
+        """Log-scale contribution of each block (flow, time, holiday, flight, residual)."""
+        groups = {c.name: c.group for c in self.components}
+        parts = self.decompose(panel)
+        return parts.T.groupby(parts.columns.map(groups), sort=False).sum().T
+
     def predict(self, panel: pd.DataFrame) -> pd.Series:
         decomposition = self.decompose(panel)
         prediction = np.exp(decomposition.sum(axis=1, skipna=False))

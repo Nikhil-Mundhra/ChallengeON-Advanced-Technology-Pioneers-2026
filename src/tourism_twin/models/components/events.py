@@ -22,6 +22,7 @@ from tourism_twin.models.components.base import LinearComponent
 
 
 class EventKernel(LinearComponent):
+    group = "holiday"
     centred = False  # zero contribution outside every window: the contribution is the event effect
 
     def __init__(

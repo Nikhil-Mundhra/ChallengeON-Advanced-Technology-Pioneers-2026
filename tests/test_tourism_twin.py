@@ -186,6 +186,9 @@ def test_composite_fits_each_market_separately_and_resolves_registered_features(
     assert model.explain()["A"]["season"]["coef"]["sin"] == pytest.approx(0.3, abs=0.02)
     assert model.explain()["B"]["season"]["coef"]["sin"] == pytest.approx(-0.2, abs=0.02)
     np.testing.assert_allclose(np.log(model.predict(frame)), model.decompose(frame).sum(axis=1))
+    blocks = model.decompose_by_group(frame)  # trend -> time; the two regressors -> flight
+    assert list(blocks.columns) == ["time", "flight"]
+    np.testing.assert_allclose(blocks.sum(axis=1), model.decompose(frame).sum(axis=1))
     with pytest.raises(KeyError, match="No fitted model"):
         model.predict(frame.assign(market="C"))
 

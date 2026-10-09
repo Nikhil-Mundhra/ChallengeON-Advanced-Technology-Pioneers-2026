@@ -51,6 +51,7 @@ def log_gradient(p: np.ndarray, design: np.ndarray, penalty: np.ndarray, z: np.n
 
 class ArrivalsConvolution:
     owns_level = True
+    group = "flow"
 
     def __init__(self, max_lag: int = 21, knot_days: int = 365, base_smoothing: float = 1.0,
                  name: str = "arrivals", date_column: str = "date", base: str = "knots") -> None:

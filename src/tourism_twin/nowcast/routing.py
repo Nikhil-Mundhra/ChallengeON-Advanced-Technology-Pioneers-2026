@@ -28,6 +28,14 @@ class MarketRouter:
                  for flag in self.models_ if (is_domestic == flag).any()]
         return pd.concat(parts).reindex(panel.index)
 
+    def decompose_by_group(self, panel: pd.DataFrame) -> pd.DataFrame:
+        """Per-block log contributions from whichever model serves each row (NaN where a block
+        does not exist in that model)."""
+        is_domestic = panel["market"] == DOMESTIC
+        parts = [self.models_[flag].decompose_by_group(panel[is_domestic == flag])
+                 for flag in self.models_ if (is_domestic == flag).any()]
+        return pd.concat(parts).reindex(panel.index)
+
     def explain(self) -> dict:
         return {market: detail for model in self.models_.values() for market, detail in model.explain().items()}
 

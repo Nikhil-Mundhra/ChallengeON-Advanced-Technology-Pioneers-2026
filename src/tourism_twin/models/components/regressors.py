@@ -10,6 +10,7 @@ from tourism_twin.models.components.base import LinearComponent
 
 
 class LinearRegressors(LinearComponent):
+    group = "flight"  # used for flight features (transfer, P2P, premium shares)
     def __init__(self, features: Iterable[str], name: str = "regressors") -> None:
         super().__init__()
         self.name = name

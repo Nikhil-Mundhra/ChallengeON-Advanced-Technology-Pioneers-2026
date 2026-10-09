@@ -27,6 +27,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     subparsers.add_parser("evaluate", help="Run the forward-holdout back-test and write evaluation results").set_defaults(func=evaluate)
 
+    subparsers.add_parser("ablate-blocks", help="Score the nowcast block ablation on 13 rolling origins").set_defaults(func=ablate_blocks)
     predict_parser = subparsers.add_parser("predict", help="Write test-split Guests predictions and intervals (competition output)")
     predict_parser.add_argument("--spec", default="twin_daily", help="Daily model spec (default twin_daily)")
     predict_parser.add_argument("--no-intervals", dest="intervals", action="store_false", help="Skip the back-test that fits the interval model")
@@ -169,6 +170,19 @@ def _print_evaluation(payload: dict) -> None:
     for season, m in payload["season_breakdown"].items():
         print(f"{season:<25} {m['observations']:>12} {m['wmape']:>9.2%} {m['bias']:>+11.2%}")
     print("-" * 75)
+
+
+def ablate_blocks(args: argparse.Namespace) -> None:
+    from tourism_twin.nowcast.evaluation import block_ablation
+
+    result = block_ablation()
+    path = SETTINGS.output_dir / "nowcast_block_ablation.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    print(f"{'blocks':<12} {'domestic':>9} {'international':>14}   ({result['metric']}; {result['origins']})")
+    for name, row in result["wape"].items():
+        print(f"{name:<12} {row['domestic']:>9.2f} {row['international']:>14.2f}")
+    print(f"written {path}")
 
 
 def predict(args: argparse.Namespace) -> None:

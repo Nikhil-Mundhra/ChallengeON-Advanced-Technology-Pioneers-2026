@@ -21,6 +21,7 @@ class Component(Protocol):
     name: str
     requires: Tuple[str, ...]
     owns_level: bool
+    group: str  # model block: flow, time, holiday, flight or residual (docs/model_design.md §3.1)
 
     def fit(self, panel: pd.DataFrame, offset: pd.Series, y: pd.Series) -> "Component": ...
 
@@ -41,6 +42,7 @@ class LinearComponent:
     requires: Tuple[str, ...] = ()
     owns_level: bool = False
     centred: bool = True
+    group: str = "time"
 
     def __init__(self) -> None:
         self.coef_: np.ndarray | None = None
