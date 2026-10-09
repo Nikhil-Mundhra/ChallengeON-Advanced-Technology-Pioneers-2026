@@ -40,19 +40,22 @@ All `model_baselines.py` figures are on a single 6-month holdout, 2025-02 to 202
 ```text
 Guests_t   = flow_t × m_t                                      (log: log flow_t + log m_t)
 
-flow_t     = c_t + Σ_{k=0..K} w_k · Arrivals_{t−k}             arrivals kernel ("stock-flow")
-m_t        = exp( level/trend_t
-                  + Fourier_H(day of year)                     annual season, H = 4
+flow_t     = c_t + Σ_{k=0..K} w_k · Arrivals_{t−k}             arrivals kernel ("stock-flow"); owns the level
+m_t        = exp(   Fourier_H(day of year)                     annual season, H = 4
                   + day of week [× season]
                   + Σ_e Kernel_e(t − anchor_e) )               event kernels (Ramadan, Eids, National Day, ...)
+                                                               every term centred on the training window
 ```
+
+**No trend term in the nowcast (decision D15).** Arrivals already carry the level, so `m_t` has no trend or slope. A trend belongs only to time-only specs where arrivals are unknown (domestic forecast, planning); there a level component (`LinearTrend`, or a local level) owns the level instead of the kernel. A slope added to the nowcast extrapolated +10.7% international over the test period in the vertical-slice probe (§4.5); a linear trend overshot 2025 by ~20% (§4.3).
 
 Kernel constraints:
 
 | Constraint | Reason | In the tested model? |
 | --- | --- | --- |
 | w_k ≥ 0 and non-increasing | A share of arrivals still in a hotel after k nights cannot be negative or rise. Fitted by NNLS on increments: w = triu(1) · d, d ≥ 0 | Yes |
-| w₀ ≤ 1 | An arrival is counted at most once on its arrival day. An unconstrained fit gave w₀ = 1.15 | No |
+| w₀ ≤ 1 | An arrival is counted at most once on its arrival day. An unconstrained fit gave w₀ = 1.15 | Probe only (§4.5): binds for domestic, changes WAPE < 0.2 points |
+| c ≥ 0 | Base stock of guests cannot be negative | Probe only (§4.5) |
 | c_t slowly varying | Base stock of long-stayers. A constant c cannot drop in Ramadan (domestic keeps a −11.5% Ramadan residual after the kernel) | No: c is a single constant |
 | Day of week in m_t, not in w | Weekly spikes in an unconstrained kernel are the weekday pattern leaking in | Yes |
 | Lunar events in m_t, not modulating w | Residual stay-length change after the kernel is small for international | Yes |
@@ -83,7 +86,7 @@ Daily totals (domestic; international summed over nationalities) read from the t
 - Order matters when components are fitted greedily: kernel-first 6.1 / 4.8, calendar-first 9.8 / 13.3.
 - The joint backfit converges to the same WAPE from both starting orders (same WAPE to 6 decimal places): order-free at convergence.
 - GBM on the joint residual gives no consistent gain (worse on both 2024 folds, better on both 2025 folds); dropped.
-- Joint kernel Σw: domestic 1.6–2.2, international 3.3–3.5 across folds. International Σw is close to the train-split guests ÷ new arrivals ratio of 3.61 ([solution documentation §4.2](solution_documentation.md#42-data-findings-that-shape-the-model)), which is a stock-to-flow ratio, not a measured length of stay.
+- Joint kernel Σw: domestic 1.6–2.2, international 3.3–3.5 across folds (c unconstrained). International Σw is close to the train-split guests ÷ new arrivals ratio of 3.61 ([solution documentation §4.2](solution_documentation.md#42-data-findings-that-shape-the-model)), which is a stock-to-flow ratio, not a measured length of stay. Σw depends on how much of the level the constant c absorbs: with c ≥ 0 the probe got international Σw = 2.34 with c ≈ 6.9k (§4.5). Read Σw as a stay estimate only together with c.
 - Event windows in this script are hard-coded date lists for 2023–2025 (Ramadan, Eid al-Fitr, Eid al-Adha, National Day, 22 Dec–7 Jan).
 
 ### 4.2 Interactions and functional form (`analysis/interactions_test.py`)
@@ -130,9 +133,37 @@ Test period (Aug 2025 – Feb 2026) contains National Day 2025, Christmas–New 
 
 Noise is Gaussian in log once events are removed, but autocorrelated (effective sample size ≈ 160 domestic, ≈ 50 international, not 1,200+), with variance that changes by month and a drifting level. Independent-error p-values and intervals are therefore too narrow.
 
-## 5. Proposed code structure — *Proposed*
+### 4.5 Reproduction by a vertical-slice probe — *Analysis finding (unmerged branch)*
 
-Same pattern as `features/registry.py` (declare once, request by name), applied to models. Tracked in issues [#9](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/9) (time effects), [#10](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/10) (rolling back-test), [#11](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/11) (train / validation / test split). None of the modules below exist.
+An independent implementation built only from this document and AGENTS.md (panel → arrivals kernel + calendar components → back-test → test-split predictions; local branch, not merged into `main`). Same reference folds as §4.1, with w₀ ≤ 1 and c ≥ 0 enforced and box-shaped event windows.
+
+| Spec | DOM (2024 / 2025 → mean) | INTL (2024 / 2025 → mean) | §4.1 |
+| --- | --- | --- | --- |
+| Seasonal naive 364 | 16.07 / 16.54 → 16.31 | 24.80 / 12.39 → 18.59 | 16.3 / 18.6 |
+| Calendar only | 11.14 / 12.10 → 11.62 | 7.53 / 15.79 → 11.66 | 11.3 / 11.2 |
+| Kernel only | 8.09 / 8.22 → 8.15 | 5.96 / 6.31 → 6.13 | 8.1 / 6.1 |
+| Joint | 3.69 / 5.63 → **4.66** | 3.79 / 4.33 → **4.06** | 4.9 / 4.7 |
+| Joint, rolling origins (13 monthly, 2024-02 → 2025-02, 6-month horizon) | **4.75** (naive 18.8) | **5.23** (naive 19.3) | — |
+
+- Baselines reproduce within 0.4 points; the joint model reproduces and slightly improves on §4.1.
+- The probe's spec included a centred slope; on the test split it added +10.7% international / −6.1% domestic. That is why D15 removes the trend from nowcast specs.
+- Events failed the drop-one gate (+0.06 / +0.07 points) on the Feb–Jul folds, which contain Ramadan and both Eids but no National Day or Christmas–New Year. See D16.
+
+## 5. Proposed code structure — *Partly implemented*
+
+Same pattern as `features/registry.py` (declare once, request by name), applied to models. Tracked in issues [#9](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/9) (time effects), [#10](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/10) (rolling back-test), [#11](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/11) (train / validation / test split).
+
+Status on `main` (verify with `git ls-files src/tourism_twin/models`):
+
+| Part | Status |
+| --- | --- |
+| `Model` protocol (`models/protocol.py`), `Component` / `LinearComponent` (`models/components/base.py`) | Implemented |
+| `LinearTrend`, `LinearRegressors` (`models/components/`) | Implemented |
+| `EventKernel` (`models/components/events.py`) + event registry `domain/events.csv` (loaded by `domain/events.py`) | Implemented |
+| `JointLinear`, `Backfitting` (`models/fitters.py`); `AdditiveLogModel` (`models/composite.py`) | Implemented |
+| Back-test harness: `Fold`, `HoldoutSplit`, `RollingOrigin` (`models/backtest.py`); named specs (`models/specs.py`); weekly benchmark models (`models/baselines.py`) | Implemented (weekly specs only) |
+| `ArrivalsConvolution`, `AnnualFourier`, `DayOfWeek`, `LocalLevel`, `ResidualGBM` components; daily nowcast specs | Proposed (a probe implementation exists on an unmerged branch, §4.5) |
+| Noise model (§5.5), test-split prediction writer | Proposed |
 
 ### 5.1 Component interface
 
@@ -163,7 +194,7 @@ A spec is a named component list (`intl_nowcast`, `domestic_time`, `planning`, `
 
 ### 5.4 Back-test harness (#10, #11)
 
-`backtest(spec, panel, origins)` → per-fold metrics. Monthly rolling origins, ~6-month horizon, fit only on data before each origin, domestic and international reported separately (WAPE, MAE, bias). Any calibration (z-scores, conformal, alphas) uses the training fold only. Inside it, a time-ordered split: train fits parameters, validation chooses hyperparameters (K, smoothing λ, event thresholds, H), and one final test period is evaluated once after all choices are frozen. The four benchmarks in `models/evaluation.py` become four specs.
+`backtest(spec, panel, origins)` → per-fold metrics. Monthly rolling origins, ~6-month horizon, fit only on data before each origin, domestic and international reported separately (WAPE, MAE, bias). Any calibration (z-scores, conformal, alphas) uses the training fold only. Origins for the daily nowcast: monthly from 2024-02-01 to 2025-02-01 (13 folds). A component tied to dated windows (events) is judged only on folds whose test period contains those windows (D16); for Christmas–New Year and National Day this needs a fold such as test 2024-08-01 → 2025-01-31. Inside it, a time-ordered split: train fits parameters, validation chooses hyperparameters (K, smoothing λ, event thresholds, H), and one final test period is evaluated once after all choices are frozen. The four benchmarks in `models/evaluation.py` become four specs.
 
 ### 5.5 Noise model
 
@@ -207,7 +238,21 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | A new component ships with a synthetic-data test: it must recover a known kernel / bump / sine | A component that can't recover its own truth can't be trusted on real data |
 | Keep a component only if it passes the acceptance gate (decision D12) | Effective sample size is small (§4.4) |
 
-**Reference evaluation** (to reproduce §4.1 before changing anything): daily totals per series (domestic; international summed over nationalities), train from 2023-01-01, folds test 2024-02-01 → 2024-07-31 and 2025-02-01 → 2025-07-31, K = 21, H = 4, ridge α = 1, WAPE on each fold. Expected: joint model ≈ 4.9 domestic / 4.7 international (mean of the two folds).
+**Reference evaluation** (reproduce this before changing anything; §4.1 and §4.5 are its results):
+
+| Item | Specification |
+| --- | --- |
+| Series | `DOMESTIC`, and the international total = sum of all 20 non-domestic daily-panel markets (lags summed per day) |
+| Arrivals input | `new_arrivals_filled` (the column the lags are built from) |
+| Training rows | date ≥ 2023-01-01, `lag_complete`, `guests` not null. 2022 guests unused |
+| Folds | test 2024-02-01 → 2024-07-31 (train before 2024-02-01) and test 2025-02-01 → 2025-07-31 (train before 2025-02-01). Report each fold and the mean |
+| Hyperparameters | Fixed, not tuned: K = 21, H = 4, ridge α = 1. Tuning (D11) applies to the production spec only, on validation folds (D18) |
+| Kernel | `flow = c + Σ_{k=0..21} w_k·A_{t−k}`, `w = triu(ones) @ d`, `d ≥ 0`, `w_0 ≤ 1`, `c ≥ 0`; fitted on Guests / m in raw scale, rows weighted by m |
+| Calendar (log) | Fourier on day of year / 365.25, H = 4; day of week one-hot (Monday = reference); event windows as 0/1 boxes: Ramadan (first day − 5 → day before Eid al-Fitr window), Eid al-Fitr and Eid al-Adha (−1 → +3), National Day (30 Nov → 4 Dec), Christmas–New Year (22 Dec → 7 Jan). **No trend** (D15). Ridge penalises calendar columns only; every contribution centred on the training rows |
+| Fit | Backfitting: kernel on Guests / m, calendar on log(Guests / flow), until the largest change in any log contribution < 1e-6 |
+| Metric | WAPE = Σ\|actual − predicted\| / Σ actual, per series and fold |
+| Expected | Joint ≈ 4.7 domestic / 4.1 international (§4.5; §4.1 without the w₀ / c constraints: 4.9 / 4.7). Baselines: naive 16.3 / 18.6, calendar only (with trend) ≈ 11.5, kernel only 8.1 / 6.1 |
+| Not inputs | Same-day guests (separate target, D17); anything derived from `Guests` |
 
 ### 5.8 Flight-side findings for feature work — *Analysis finding*
 
@@ -229,7 +274,7 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Events lumped into one flag | `domain/events.py` stores Monday week-starts; Eid al-Fitr, Eid al-Adha, National Day and New Year share `is_holiday_week`. No Ramadan window for 2023–2025; one 2026 week labelled "Lunar New Year / Spring Festival & Ramadan Start". Week 2024-12-02 is in both `HOLIDAY_WEEKS` and `MAJOR_EVENT_WEEKS` (National Day and F1) | Implemented; replacement Proposed (§5.3) |
 | Single holdout | `models/evaluation.py`: one split at `HOLDOUT_START = "2024-12-30"`; no Autumn_Shoulder weeks | Implemented; rolling harness Proposed (#10) |
 | In-sample conformal | `models/conformal.py` takes the (1 − α) quantile of training-window errors; holdout coverage 65.2% vs 80% nominal | Implemented; noise model Proposed (§5.5) |
-| Daily panel unused | `data/daily_panel.py` builds lags 0..21; no model in `models/` reads it | Implemented (panel only) |
+| Daily panel unused | `data/daily_panel.py` builds lags 0..21; no model on `main` reads it (the §4.5 probe branch does) | Implemented (panel only) |
 | Untested constraints | w₀ ≤ 1 and slowly varying c_t are not in `hybrid_order_test.py` | Proposed |
 | Pooling across nationalities | The experiment uses international totals; per-nationality kernels (shared kernel + per-market scale) are untested | Proposed |
 | Analysis outside the repository | `analysis/*.py` read the raw workbooks directly, not through `LakeRepository`; figures are not reproducible from this repository | Analysis finding |

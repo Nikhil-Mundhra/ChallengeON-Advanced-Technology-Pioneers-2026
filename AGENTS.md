@@ -48,7 +48,7 @@ config.py   all filesystem paths (stdlib only)
 domain/     markets, archetypes, seasons, events, scenario types
 features/   registry + ratios, flags, calendar, lags (imports domain only)
 data/       ingest, validation, lake_writer, manifest, lake, repository, imputation, panel, daily_panel
-models/     protocol, components/, fitters, composite, structural, features, residual, uncertainty, conformal, training, evaluation
+models/     protocol, components/, fitters, composite, specs, baselines, backtest, structural, features, residual, uncertainty, conformal, training, evaluation
 services/   simulator, sensitivity, briefing
 reporting/  charts, solution_report, database_report/, palette, pdf_palette
 cli/        the `twin` command
@@ -72,6 +72,9 @@ cli/        the `twin` command
 - Build new model parts as components (`models/components/`, `Component` protocol) composed by `models/composite.py`; never hard-wire a new model into `training.py` or `evaluation.py`.
 - The competition task is a nowcast: test-split `New Arrivals` are inputs; never use a feature derived from `Guests`.
 - Fit components jointly (`models/fitters.py`); centre every contribution except the one level owner.
+- Nowcast specs: the arrivals kernel owns the level; no trend term in the calendar (decision D15).
+- Before changing a nowcast model, reproduce the reference evaluation in `docs/model_design.md` §5.7 and compare with its expected values.
+- Judge event components only on back-test folds that contain their windows (decision D16).
 - Arrivals kernel: non-negative, non-increasing (`w = triu(ones) @ d`, `d >= 0`), `w_0 <= 1`.
 - Encode categoricals one-hot, season as Fourier terms, continuous inputs in log, lunar holidays from explicit dates.
 - Tune hyperparameters on validation folds with time-ordered splits only; compute calibration statistics (z-scores, conformal margins, σ) from training folds only.
