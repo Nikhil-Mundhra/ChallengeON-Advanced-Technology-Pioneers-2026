@@ -41,8 +41,8 @@ question.)
 | Column | Definition | Answers |
 | --- | --- | --- |
 | `premium_p2p_share_pct` | 100 × Σ(first + business P2P) ÷ Σ total P2P | How premium-heavy are destination-bound passengers? (primary) |
-| `premium_classified_share_pct` | 100 × Σ(first + business P2P) ÷ Σ(first + economy + business P2P) | Sensitivity measure: premium share among **cabin-classified** P2P. Cabin-classified totals do not exceed `total_p2p` in these aggregates (gap 0–2.08%); the gap is unexplained and is not assumed to be economy or infants. |
-| `unclassified_p2p_pct` | 100 × (P2P − classified P2P) ÷ P2P | Size of the denominator gap. |
+| `premium_classified_share_pct` | 100 × Σ(first + business P2P) ÷ Σ(first + economy + business P2P) | Sensitivity measure: premium share among **cabin-classified** P2P. Cabin-classified totals do not exceed `total_p2p` in these aggregates (gap 0–2.08%). Row-level evidence points at infants: the gap equals the infant count on 74% of Etihad rows, never exceeds it, and correlates with it at r ≈ 0.70 — consistent with lap infants not being cabin-classified. This remains an inference, not a confirmed mechanism. |
+| `unclassified_p2p_pct` | 100 × (P2P − classified P2P) ÷ P2P | Size of the denominator gap (≈ infant share of P2P, per above). |
 | `premium_seat_share_pct` | 100 × Σ(first + business seats) ÷ Σ total seats | How premium-heavy is offered capacity? |
 | `transfer_share_pct` | 100 × Σ transfer ÷ Σ PAX | How strongly the origin feeds connecting traffic. Transfer status does not establish whether the passenger entered Abu Dhabi or stayed overnight. |
 | `p2p_pax` | Σ total P2P | Volume behind the percentage — tiny samples (Kazakhstan 69, Azerbaijan 55) make their shares unreliable. |
