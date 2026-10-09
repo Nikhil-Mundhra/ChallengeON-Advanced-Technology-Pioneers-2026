@@ -125,22 +125,10 @@ def evaluate(panel_path: Path = SETTINGS.panel_path) -> Dict[str, Any]:
     }
 
 
-def save_evaluation(
-    payload: Dict[str, Any],
-    results_path: Path = SETTINGS.evaluation_results_path,
-    conformal_path: Path = SETTINGS.conformal_path,
-) -> bool:
-    """Write the results JSON and copy the demonstrated coverage into an existing conformal
-    calibrator. Returns whether the calibrator was updated."""
+def save_evaluation(payload: Dict[str, Any], results_path: Path = SETTINGS.evaluation_results_path) -> Path:
+    """Write the results JSON. Holdout results are never written into a calibrator: `twin train`
+    reads the demonstrated coverage from this file."""
     results_path.parent.mkdir(parents=True, exist_ok=True)
     with open(results_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
-
-    if not conformal_path.exists():
-        return False
-    with open(conformal_path, "r", encoding="utf-8") as f:
-        conf_data = json.load(f)
-    conf_data["_demonstrated_holdout_coverage"] = payload["demonstrated_coverage_pct"]
-    with open(conformal_path, "w", encoding="utf-8") as f:
-        json.dump(conf_data, f, indent=2)
-    return True
+    return results_path

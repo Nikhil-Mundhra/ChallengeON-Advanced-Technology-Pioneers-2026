@@ -109,11 +109,8 @@ def evaluate(args: argparse.Namespace) -> None:
 
     payload = run_evaluation()
     _print_evaluation(payload)
-    synced = save_evaluation(payload)
-    print(f"\nSaved structured evaluation metrics to: {SETTINGS.evaluation_results_path}")
-    if synced:
-        print(f"Synchronized holdout coverage ({payload['demonstrated_coverage_pct']}%) into: {SETTINGS.conformal_path}")
-
+    path = save_evaluation(payload)
+    print(f"\nSaved structured evaluation metrics to: {path}")
 
 def _metric_row(label: str, m: dict, width: int = 45) -> str:
     return f"{label:<{width}} {m['wmape']:>9.2%} {m['bias']:>+9.2%} {m['mae']:>12,.1f} {m['rmse']:>14,.1f}"
