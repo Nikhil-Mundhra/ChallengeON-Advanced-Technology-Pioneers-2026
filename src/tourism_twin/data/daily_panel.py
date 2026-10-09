@@ -69,14 +69,19 @@ def _fill_suppressed_arrivals(rows: pd.DataFrame) -> pd.DataFrame:
     return rows
 
 
+def build_nationality_rows(repository: Optional[LakeRepository] = None) -> pd.DataFrame:
+    """Nationality-day rows of the guest table with their market and new_arrivals_filled."""
+    rows = _with_markets((repository or LakeRepository()).guests())
+    rows["date"] = pd.to_datetime(rows["date"])
+    return _fill_suppressed_arrivals(rows)
+
+
 def build_daily_panel(
     repository: Optional[LakeRepository] = None,
     max_lag: int = DEFAULT_MAX_LAG,
 ) -> pd.DataFrame:
     """One row per (market, date) across both splits, with arrival lags 0..max_lag."""
-    rows = _with_markets((repository or LakeRepository()).guests())
-    rows["date"] = pd.to_datetime(rows["date"])
-    rows = _fill_suppressed_arrivals(rows)
+    rows = build_nationality_rows(repository)
 
     panel = (
         rows.groupby(["market", "date", "dataset_split"], as_index=False)

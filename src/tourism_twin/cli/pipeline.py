@@ -27,6 +27,11 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     subparsers.add_parser("evaluate", help="Run the forward-holdout back-test and write evaluation results").set_defaults(func=evaluate)
 
+    predict_parser = subparsers.add_parser("predict", help="Write test-split Guests predictions and intervals (competition output)")
+    predict_parser.add_argument("--spec", default="twin_daily", help="Daily model spec (default twin_daily)")
+    predict_parser.add_argument("--no-intervals", dest="intervals", action="store_false", help="Skip the back-test that fits the interval model")
+    predict_parser.set_defaults(func=predict)
+
 
 def build_lake(args: argparse.Namespace) -> None:
     from tourism_twin.data.lake import build_lake as run_build
@@ -164,3 +169,29 @@ def _print_evaluation(payload: dict) -> None:
     for season, m in payload["season_breakdown"].items():
         print(f"{season:<25} {m['observations']:>12} {m['wmape']:>9.2%} {m['bias']:>+11.2%}")
     print("-" * 75)
+
+
+def predict(args: argparse.Namespace) -> None:
+    from tourism_twin.data.daily_panel import build_daily_panel
+    from tourism_twin.reporting.predictions_plot import plot_test_predictions
+    from tourism_twin.services.predictions import predict_test_split, validate_predictions
+
+    predictions = predict_test_split(spec=args.spec, with_intervals=args.intervals)
+    problems = validate_predictions(predictions)
+    if problems:
+        raise SystemExit("Predictions failed validation:\n  " + "\n  ".join(problems))
+    out = SETTINGS.predictions_dir
+    out.mkdir(parents=True, exist_ok=True)
+    paths = {
+        "domestic": out / "domestic_test_guests.csv",
+        "international": out / "international_test_guests.csv",
+        "intervals": out / "test_guests_intervals.csv",
+    }
+    predictions.domestic.to_csv(paths["domestic"], index=False)
+    predictions.international.to_csv(paths["international"], index=False)
+    predictions.intervals.to_csv(paths["intervals"], index=False)
+    panel = build_daily_panel()
+    plot = plot_test_predictions(panel[panel["dataset_split"] == "train"], predictions.market_daily, out / "test_predictions.png")
+    for name, path in {**paths, "plot": plot}.items():
+        print(f"{name:13} {path}")
+    print(f"rows: domestic {len(predictions.domestic)}, international {len(predictions.international)}; validation passed")

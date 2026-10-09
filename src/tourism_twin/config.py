@@ -89,6 +89,10 @@ class Settings:
         return self.curated_dir / "evaluation_results.json"
 
     @property
+    def predictions_dir(self) -> Path:
+        return self.output_dir / "predictions"
+
+    @property
     def figures_dir(self) -> Path:
         return self.output_dir / "figures"
 

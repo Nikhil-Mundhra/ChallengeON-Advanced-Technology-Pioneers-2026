@@ -142,3 +142,8 @@ def build_flight_frame() -> pd.DataFrame:
     return frame.sort_values(
         ["date", "departure_country_name", "departure_city", "airline_name"]
     )
+
+
+def read_raw_workbook(filename: str) -> pd.DataFrame:
+    """A source workbook exactly as delivered (original column names and row order)."""
+    return pd.read_excel(SETTINGS.source_dir / filename, sheet_name="Export")
