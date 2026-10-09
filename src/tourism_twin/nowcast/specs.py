@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Callable, Dict
 
 from tourism_twin.features.lags import lag_column
-from tourism_twin.models.handler import flagged, not_flagged, on_or_after
+from tourism_twin.models.handler import flagged, not_flagged
 from tourism_twin.models.protocol import Model
 from tourism_twin.models.spec import ModelSpec
 from tourism_twin.nowcast.baselines import ArrivalsRatio, SeasonalNaive
@@ -34,10 +34,9 @@ GBM = ("residual_gbm", {"features": GBM_FEATURES})
 INTL_NOWCAST = ModelSpec(components=(KERNEL, SEASON, "weekday", "events"), fitter=BACKFIT, rules=NOWCAST_ROWS)
 # Weekday x season beat plain weekday by only 0.07 pp daily WAPE on 13 rolling origins
 # (scripts/compare_domestic_weekday.py), under the 0.3 pp gate, so the simpler one ships.
-# Domestic trains from 2022-07-01: guests per arrival fell 3.55 (2022Q1) -> ~2.5 (2022Q4), a one-off
-# post-COVID normalisation the slope would read as trend. Published 8 origins: 4.85 vs 6.23 mean fold WAPE.
-DOMESTIC_ROWS = (*NOWCAST_ROWS, on_or_after("date", "2022-07-01"))
-DOMESTIC_NOWCAST = ModelSpec(components=(KERNEL, "slope", SEASON, "weekday"), fitter=BACKFIT, rules=DOMESTIC_ROWS)
+# Domestic trains on all history: dropping rows before 2022-07-01 (a one-off fall in guests per arrival,
+# 3.55 -> ~2.5 in 2022) is worse on the #11 validation origins: -1.19 pp [-2.04, -0.20], 7/7 folds.
+DOMESTIC_NOWCAST = ModelSpec(components=(KERNEL, "slope", SEASON, "weekday"), fitter=BACKFIT, rules=NOWCAST_ROWS)
 # Time only (arrivals unknown, planning): local level (flat beyond the training days) + season +
 # weekday + events; all linear, so one exact joint solve.
 DOMESTIC_TIME = ModelSpec(components=("local_level", SEASON, ("weekday", {"by_season": True}), "events"),

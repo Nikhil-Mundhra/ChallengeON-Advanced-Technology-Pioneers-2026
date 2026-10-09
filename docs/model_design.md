@@ -85,8 +85,8 @@ Measured contribution of the blocks (`twin ablate-blocks`: 13 monthly origins 20
 | Seasonal naive (`naive_364`) | 18.80 | 19.28 |
 | Time (`time_only`: local level + season + weekday + events) | 9.23 | 9.62 |
 | Flow (`flow_only`: arrivals kernel) | 8.92 | 5.06 |
-| Flow + time (`flow_time`) | 5.97 (5.04 with the slope held flat and training from 2022-07) | 4.19 |
-| Flow + time + holiday (`twin_daily`; domestic has no holiday block) | 5.97 (5.04 shipped) | 4.12 |
+| Flow + time (`flow_time`) | 5.97 (5.46 with the slope held flat) | 4.19 |
+| Flow + time + holiday (`twin_daily`; domestic has no holiday block) | 5.97 (5.46 flat slope) | 4.12 |
 
 Flow carries most of the accuracy; time adds 2.95 pp (domestic) and 0.87 pp (international) on top of it. The holiday block adds 0.07 pp on international daily totals over all folds, below the 0.3 pp gate; events are judged only on folds containing their windows.
 
@@ -246,7 +246,7 @@ Flight-side links, 33 matched countries, 2023-01 → 2025-07, calendar removed (
 
 Collinearity: condition number 9–12 across flight inputs (PAX vs seats r = 0.95); {arrivals, transfer share, premium share} ≈ 1.5.
 
-Domestic short history: guests per arrival 3.55 (2022Q1) → 2.5 (2022Q4), a one-off post-COVID shift. With training from 2022-01, `CentredSlope` fits it as trend: origin 2023-08 → −8.6% bias (Aug–Oct 2023). Domestic, 19 rolling origins 2023-08 → 2025-02, 6-month horizon, mean / worst-fold WAPE: training from 2022-01 5.72 / 7.91; from 2022-07 4.79 / 5.61; `Recency(180)` 4.94 / 6.58; `Recency(365)` 5.14 / 7.20.
+Domestic short history: guests per arrival 3.55 (2022Q1) → 2.5 (2022Q4), a one-off post-COVID shift. With training from 2022-01, `CentredSlope` fits it as trend: origin 2023-08 → −8.6% bias (Aug–Oct 2023). Domestic, 19 rolling origins 2023-08 → 2025-02, 6-month horizon, mean / worst-fold WAPE: training from 2022-01 5.72 / 7.91; from 2022-07 4.79 / 5.61; `Recency(180)` 4.94 / 6.58; `Recency(365)` 5.14 / 7.20. These origins score months inside the frozen test and get the gain from short-history 2023 origins (exploratory under #11). On the #11 validation origins, where history is 2+ years as in the real test, training from 2022-01 wins: 4.18 vs 5.37, −1.19 pp [−2.04, −0.20], 7/7 folds.
 
 Date-only vs nowcast, single 3-month windows (WAPE domestic / international): Aug–Oct 2023 `time_only` 4.5 / 8.8, `twin_daily` 8.7 / 3.3; Aug–Oct 2024 7.6 / 6.5 vs 2.8 / 4.9; Feb–Apr 2025 11.1 / 11.3 vs 7.5 / 3.6.
 
@@ -399,5 +399,5 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Row-presence rules differ between train and test | Absent test days get the nationality's mean training arrivals below 10 (4.5–6.1; biased upward, train keeps only Guests ≥ 10); published test rows are clipped at 10 arrivals; predictions floored at max(New Arrivals, 10). Training absences (238 rows) keep interpolation | Implemented for test |
 | Missing events / blocks | Chinese New Year (China), Morocco winter block (§4.7) | Open |
 | Range totals not scored | Back-test scores days only; needs period totals (week, month, [A, B]), direction, % change error and range-interval coverage (§4.8) | Open |
-| Domestic training start | `DOMESTIC_NOWCAST` trains from 2022-07-01 (§4.9): published 8 origins domestic mean fold WAPE 4.85 vs 6.23 | Implemented |
+| Domestic training start | Training from 2022-07-01 is worse on the #11 validation origins (5.37 vs 4.18 domestic WAPE, −1.19 pp [−2.04, −0.20], 7/7); its earlier gain came from origins overlapping the frozen test. `DOMESTIC_NOWCAST` trains on all history | Closed (reverted) |
 | Edge effect | Decompositions disagree on residual memory (last 1–2 days vs ~1–2 weeks); centred smoothers are unreliable near series ends | Analysis finding, unresolved |

@@ -539,7 +539,7 @@ def test_registry_builds_specs_and_covers_every_block():
 
 
 def test_row_rules_match_the_flag_shorthands():
-    from tourism_twin.models.handler import DataHandler, flagged, not_flagged, on_or_after
+    from tourism_twin.models.handler import DataHandler, flagged, not_flagged
 
     frame = _calendar_conv_frame()
     frame["is_one_off_period"] = (np.arange(len(frame)) % 50 == 0).astype(int)
@@ -548,8 +548,6 @@ def test_row_rules_match_the_flag_shorthands():
     kept = rules.training_rows(frame).index
     assert shorthand.training_rows(frame).index.equals(kept)
     assert not frame.loc[kept, "is_one_off_period"].any() and frame.loc[kept, "lag_complete"].all()
-    late = DataHandler(rules=[on_or_after("date", "2024-03-15")]).training_rows(frame)
-    assert late["date"].min() == pd.Timestamp("2024-03-15") and len(late) == (frame["date"] >= "2024-03-15").sum()
 
 
 def test_uniform_or_constant_weights_reproduce_the_unweighted_fit():
