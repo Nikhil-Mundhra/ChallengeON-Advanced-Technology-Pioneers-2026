@@ -192,6 +192,21 @@ Rolling-13: monthly origins 2024-02-01 → 2025-02-01, 6-month horizon. Aug–Ja
 - **Events:** DOMESTIC is better without them everywhere it matters. INTERNATIONAL gains 0.35 on the event fold and is neutral on rolling-13. So: events for INTERNATIONAL only in the nowcast; time-only specs keep events. Box windows only; the smoothed `EventKernel` is untested in the nowcast.
 - The two Feb–Jul reference folds alone would have chosen the wrong international spec: check decisions on rolling origins and on folds containing the relevant windows.
 
+### 4.7 Test-period data findings — *Analysis finding (`analysis/data_coverage.py`)*
+
+Holdout checks use simple stand-ins (fit 2023–24, score Jan–Jul 2025): read gains as direction, not size.
+
+| Finding | Evidence | Implication |
+| --- | --- | --- |
+| Wizz Air Abu Dhabi left AUH in Sep 2025 | Passengers 62.6k (Aug 2025) → 448 (Sep) → 0. Test-period arrivals vs a year earlier: Kazakhstan −49%, Romania −48%, Uzbekistan −47%, Armenia −45%, Azerbaijan −42% (≈ 8.5% of international guests, growing until Jul 2025) | A regime change inside the test period. Stay length is carrier-independent (r −0.2 to +0.05), so the kernel transfers; terms not proportional to arrivals (constant base stock, trend, pooled-market scale) do not. `OTHER_EURASIA` loses 34% of arrivals |
+| Train and test keep rows by different rules | Train: rows only where Guests ≥ 10. Test: rows only where New Arrivals ≥ 10. Blank cells behave as 0 (no zeros in any file) | Finland, Norway, Denmark, Mexico, Azerbaijan lack 29–88 of 212 test days (1.2% of `OTHER_EUROPE` arrivals). Fill absent arrivals with the train mean for such days (≈ 5), not 0; floor predictions at 10 |
+| Morocco winter long-stay block | Guests above what arrivals explain: Nov 2023–Jan 2024 ≈ +145/day, Dec 2024–Feb 2025 ≈ +217/day (Jan 2025: 425 of the cluster's 1,453) | Expect it in Dec 2025–Feb 2026; needs a market-specific block term |
+| Guests per arrival differs by market and drifts | 1.5 (Oman) to 5.5 (Russia); clusters mix extremes (`OTHER_MENA`: Qatar 2.1, Lebanon 4.4). 2023→2025: Egypt +33%, Philippines +43%, US −15%, Netherlands −19% | One shared kernel shape fits long-haul markets (≤ 1.8 pp cost) but not Oman (+8.4) or domestic (+4.3): two shape families, recency weighting |
+| Chinese New Year missing from `events.csv` | Arrivals ×3 but stays shorter (1.5–1.65 vs 2.2–2.4 guests per arrival); kernel over-predicts 1–12%. CNY 2026 (17 Feb) is the largest surge in the data (×3.1) | Add CNY to the registry (China scope) |
+| Large constant base stock | 20–39% of guests for Egypt, Philippines, Lebanon, India, US, Canada | A constant does not follow arrival shifts (+20% or −49% in test): tie it to a 90-day arrivals mean |
+| Flight data adds little once arrivals are known | Median gain −0.09 pp (Egypt, Germany, Ireland +1.5–3.8; Italy, Azerbaijan −4.6 to −5.9). Departure country ≠ nationality (India 0.17 arrivals per passenger, China 6.0) | Use flights to detect regime changes (as above), not as a guest regressor |
+| Domestic decline flattened in 2025 | The −12% to −23% drop behind the domestic slope levelled off; domestic test arrivals −4% vs a year earlier, same weekday profile | Damp or cap the domestic slope over the 7-month horizon |
+
 ## 5. Code structure — *Mostly implemented*
 
 Same pattern as `features/registry.py` (declare once, request by name), applied to models. Tracked in issues [#9](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/9) (time effects), [#10](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/10) (rolling back-test), [#11](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/11) (train / validation / test split).
@@ -323,4 +338,7 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Pooling across nationalities | Pooled markets are split by arrival share; per-nationality kernels (shared shape + per-market scale, §3.2) are untested | Proposed |
 | Total-guests interval | §3.3: needs back-test errors of the summed series | Proposed |
 | Analysis outside the repository | `analysis/*.py` read the raw workbooks directly; figures in §4 are not reproducible from this repository | Analysis finding |
+| Test-period regime change | Wizz Air exit; constant base stock and pooled scales do not follow arrivals (§4.7) | Open |
+| Row-presence rules differ between train and test | Absent test days need arrival fill ≈ 5 and a floor of 10 on predictions (§4.7) | Open |
+| Missing events / blocks | Chinese New Year (China), Morocco winter block (§4.7) | Open |
 | Edge effect | Decompositions disagree on residual memory (last 1–2 days vs ~1–2 weeks); centred smoothers are unreliable near series ends | Analysis finding, unresolved |
