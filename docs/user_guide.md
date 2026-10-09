@@ -223,9 +223,22 @@ Results are in the [README](../README.md#32-weekly-planning-model-forward-holdou
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-77 tests: 53 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`; all pass on a fresh clone. The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required. The prediction-validator test needs the raw test workbooks; `twin predict` itself is not run by the tests.
+85 tests, all passing on a fresh clone: 61 product tests in folders that mirror the packages, and 24 for the audit tool. Run one area with `pytest tests/<area>`:
 
-Product checks in `tests/test_tourism_twin.py`, by section:
+| Folder | Tests | Covers |
+| :--- | ---: | :--- |
+| `tests/data/` | 9 | lake grain, weekly and daily panels, test-file row rules |
+| `tests/features/` | 4 | feature registry, event registry and offsets, one-off masking |
+| `tests/models/` | 35 | components (known-answer recovery), fitting and weights, specs, back-test harness and noise model, fitted-model evaluation |
+| `tests/nowcast/` | 6 | baselines, submission validator, outputs, serving, same-day guests |
+| `tests/planning/` | 4 | waterfall identity, planning rules, scenario residual |
+| `tests/app/` | 1 | web API |
+| `tests/test_architecture.py` | 2 | layering, no row loops |
+| `tests/audit/` | 24 | audit tool |
+
+Shared fixtures are in `tests/conftest.py` and synthetic data with a known answer in `tests/synthetic.py`. The daily panel is built in memory by a fixture, so `daily_market_panel.parquet` is not required; the prediction-validator test needs the raw test workbooks; `twin predict` itself is not run by the tests.
+
+Product checks, by area:
 
 | Section | Asserts |
 | :--- | :--- |

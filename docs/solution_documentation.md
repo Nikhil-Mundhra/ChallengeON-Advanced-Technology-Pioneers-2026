@@ -340,7 +340,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 
 ## 10. Tests
 
-77 tests: 53 in `tests/test_tourism_twin.py` (lake, feature registry, panels and their reconciliation, synthetic recovery for every model component, event registry, back-test harness leakage and parity with `evaluation_results.json`, noise model, architecture layering, prediction validator and outputs, same-day GLM, scenario invariants) and 24 in `tests/test_audit_agent.py`; all pass on a fresh clone. Details: [user guide §10](user_guide.md#10-tests).
+85 tests, in folders that mirror the packages (61 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, API, architecture; 24 for the audit tool); all pass on a fresh clone. Details: [user guide §10](user_guide.md#10-tests).
 
 ## 11. Limitations
 

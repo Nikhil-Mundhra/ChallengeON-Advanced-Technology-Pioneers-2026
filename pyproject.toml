@@ -35,3 +35,4 @@ tourism_twin = ["domain/*.csv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests"]

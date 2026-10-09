@@ -37,8 +37,9 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 ## Tests
 
 - Run `.venv/bin/pytest -q` (or `make test`). If you report counts, run pytest and quote its actual output.
-- Product suite is one file: `tests/test_tourism_twin.py`; shared fixtures in `tests/conftest.py`. Audit-tool tests: `tests/test_audit_agent.py`.
-- Add product tests to `test_tourism_twin.py` in the matching pipeline-order section: lake, feature registry, panels, model components, back-test harness, competition predictions, simulator. Never create a new product test file.
+- Tests mirror the packages: `tests/{data,features,models,nowcast,planning,app,audit}/` plus `tests/test_architecture.py`; run one area with `pytest tests/<area>` (CI scoping).
+- Put a test in the folder of the package it guards, in an existing file when one fits; never create a top-level product test file other than `test_architecture.py`.
+- Shared fixtures live in `tests/conftest.py` (`twin`, `weekly_panel`, `daily_panel`, `kernel_frame`: session-built, copied per test); synthetic generators with a known answer live in `tests/synthetic.py`. Reuse them instead of rebuilding data or refitting the same model in each test.
 - Test behaviour: known-answer recovery, leakage, reconciliation, invariants, regressions. Do not test constants, registry membership, constructor errors or message text.
 - Extend an existing test that already builds the same objects before adding a new one; a new test must fail on the code it guards (check by breaking it).
 - `test_benchmarks_through_the_harness_reproduce_the_committed_evaluation` pins `evaluation_results.json`; a diff there is a metric change.
@@ -84,7 +85,7 @@ cli/        the `twin` command
 - Read `docs/model_design.md` (§3 form, §4 evidence, §5 structure, §5.7 rules) before changing any model. When a measured result changes a modeling rule, update the rule here and its evidence in `docs/model_design.md` in the same change.
 - No general neural networks (MLP/CNN/RNN): ~1,300 daily rows; MLPs lost to the seasonal naive. The arrivals "convolution" is one constrained linear kernel.
 - No interaction or power terms by default (weekday × season, seasonal kernels, `flow^α`): none passed the gate (`docs/model_design.md` §4.2).
-- Add a model part as: one module in `models/components/` (`Component` protocol or `LinearComponent`, `fit(panel, offset, y, weights=None)`), its export in `components/__init__.py`, one `COMPONENTS.register(name, cls)` line in `models/registry.py`, a synthetic test in `tests/test_tourism_twin.py` that recovers a known truth, and its name in a `ModelSpec` in `nowcast/specs.py` (weekly: `planning/specs.py`). Edit nothing else; never hard-wire a model into `training.py` or `evaluation.py`.
+- Add a model part as: one module in `models/components/` (`Component` protocol or `LinearComponent`, `fit(panel, offset, y, weights=None)`), its export in `components/__init__.py`, one `COMPONENTS.register(name, cls)` line in `models/registry.py`, a synthetic test in `tests/models/test_components.py` that recovers a known truth, and its name in a `ModelSpec` in `nowcast/specs.py` (weekly: `planning/specs.py`). Edit nothing else; never hard-wire a model into `training.py` or `evaluation.py`.
 - Declare models as `ModelSpec` data (`models/spec.py`: components by registered name, fitter, row rules, weighting); never build component lists inside functions. Make variants with `adding` / `without` / `replace_component` / `with_weighting`, and route domestic/international with `routed(domestic_spec, international_spec)`.
 - Subclass `ComponentBase` (or `LinearComponent`) for a new component: it supplies the hooks the model and fitters call (`reset`, `penalty`, `final_stage`, `set_default_origin`); never probe for those hooks with `hasattr`/`getattr`.
 - Least-squares fitting math lives in `models/linear_solve.py`; components only provide designs and penalty rows.
