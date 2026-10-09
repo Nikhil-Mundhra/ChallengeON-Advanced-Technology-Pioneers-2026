@@ -54,7 +54,7 @@ class ScenarioLever:
     delta_load_factor: float = 0.0        # Absolute shift in load factor (e.g. +0.02)
     delta_p2p_share: float = 0.0          # Absolute shift in P2P share (e.g. +0.02)
     delta_multiplier_pct: float = 0.0     # Proportional shift in response multiplier (e.g. 0.05 for +5%)
-    delta_los: float = 0.0                # Absolute change in length of stay days (e.g. +0.3)
+    delta_los: float = 0.0                # Absolute change in the guests-per-arrival factor (e.g. +0.3)
 
 
 @dataclass

@@ -159,8 +159,8 @@
     </div>
 
     <div class="control-group">
-      <label>Length of Stay Shift (days): <span class="val" id="val-los">+0.0d</span></label>
-      <input type="range" id="delta-los" min="-1.0" max="2.0" step="0.1" value="0" oninput="updateLabel('val-los', (this.value >= 0 ? '+' : '') + this.value + 'd'); runSimulation();">
+      <label>Guests-per-Arrival Ratio Shift (model lever, absolute): <span class="val" id="val-los">+0.0</span></label>
+      <input type="range" id="delta-los" min="-1.0" max="2.0" step="0.1" value="0" oninput="updateLabel('val-los', (this.value >= 0 ? '+' : '') + this.value); runSimulation();">
     </div>
 
     <button class="btn" onclick="resetControls()">Reset to Baseline</button>
@@ -247,7 +247,7 @@ function resetControls() {
   document.getElementById('delta-lf').value = 0; updateLabel('val-lf', '+0.0%');
   document.getElementById('delta-p2p').value = 0; updateLabel('val-p2p', '+0.0%');
   document.getElementById('delta-mult').value = 0; updateLabel('val-mult', '+0.0%');
-  document.getElementById('delta-los').value = 0; updateLabel('val-los', '+0.0d');
+  document.getElementById('delta-los').value = 0; updateLabel('val-los', '+0.0');
   runSimulation();
 }
 
@@ -314,7 +314,6 @@ function renderUI(d) {
     { name: "Route Load Factor (LF)", b: (c.load_factor.base * 100).toFixed(1) + "%", s: (c.load_factor.sim * 100).toFixed(1) + "%", d: (c.load_factor.delta >= 0 ? "+" : "") + (c.load_factor.delta * 100).toFixed(1) + "%" },
     { name: "P2P Passenger Share", b: (c.p2p_share.base * 100).toFixed(1) + "%", s: (c.p2p_share.sim * 100).toFixed(1) + "%", d: (c.p2p_share.delta >= 0 ? "+" : "") + (c.p2p_share.delta * 100).toFixed(1) + "%" },
     { name: "Effective Response Multiplier", b: c.multiplier.base.toFixed(3), s: c.multiplier.sim.toFixed(3), d: (c.multiplier.delta >= 0 ? "+" : "") + c.multiplier.delta.toFixed(3) },
-    { name: "Average Length of Stay (days)", b: c.los.base.toFixed(2), s: c.los.sim.toFixed(2), d: (c.los.delta >= 0 ? "+" : "") + c.los.delta.toFixed(2) },
   ];
 
   let tbody = "";
@@ -341,7 +340,7 @@ function renderWaterfall(w) {
     { label: "2. Load Factor", val: w.load_factor_effect, color: "#0F766E" },
     { label: "3. P2P Mix", val: w.p2p_effect, color: "#D97706" },
     { label: "4. Multiplier", val: w.multiplier_effect, color: "#7C3AED" },
-    { label: "5. Stay Duration", val: w.los_effect, color: "#EC4899" },
+    { label: "5. Guests/Arrival", val: w.los_effect, color: "#EC4899" },
     { label: "TOTAL LIFT", val: w.total_lift, color: "#102A43" },
   ];
 

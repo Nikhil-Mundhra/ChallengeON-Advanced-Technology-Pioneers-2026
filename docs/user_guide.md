@@ -37,9 +37,6 @@ The CSVs are the test workbooks row for row with a `Guests` column appended. `Gu
 ```text
 spec, coverage, assumptions[]
 markets.<MARKET>:
-  base_stock_share           share of the training stock carried by the base stock c_t, not the kernel
-  implied_mean_stay_days     Σ w_k of the fitted survival curve; null when base_stock_share > 0.25
-  short_stay_share           1 − w_2 / w_0: share of kernel arrivals gone after two nights; null as above
   weeks[]:
     week_start               Monday; only full Monday–Sunday test weeks
     forecast                 sum of daily predicted guests (guest-nights)
@@ -56,8 +53,6 @@ direction_backtest:
 ```
 
 Blocks: `time` (season, weekday, and for domestic the slope held at its last training value) is relative to the training average; `holiday` (events) to a day outside every event window. The model sees each test week's observed new arrivals, so direction accuracy is a nowcast skill; `arrivals_direction` is the sign of the change in new arrivals. The noise model is fitted on the same back-test folds, so `direction_prob_reliability` and `weekly_band_coverage` are in-sample for the error model. `assumptions` states these in the file.
-
-Stay fields are withheld for 7 of 21 markets (DOMESTIC, CHINA, EGYPT, INDIA, PHILIPPINES, OTHER_ASIA_PACIFIC, UNITED STATES OF AMERICA), whose base stock carries more than 25% of the training stock.
 
 
 ---
@@ -96,7 +91,7 @@ twin simulate --market "UNITED KINGDOM" --season Winter_Peak \
 | `--delta-lf` | `0.02` | Absolute change in load factor (`0.02` = +2 pp) |
 | `--delta-p2p` | `0.0` | Absolute change in P2P share |
 | `--delta-mult-pct` | `0.0` | Proportional change in response multiplier (e.g. marketing; `0.05` = +5%) |
-| `--delta-los` | `0.0` | Absolute change in length of stay, days |
+| `--delta-los` | `0.0` | Absolute change in the stay factor L (guests ÷ hotel arrivals) |
 
 `DOMESTIC` has no aviation input: seat, frequency, load-factor and P2P levers have no effect; only `--delta-mult-pct` and `--delta-los` change domestic guests.
 
@@ -107,18 +102,18 @@ twin simulate --market "UNITED KINGDOM" --season Winter_Peak \
 `twin simulate` prints five sections.
 
 1. **Executive recommendation** — weekly guest lift, % vs. baseline, P10–P90 range of the lift, holdout coverage (65.2%), and the top tornado driver.
-2. **Conversion chain** — weekly seats, passengers, P2P, hotel new arrivals and hotel guests (guest-days), plus load factor, P2P share, response multiplier and LOS, baseline vs. scenario.
-3. **Waterfall** — lift attributed in this order: seats, load factor, P2P share, response multiplier, length of stay. Because the attribution is sequential, a lever's share depends on its position in the order.
-4. **Uncertainty** — P10/P50/P90 of simulated total guests and of the lift. Draws: Beta-distributed load factor and P2P share, normal shocks to multiplier and LOS, and 4-week block-bootstrap of the market's historical weekly residuals. Results are deterministic for identical inputs. The P10 of the lift can be negative even when capacity is added.
-5. **Tornado** — swing in guests for ±15% seats, ±4 pp load factor, ±5 pp P2P share, ±10% multiplier, ±0.5 days LOS, ranked.
+2. **Conversion chain** — weekly seats, passengers, P2P, hotel new arrivals and hotel guests (guest-days), plus load factor, P2P share and response multiplier, baseline vs. scenario.
+3. **Waterfall** — lift attributed in this order: seats, load factor, P2P share, response multiplier, stay factor. Because the attribution is sequential, a lever's share depends on its position in the order.
+4. **Uncertainty** — P10/P50/P90 of simulated total guests and of the lift. Draws: Beta-distributed load factor and P2P share, normal shocks to multiplier and stay factor, and 4-week block-bootstrap of the market's historical weekly residuals. Results are deterministic for identical inputs. The P10 of the lift can be negative even when capacity is added.
+5. **Tornado** — swing in guests for ±15% seats, ±4 pp load factor, ±5 pp P2P share, ±10% multiplier, ±0.5 stay factor, ranked.
 
 ---
 
 ## 5. Market directory
 
-Archetypes come from `src/tourism_twin/domain/archetypes.py`. Implied LOS (guests ÷ new arrivals) and arrivals per P2P passenger are ratios of sums over the train split of `weekly_market_panel.parquet`.
+Archetypes come from `src/tourism_twin/domain/archetypes.py`. Guests per new arrival and arrivals per P2P passenger are ratios of sums over the train split of `weekly_market_panel.parquet`. Guests per new arrival is a stock-to-flow ratio, not a measured length of stay; pooled markets mix nationalities.
 
-| Market | Archetype | Implied LOS (days) | Arrivals per P2P pax |
+| Market | Archetype | Guests per new arrival | Arrivals per P2P pax |
 | :--- | :--- | :---: | :---: |
 | INDIA | Resident / VFR | 3.25 | 0.169 |
 | RUSSIAN FEDERATION | Direct Leisure | 4.96 | 1.484 |
@@ -180,7 +175,7 @@ twin serve --port 8080      # open http://localhost:8080
 
 Single page (`src/app/static/index.html`) served by `src/app/server.py`; no frontend build step.
 
-- **Controls:** market, season, added weekly flights, aircraft gauge, load-factor shift, P2P shift, response-multiplier shift, LOS shift, and a reset-to-baseline button. (Seat-percentage shift is CLI/API only.)
+- **Controls:** market, season, added weekly flights, aircraft gauge, load-factor shift, P2P shift, response-multiplier shift, guests-per-arrival ratio shift, and a reset-to-baseline button. (Seat-percentage shift is CLI/API only.)
 - **Panels:** executive recommendation; KPI cards (baseline weekly guests, structural lift, hybrid lift, conformal range, simulated total); waterfall chart; conversion-chain table; tornado chart.
 - **JSON API:** `GET /api/simulate` with query parameters `market`, `season`, `delta_freq`, `gauge`, `delta_seats_pct`, `delta_lf`, `delta_p2p`, `delta_mult_pct`, `delta_los` (an invalid season returns 400); `GET /api/benchmark`.
 
@@ -196,7 +191,7 @@ Trains on complete train-split weeks with complete guest inputs up to `--max-dat
 
 | File | Contents |
 | :--- | :--- |
-| `lake/curated/structural_calibration.json` | Seats, load factor, P2P share, response multiplier, LOS and baseline guests for 21 markets × 4 seasons |
+| `lake/curated/structural_calibration.json` | Seats, load factor, P2P share, response multiplier, stay factor and baseline guests for 21 markets × 4 seasons |
 | `lake/curated/residual_engine.pkl` | One RidgeCV per market on week-of-year harmonics, quarter, season, holiday-week and major-event-week flags; no aviation inputs. Target: actual guests − planning-mode structural prediction (scheduled seats × calibrated seasonal priors). Also stores the mean fitted residual per market and season, used by the simulator |
 | `lake/curated/conformal_calibrator.json` | Per-market conformal margins (target alpha 0.2) and the demonstrated holdout coverage, read from `evaluation_results.json` (run `twin evaluate` first) |
 
@@ -212,8 +207,8 @@ Calibrates on 104 complete weeks (2023-01-02 to 2024-12-23 week starts, 2,132 ma
 
 | Setting | Prediction |
 | :--- | :--- |
-| International planning | Scheduled seats × calibrated seasonal load factor, P2P share, multiplier, LOS. No holdout load factor, P2P or arrivals |
-| International realized-chain | Realized holdout P2P × calibrated multiplier × LOS |
+| International planning | Scheduled seats × calibrated seasonal load factor, P2P share, multiplier, stay factor. No holdout load factor, P2P or arrivals |
+| International realized-chain | Realized holdout P2P × calibrated multiplier × stay factor |
 | Domestic forecast | Calibrated domestic seasonal prior |
 | Combined | International + domestic |
 
@@ -241,7 +236,7 @@ Product checks in `tests/test_tourism_twin.py`, by section:
 | Back-test harness | No fold trains on the future (daily and weekly rows); segment metrics; misindexed or missing predictions raise; skipped folds reported; the harness reproduces `evaluation_results.json` |
 | Noise model | AR(1) recovery and its closed-form variance; a fold's own errors never set its own bounds |
 | Architecture | `nowcast` and `planning` never import each other; packages import only lower layers (any import form); no row loops in model packages |
-| Competition predictions | The validator accepts mirrored files and flags bad ones (including Guests below max(New Arrivals, 10)); absent test days get below-threshold arrivals; full weeks with an AR(1)-based direction probability; the direction back-test scores each week once against its baselines; stay fields withheld when the base stock dominates; the same-day GLM recovers a weekday effect and reads `*` as 0 |
+| Competition predictions | The validator accepts mirrored files and flags bad ones (including Guests below max(New Arrivals, 10)); absent test days get below-threshold arrivals; full weeks with an AR(1)-based direction probability; the direction back-test scores each week once against its baselines; the same-day GLM recovers a weekday effect and reads `*` as 0 |
 | Simulator and API | The API rejects an invalid season and serves a scenario; waterfall = lift within 1e-9 for every calibrated market + `SWEDEN`, season and 6 lever sets, and relatively for 1e7-guest scenarios; route closure, domestic decoupling, added capacity never lowers demand, cold-start priors (SWEDEN, PAKISTAN) and tornado, deterministic Monte Carlo; planning and simulation share one arrivals rule; the scenario residual is the season's mean fit |
 
 ---

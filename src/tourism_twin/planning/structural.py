@@ -5,7 +5,7 @@ Computes the predictive structural conversion chain:
        -> Total Pax (Load Factor)
        -> P2P Pax (P2P Share)
        -> Hotel New Arrivals (Effective Response Multiplier M_m,s)
-       -> Hotel Guests (Length-of-Stay Multiplier L_m,s)
+       -> Hotel Guests (guests-per-arrival factor L_m,s: calibrated guests / arrivals, not a measured stay)
 
 Includes:
 - Exact waterfall attribution decomposition with zero residual discrepancy.

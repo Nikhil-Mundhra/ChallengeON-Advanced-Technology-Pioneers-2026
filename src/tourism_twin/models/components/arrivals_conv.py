@@ -2,8 +2,9 @@
 
     flow_t = c_t + sum_{k=0..K} w_k * Arrivals_{t-k},   contribution = log(flow_t)
 
-w_k is the share of arrivals still staying after k nights (a survival curve): w_k >= 0,
-non-increasing, w_0 <= 1, so implied mean stay = sum w_k. It is one constrained linear filter,
+w_k are the kernel weights linking past arrivals to today's guest stock: w_k >= 0,
+non-increasing, w_0 <= 1. They are a fitting device, not measured stay lengths, and sum(w) is
+not reported as a length of stay (pooled markets mix nationalities). It is one constrained linear filter,
 not a neural network. c_t >= 0 is a slowly varying base stock (long stays, residents), piecewise
 linear between knots spread evenly from the first to the last training day (about one per
 `knot_days`); a first-difference penalty keeps it from jumping at the ends, and it is flat
@@ -201,9 +202,7 @@ class ArrivalsConvolution(ComponentBase):
             raise RuntimeError(f"Component {self.name!r} is not fitted")
         return {
             "survival_w": [float(v) for v in self.w_],
-            "implied_mean_stay_days": float(self.w_.sum()),
-            # Share of the training flow carried by the base stock c_t rather than the kernel; when it
-            # is large, sum(w) understates the guests / new-arrivals ratio.
+            # Share of the training flow carried by the base stock c_t rather than the kernel.
             "base_stock_share": self.base_share_,
             "w0_constraint_binds": self.projected_,
             "solver_success": self.solver_success_,

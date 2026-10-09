@@ -49,7 +49,7 @@ def compute_tornado_sensitivity(
         ("Response Multiplier (+10% / -10%)",
          ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_multiplier_pct=0.10),
          ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_multiplier_pct=-0.10)),
-        ("Length of Stay (+0.5d / -0.5d)",
+        ("Guests-per-arrival factor (+0.5 / -0.5)",
          ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_los=0.5),
          ScenarioLever(market_norm, delta_frequency=ref_freq, aircraft_gauge=ref_gauge, delta_los=-0.5)),
     ]

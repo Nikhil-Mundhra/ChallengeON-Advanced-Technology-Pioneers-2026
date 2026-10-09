@@ -65,11 +65,11 @@ def build_panel(args: argparse.Namespace) -> None:
         .sort_values("guests", ascending=False)
         .head(6)
     )
-    ratios = PANEL_FEATURES.apply(totals, ["implied_los", "effective_response_multiplier", "load_factor_raw"])
+    ratios = PANEL_FEATURES.apply(totals, ["effective_response_multiplier", "load_factor_raw"])
     summary = ratios.rename(columns={
         "guests": "total_guests", "new_arrivals": "total_arrivals", "p2p": "total_p2p",
-        "implied_los": "weighted_los", "effective_response_multiplier": "weighted_multiplier", "load_factor_raw": "weighted_lf",
-    })[["total_guests", "total_arrivals", "weighted_los", "total_p2p", "weighted_multiplier", "weighted_lf"]]
+        "effective_response_multiplier": "weighted_multiplier", "load_factor_raw": "weighted_lf",
+    })[["total_guests", "total_arrivals", "total_p2p", "weighted_multiplier", "weighted_lf"]]
     print(summary.to_string())
 
 

@@ -68,7 +68,7 @@ class StructuralPlanning:
 
 
 class RealizedChain:
-    """Diagnostic: realized P2P passengers x calibrated multiplier x length of stay (domestic:
+    """Diagnostic: realized P2P passengers x calibrated multiplier x guests-per-arrival factor (domestic:
     the planning prediction). Needs realized aviation data, so it is not a planning model."""
 
     def fit(self, panel: pd.DataFrame) -> "RealizedChain":

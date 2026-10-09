@@ -14,7 +14,7 @@ SPLIT_ERROR_DAYS = 365
 def split_shares(rows: pd.DataFrame) -> pd.Series:
     """Each nationality's share of its market on a day: trailing SHARE_WINDOW_DAYS new arrivals
     times the nationality's training guests / arrivals ratio (guests are a stock of recent
-    arrivals, and stay length differs by nationality), normalised within (market, date). Shares
+    arrivals, and the guests-to-arrivals ratio differs by nationality), normalised within (market, date). Shares
     cover every nationality-day, including those absent from the test file."""
     rows = rows.sort_values(["nationality", "date"])
     trailing = rows.groupby(["residence_group", "nationality"], dropna=False)["new_arrivals_filled"].transform(

@@ -1,7 +1,7 @@
 """Daily (market, date) modelling panel with new-arrival lags, for the stock-flow guest model.
 
 Guests on day t are a stock; new arrivals are the flow into it. The panel carries arrival lags
-0..K so a model can learn how long arrivals stay (Guests_t ~ sum_k w_k * Arrivals_{t-k}).
+0..K so a model can learn the arrivals-to-guests kernel (Guests_t ~ sum_k w_k * Arrivals_{t-k}).
 The competition test split withholds only Guests, so arrivals in both splits are features.
 
 Missing-value policy (per nationality-day, before aggregating to markets):

@@ -30,7 +30,6 @@ In the nowcast, arrivals carry most of the level and the event shocks (§4.3). I
 | Same-day guests | Day of week, holiday week, log new arrivals | Daily same-day guests | Competition field | Implemented: Poisson GLM per market (`nowcast/same_day.py`). Analysis: GBM with Poisson loss 19.4% vs 23.8% naive. Suppressed values, see §6 (#14) |
 | Planning (structural) | Seats, levers, seasonal priors | Weekly guests per market × season, waterfall | Simulator, scenario attribution | Implemented (`planning/structural.py`, `planning/residual.py`) |
 | Direction (derived) | Guests history, calendar | Up/down over +7 days | Briefing | Analysis finding: logistic + spline, 74% accuracy, Brier 0.18 vs 43% majority class (`model_baselines.py`) |
-| Short-stay share / weekly stay (derived) | Fitted kernel weights, or guests and arrivals | Share of guests from short stays; weekly guests ÷ arrivals | Briefing | Analysis finding for weekly guests ÷ arrivals: ridge 3.2% vs 6.2% naive. Short-stay share: Proposed, definition not fixed |
 | Intervals (derived) | Out-of-sample back-test errors | P10/P50/P90 | Competition predictions, briefing, simulator | Implemented: `NoiseModel` (`models/noise.py`, AR(1) on log errors by horizon) for daily predictions; Monte Carlo (`planning/uncertainty.py`) and conformal margins (`planning/conformal.py`) for the weekly simulator |
 
 All `model_baselines.py` figures are on a single 6-month holdout, 2025-02 to 2025-07.
@@ -55,14 +54,14 @@ Kernel constraints:
 
 | Constraint | Reason | In `ArrivalsConvolution`? |
 | --- | --- | --- |
-| w_k ≥ 0 and non-increasing | A share of arrivals still in a hotel after k nights cannot be negative or rise. Fitted by NNLS on increments: w = triu(1) · d, d ≥ 0 | Yes |
+| w_k ≥ 0 and non-increasing | Keeps the lag weights smooth and identifiable; w is a fitting device, not a measured share of arrivals still in a hotel. Fitted by NNLS on increments: w = triu(1) · d, d ≥ 0 | Yes |
 | w₀ ≤ 1 | An arrival is counted at most once on its arrival day. An unconstrained fit gave w₀ = 1.15 | Yes (`ArrivalsConvolution`, projected when the solver overshoots) |
 | c ≥ 0 | Base stock of guests cannot be negative | Yes |
-| c_t slowly varying | Base stock of long-stayers. A constant c cannot drop in Ramadan (domestic keeps a −11.5% Ramadan residual after the kernel) | Yes: piecewise, non-negative (`ArrivalsConvolution`) |
+| c_t slowly varying | Base stock: guests not explained by arrivals of the last K days. A constant c cannot drop in Ramadan (domestic keeps a −11.5% Ramadan residual after the kernel) | Yes: piecewise, non-negative (`ArrivalsConvolution`) |
 | Day of week in m_t, not in w | Weekly spikes in an unconstrained kernel are the weekday pattern leaking in | Yes |
-| Lunar events in m_t, not modulating w | Residual stay-length change after the kernel is small for international | Yes |
+| Lunar events in m_t, not modulating w | Residual change in guests per arrival after the kernel is small for international | Yes |
 
-**Standard names.** `flow_t` is a distributed-lag (transfer-function, dynamic-regression) model; in queueing terms it is the occupancy of an M/G/∞ queue (arrivals × probability of still staying). The whole form is a generalized additive model with a log link: terms add in log, so they multiply on the guest scale.
+**Standard names.** `flow_t` is a distributed-lag (transfer-function, dynamic-regression) model; in queueing terms it has the form of M/G/∞ queue occupancy; w is fitted, not measured as a stay distribution. The whole form is a generalized additive model with a log link: terms add in log, so they multiply on the guest scale.
 
 **Not a CNN.** `flow_t` is one linear filter over one input series: a single constrained kernel, no stacked layers, no non-linearity between layers, no learned feature maps. "Convolution" refers only to the sum Σ w_k · Arrivals_{t−k}. MLPs tested in `model_baselines.py` were often worse than the seasonal naive.
 
@@ -121,7 +120,7 @@ Daily totals (domestic; international summed over nationalities) read from the t
 - Order matters when components are fitted greedily: kernel-first 6.1 / 4.8, calendar-first 9.8 / 13.3.
 - The joint backfit converges to the same WAPE from both starting orders (same WAPE to 6 decimal places): order-free at convergence.
 - GBM on the joint residual gives no consistent gain (worse on both 2024 folds, better on both 2025 folds); dropped.
-- Joint kernel Σw: domestic 1.6–2.2, international 3.3–3.5 across folds (c unconstrained). International Σw is close to the train-split guests ÷ new arrivals ratio of 3.61 ([solution documentation §4.2](solution_documentation.md#42-data-findings-that-shape-the-model)), which is a stock-to-flow ratio, not a measured length of stay. Σw depends on how much of the level the constant c absorbs: with c ≥ 0 the probe got international Σw = 2.34 with c ≈ 6.9k (§4.5). Read Σw as a stay estimate only together with c.
+- Joint kernel Σw: domestic 1.6–2.2, international 3.3–3.5 across folds (c unconstrained). International Σw is close to the train-split guests ÷ new arrivals ratio of 3.61 ([solution documentation §4.2](solution_documentation.md#42-data-findings-that-shape-the-model)), which is a stock-to-flow ratio, not a measured length of stay. Σw depends on how much of the level the constant c absorbs: with c ≥ 0 the probe got international Σw = 2.34 with c ≈ 6.9k (§4.5). Σw is a fitting quantity linking past arrivals to the guest stock; it is not reported as a length of stay.
 - Event windows in this script are hard-coded date lists for 2023–2025 (Ramadan, Eid al-Fitr, Eid al-Adha, National Day, 22 Dec–7 Jan).
 
 ### 4.2 Interactions and functional form (`analysis/interactions_test.py`)
@@ -208,11 +207,11 @@ Holdout checks use simple stand-ins (fit 2023–24, score Jan–Jul 2025): read 
 
 | Finding | Evidence | Implication |
 | --- | --- | --- |
-| Wizz Air Abu Dhabi left AUH in Sep 2025 | Passengers 62.6k (Aug 2025) → 448 (Sep) → 0. Test-period arrivals vs a year earlier: Kazakhstan −49%, Romania −48%, Uzbekistan −47%, Armenia −45%, Azerbaijan −42% (≈ 8.5% of international guests, growing until Jul 2025) | A regime change inside the test period. Stay length is carrier-independent (r −0.2 to +0.05), so the kernel transfers; terms not proportional to arrivals (constant base stock, trend, pooled-market scale) do not. `OTHER_EURASIA` loses 34% of arrivals |
+| Wizz Air Abu Dhabi left AUH in Sep 2025 | Passengers 62.6k (Aug 2025) → 448 (Sep) → 0. Test-period arrivals vs a year earlier: Kazakhstan −49%, Romania −48%, Uzbekistan −47%, Armenia −45%, Azerbaijan −42% (≈ 8.5% of international guests, growing until Jul 2025) | A regime change inside the test period. Guests per arrival is carrier-independent (r −0.2 to +0.05), so the kernel transfers; terms not proportional to arrivals (constant base stock, trend, pooled-market scale) do not. `OTHER_EURASIA` loses 34% of arrivals |
 | Train and test keep rows by different rules | Train: rows only where Guests ≥ 10. Test: rows only where New Arrivals ≥ 10. Blank cells behave as 0 (no zeros in any file) | Finland, Norway, Denmark, Mexico, Azerbaijan lack 29–88 of 212 test days (1.2% of `OTHER_EUROPE` arrivals). Fill absent arrivals with the train mean for such days (≈ 5), not 0; floor predictions at 10 |
-| Morocco winter long-stay block | Guests above what arrivals explain: Nov 2023–Jan 2024 ≈ +145/day, Dec 2024–Feb 2025 ≈ +217/day (Jan 2025: 425 of the cluster's 1,453) | Expect it in Dec 2025–Feb 2026; needs a market-specific block term; measured: OTHER_AMERICAS_AFRICA daily WAPE 11.28 → 13.42 with a scoped `morocco_winter_stays` kernel (peaks a month apart in the two winters), not shipped |
+| Morocco winter guest block | Guests above what arrivals explain: Nov 2023–Jan 2024 ≈ +145/day, Dec 2024–Feb 2025 ≈ +217/day (Jan 2025: 425 of the cluster's 1,453) | Expect it in Dec 2025–Feb 2026; needs a market-specific block term; measured: OTHER_AMERICAS_AFRICA daily WAPE 11.28 → 13.42 with a scoped `morocco_winter_stays` kernel (peaks a month apart in the two winters), not shipped |
 | Guests per arrival differs by market and drifts | 1.5 (Oman) to 5.5 (Russia); clusters mix extremes (`OTHER_MENA`: Qatar 2.1, Lebanon 4.4). 2023→2025: Egypt +33%, Philippines +43%, US −15%, Netherlands −19% | One shared kernel shape fits long-haul markets (≤ 1.8 pp cost) but not Oman (+8.4) or domestic (+4.3): two shape families, recency weighting |
-| Chinese New Year (added to `events.csv`, scope CHINA) | Arrivals ×3 but stays shorter (1.5–1.65 vs 2.2–2.4 guests per arrival); kernel over-predicts 1–12%. CNY 2026 (17 Feb) is the largest surge in the data (×3.1) | Add CNY to the registry (China scope); measured: CHINA daily WAPE 16.47 → 16.78 with the event (the kernel already follows the surge), not in the default kernel |
+| Chinese New Year (added to `events.csv`, scope CHINA) | Arrivals ×3 but fewer guests per arrival (1.5–1.65 vs 2.2–2.4); kernel over-predicts 1–12%. CNY 2026 (17 Feb) is the largest surge in the data (×3.1) | Add CNY to the registry (China scope); measured: CHINA daily WAPE 16.47 → 16.78 with the event (the kernel already follows the surge), not in the default kernel |
 | Large constant base stock | 20–39% of guests for Egypt, Philippines, Lebanon, India, US, Canada | A constant does not follow arrival shifts (+20% or −49% in test): tie it to a 90-day arrivals mean |
 | Flight data adds little once arrivals are known | Median gain −0.09 pp (Egypt, Germany, Ireland +1.5–3.8; Italy, Azerbaijan −4.6 to −5.9). Departure country ≠ nationality (India 0.17 arrivals per passenger, China 6.0) | Use flights to detect regime changes (as above), not as a guest regressor |
 | Domestic decline flattened in 2025 | The −12% to −23% drop behind the domestic slope levelled off; domestic test arrivals −4% vs a year earlier, same weekday profile | Damp or cap the domestic slope over the 7-month horizon; implemented: the slope is held flat beyond training (13 origins: 5.46 vs 5.97 linear, bias −0.36% vs −2.61%) |
@@ -232,6 +231,24 @@ Holdout checks use simple stand-ins (fit 2023–24, score Jan–Jul 2025): read 
 - Direction over 2-week ranges is right ~90%; the size of the change is off by ~3–4 pp, so a stated "up X%" needs |X| ≳ 8% (about twice that error) to be reliable.
 - Predictions are medians (`exp(Σ)`), so summed ranges are biased low unless smeared (`bias_correction="smearing"`, a metric change to gate).
 - Not covered by automated tests yet: the back-test scores single days only (§6).
+
+### 4.9 Factor chain and domestic history — *Analysis finding (`analysis/factor_chain.py`, back-tests)*
+
+Flight-side links, 33 matched countries, 2023-01 → 2025-07, calendar removed (month-of-year effects + trend per country), country-cluster bootstrap intervals:
+
+| Link | Result | Status |
+| --- | --- | --- |
+| Passengers → transfer share | −0.07 per log PAX, CI [−0.15, +0.05] | Not supported |
+| Transfer share → guests per arrival | −0.15 to −0.18 given arrivals; significant in 5–6 of 32 countries | Weak |
+| Premium share → guests per arrival | Sign flips (−0.11 monthly, +0.20 weekly) | Not supported |
+| P2P passengers → hotel New Arrivals | Elasticity 0.46–0.56, within-R² 0.27–0.35, positive in 31–33 of 33 | Supported, loose |
+| Transfer / premium share in the guests forecast (2025 holdout) | Change ≤ 0.1 pp WAPE, intervals include 0; per-country fits diverge out of range | No gain |
+
+Collinearity: condition number 9–12 across flight inputs (PAX vs seats r = 0.95); {arrivals, transfer share, premium share} ≈ 1.5.
+
+Domestic short history: guests per arrival 3.55 (2022Q1) → 2.5 (2022Q4), a one-off post-COVID shift. With training from 2022-01, `CentredSlope` fits it as trend: origin 2023-08 → −8.6% bias (Aug–Oct 2023). Domestic, 19 rolling origins 2023-08 → 2025-02, 6-month horizon, mean / worst-fold WAPE: training from 2022-01 5.72 / 7.91; from 2022-07 4.79 / 5.61; `Recency(180)` 4.94 / 6.58; `Recency(365)` 5.14 / 7.20.
+
+Date-only vs nowcast, single 3-month windows (WAPE domestic / international): Aug–Oct 2023 `time_only` 4.5 / 8.8, `twin_daily` 8.7 / 3.3; Aug–Oct 2024 7.6 / 6.5 vs 2.8 / 4.9; Feb–Apr 2025 11.1 / 11.3 vs 7.5 / 3.6.
 
 ## 5. Code structure — *Mostly implemented*
 
@@ -381,4 +398,5 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Row-presence rules differ between train and test | Absent test days get the nationality's mean training arrivals below 10 (4.5–6.1; biased upward, train keeps only Guests ≥ 10); published test rows are clipped at 10 arrivals; predictions floored at max(New Arrivals, 10). Training absences (238 rows) keep interpolation | Implemented for test |
 | Missing events / blocks | Chinese New Year (China), Morocco winter block (§4.7) | Open |
 | Range totals not scored | Back-test scores days only; needs period totals (week, month, [A, B]), direction, % change error and range-interval coverage (§4.8) | Open |
+| Domestic training start | Train `DOMESTIC_NOWCAST` from 2022-07-01 (§4.9); not yet in `nowcast/specs.py` | Open |
 | Edge effect | Decompositions disagree on residual memory (last 1–2 days vs ~1–2 weeks); centred smoothers are unreliable near series ends | Analysis finding, unresolved |

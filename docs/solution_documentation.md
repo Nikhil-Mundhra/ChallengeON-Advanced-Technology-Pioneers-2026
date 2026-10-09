@@ -10,10 +10,10 @@ Two models:
 
 | Model | Inputs for the predicted period | Output | Command |
 | --- | --- | --- | --- |
-| Daily nowcast (`twin_daily`) | Daily new arrivals per market | Daily guests per market and nationality for 2025-08-01 to 2026-02-28, P10/P50/P90, weekly direction, implied stay | `twin predict` |
+| Daily nowcast (`twin_daily`) | Daily new arrivals per market | Daily guests per market and nationality for 2025-08-01 to 2026-02-28, P10/P50/P90, weekly direction | `twin predict` |
 | Weekly planning model | Scheduled seats, planner levers, calibrated seasonal priors | Weekly guest lift per market and season | `twin simulate`, `twin serve` |
 
-**Planning model.** It estimates how a change in air connectivity changes weekly hotel guests for a source market and season. A planner changes weekly frequency, aircraft gauge, seat capacity, load factor, P2P share, response multiplier or length of stay and gets:
+**Planning model.** It estimates how a change in air connectivity changes weekly hotel guests for a source market and season. A planner changes weekly frequency, aircraft gauge, seat capacity, load factor, P2P share, response multiplier or stay factor and gets:
 
 - baseline vs. scenario at every step of the seats → guests chain;
 - the lift attributed to each lever (waterfall);
@@ -125,7 +125,7 @@ Package layout: [README §2](../README.md#2-architecture).
 | Mode | Purpose | Allowed inputs |
 | --- | --- | --- |
 | Planning | Pre-flight decisions; what the simulator serves | Scheduled seats, planner levers, calibrated seasonal priors. No realized pax, P2P or hotel arrivals for the predicted period |
-| Realized-chain (diagnostic) | Isolates error in the downstream stages | Realized P2P × calibrated multiplier × LOS |
+| Realized-chain (diagnostic) | Isolates error in the downstream stages | Realized P2P × calibrated multiplier × stay factor |
 | Nowcast | Predicting the withheld competition `Guests` (`twin predict`, `twin_daily`) | Test-period new arrivals, which the test files contain; no feature derived from `Guests` |
 
 Results from different modes are reported separately.
@@ -142,7 +142,7 @@ Per market $m$ and season $s$, calibrated from the mean of weekly seats, pax, P2
 LF        = mean pax / mean seats
 P2PShare  = mean P2P / mean pax
 M[m,s]    = mean hotel arrivals / mean P2P        (effective response multiplier)
-L[m,s]    = mean guests / mean hotel arrivals     (stay factor)
+L[m,s]    = mean guests / mean hotel arrivals     (stay factor: stock-to-flow ratio, not a measured stay)
 
 Guests = Seats × LF × P2PShare × M × L
 ```
@@ -150,7 +150,7 @@ Guests = Seats × LF × P2PShare × M × L
 - **Market bridge.** Departure country $k$ is linked to nationality $k$. $M_{m,s}$ absorbs non-national passengers, indirect connections and overland arrivals (e.g. via DXB). A full 45 × 33 country-to-nationality matrix (1,485 parameters) is not identifiable from aggregate weekly series and is not estimated.
 - **Planning prediction** (`planning_guests`): scheduled seats × calibrated LF, P2P share, $M$, $L$. A served market whose seats carry no P2P passengers has zero aviation arrivals; an unserved market keeps its calibrated arrivals; `DOMESTIC` = calibrated arrivals × $L$, independent of seats. The simulator's baseline applies the same rule (`MarketSeasonParams.arrivals_from`).
 - **Cold start.** A country without calibration gets its archetype's default LF, P2P share, $M$ and $L$ (`domain/archetypes.py`; unknown countries map to Emerging / Sparse).
-- **Waterfall.** The scenario lift is attributed sequentially: seats, load factor, P2P share, multiplier, LOS. The five parts sum to the total lift (tested to < 1e-9 for every calibrated market, a cold-start market, all seasons and 6 lever sets). `simulate` raises if they differ by more than a relative 1e-9 (absolute 1e-6).
+- **Waterfall.** The scenario lift is attributed sequentially: seats, load factor, P2P share, multiplier, stay factor. The five parts sum to the total lift (tested to < 1e-9 for every calibrated market, a cold-start market, all seasons and 6 lever sets). `simulate` raises if they differ by more than a relative 1e-9 (absolute 1e-6).
 
 ### 7.2 Residual ML (`planning/residual.py`, `planning/calendar_features.py`)
 
@@ -162,15 +162,15 @@ One `RidgeCV` per market. Features: two week-of-year sine/cosine harmonic pairs,
 
 ### 7.3 Domestic demand
 
-`DOMESTIC` uses its calibrated seasonal arrivals × LOS. Seat, frequency, load-factor and P2P levers have no effect; multiplier and LOS levers do (tested).
+`DOMESTIC` uses its calibrated seasonal arrivals × stay factor $L$. Seat, frequency, load-factor and P2P levers have no effect; multiplier and stay-factor levers do (tested).
 
 ### 7.4 Uncertainty and sensitivity (`planning/uncertainty.py`, `planning/conformal.py`, `planning/sensitivity.py`)
 
 | Component | Method |
 | --- | --- |
-| Monte Carlo (1,500 draws default) | Load factor and P2P share ~ Beta (method-of-moments, sd 0.03 and 0.04); multiplier and LOS × Normal(1, 0.06) and Normal(1, 0.04); residuals by 4-week block bootstrap of the market's weekly training residuals. Seed derived from the scenario via SHA-256, so identical inputs give identical bands |
+| Monte Carlo (1,500 draws default) | Load factor and P2P share ~ Beta (method-of-moments, sd 0.03 and 0.04); multiplier and stay factor × Normal(1, 0.06) and Normal(1, 0.04); residuals by 4-week block bootstrap of the market's weekly training residuals. Seed derived from the scenario via SHA-256, so identical inputs give identical bands |
 | Conformal margin | Per market: (1 − α) quantile of in-sample relative planning-mode error on the training window, α = 0.2 |
-| Tornado | Guest swing for ±15% seats, ±4 pp LF, ±5 pp P2P share, ±10% multiplier, ±0.5 days LOS; cold-start markets use a reference route |
+| Tornado | Guest swing for ±15% seats, ±4 pp LF, ±5 pp P2P share, ±10% multiplier, ±0.5 stay factor; cold-start markets use a reference route |
 
 ### 7.5 Daily nowcast (`nowcast/specs.py`, `models/components/`, `models/composite.py`)
 
@@ -184,7 +184,7 @@ flow_t   = c_t + Σ_{k=0..21} w_k · NewArrivals_{t−k}
 
 | Component | Form | Domestic (`domestic_nowcast`) | International (`intl_nowcast`) |
 | --- | --- | :---: | :---: |
-| `ArrivalsConvolution(K=21)` | Contribution log(flow_t). w_k = share of arrivals still staying after k nights: w = U d with d ≥ 0 (non-increasing), Σd ≤ 1 (w₀ ≤ 1). c_t ≥ 0 is a base stock, piecewise linear between knots about 365 days apart with a first-difference penalty, flat beyond the training days. Bounded least squares, then SLSQP when Σd > 1, then projection onto Σd ≤ 1 if the solver stops short. Owns the level | ✓ | ✓ |
+| `ArrivalsConvolution(K=21)` | Contribution log(flow_t). w_k = weight on arrivals k days earlier (a fitting device, not a measured stay distribution): w = U d with d ≥ 0 (non-increasing), Σd ≤ 1 (w₀ ≤ 1). c_t ≥ 0 is a base stock, piecewise linear between knots about 365 days apart with a first-difference penalty, flat beyond the training days. Bounded least squares, then SLSQP when Σd > 1, then projection onto Σd ≤ 1 if the solver stops short. Owns the level | ✓ | ✓ |
 | `CentredSlope` | Log-linear slope in years since the first training day, centred on the training rows; flat beyond the last training day | ✓ | — |
 | `AnnualFourier(4)` | 4 sine/cosine pairs of day of year, centred | ✓ | ✓ |
 | `DayOfWeek` | One effect per weekday (Monday reference), centred | ✓ | ✓ |
@@ -224,7 +224,6 @@ A pooled market's prediction is split across its nationalities by share = (trail
 | Direction, probability | Sign of the log change to the next week; probability from the s.d. of the difference of the two weeks' log errors under the same covariance |
 | Year-on-year change | Forecast ÷ actual guests of the week 364 days earlier − 1 |
 | Top drivers | Model blocks other than the flow (time, holiday, flight, residual) with |mean log contribution| ≥ 0.5% in the week, as % effects |
-| Implied mean stay, short-stay share | Σ w_k and 1 − w₂ / w₀; withheld when the base stock carries more than 25% of the training stock (7 of 21 markets) |
 
 
 ### 7.9 Same-day guests (`nowcast/same_day.py`)
@@ -233,7 +232,7 @@ A pooled market's prediction is split across its nationalities by share = (trail
 
 ## 8. Archetypes
 
-Seven archetypes assigned per market in `domain/archetypes.py`: Direct Leisure, Resident / VFR, Regional GCC, Hub-Mediated, Highly Seasonal, Emerging / Sparse, Domestic Staycation. Each carries default LF, P2P share, multiplier and LOS used for cold start. They describe aggregate market behavior, not traveler demographics. Per-market assignment: [user guide §5](user_guide.md#5-market-directory).
+Seven archetypes assigned per market in `domain/archetypes.py`: Direct Leisure, Resident / VFR, Regional GCC, Hub-Mediated, Highly Seasonal, Emerging / Sparse, Domestic Staycation. Each carries default LF, P2P share, multiplier and stay factor used for cold start. They describe aggregate market behavior, not traveler demographics. Per-market assignment: [user guide §5](user_guide.md#5-market-directory).
 
 ## 9. Validation
 
@@ -323,9 +322,9 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 
 **Domestic slope beyond training** (13 origins 2024-02..2025-02, daily WAPE / bias): linear 5.97% / −2.61%; damped over 180 days 5.76% / −2.01%; over 90 days 5.66% / −1.63%; flat 5.46% / −0.36%; no slope 8.72% / +7.27%. `CentredSlope` holds the trend flat beyond the last training day by default.
 
-**Market-scoped events** (folds 2024-08..2025-01, which contain the windows; market daily WAPE without / with): Chinese New Year for CHINA 16.47% / 16.78%; Morocco winter long stays for OTHER_AMERICAS_AFRICA 11.28% / 13.42%. Both are in `events.csv` with their market scope and neither is in the default event kernel.
+**Market-scoped events** (folds 2024-08..2025-01, which contain the windows; market daily WAPE without / with): Chinese New Year for CHINA 16.47% / 16.78%; Morocco winter guest block (`morocco_winter_stays`) for OTHER_AMERICAS_AFRICA 11.28% / 13.42%. Both are in `events.csv` with their market scope and neither is in the default event kernel.
 
-**Time-varying survival curve** (not shipped): per-regime curves 8.72% overall WMAPE vs 8.39% for one shared curve × calendar (both measured with the earlier raw-scale kernel fit; the shipped fit now scores 8.31%); recency weighting destabilised domestic. `twin_daily` uses one curve per market.
+**Time-varying kernel** (not shipped): per-regime curves 8.72% overall WMAPE vs 8.39% for one shared curve × calendar (both measured with the earlier raw-scale kernel fit; the shipped fit now scores 8.31%); recency weighting destabilised domestic. `twin_daily` uses one kernel per market.
 
 **Fit diagnostics.** All 168 fits (21 markets × 8 origins) converge; `BacktestResult.diagnostics` counts non-converged fits. Domestic results are identical for caps of 20, 50, 200 and 1,000 passes (13 rolling origins 2024-02..2025-02, daily WAPE 5.97%).
 
@@ -340,8 +339,8 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 | Departure country used as proxy for nationality | Misallocated market impact | Calibrated effective multiplier; planner-adjustable; documented |
 | Planning-model interval coverage 65.2% vs. 80% nominal | Simulator P10–P90 ranges are too narrow on the 2025 holdout | Coverage reported with every briefing; the simulator still uses the conformal margins |
 | Domestic prior over-forecast 2025 by 13.05% | Domestic baseline too high for 2025 conditions | Reported; domestic modeled separately |
-| Stay factor $L$ is a stock-to-flow ratio, not a measured length of stay | LOS lever is an approximation | The nowcast's survival curve is not used by the simulator |
-| Nowcast implied stay Σw understates the guests ÷ new arrivals ratio where the base stock c_t carries part of the stock | `implied_mean_stay_days` is not a measured stay | `base_stock_share` exported; stay fields withheld above 25% (7 of 21 markets) |
+| Stay factor $L$ is a stock-to-flow ratio, not a measured length of stay | LOS lever (`--delta-los`) shifts a ratio, not a measured stay | The nowcast kernel is not used by the simulator |
+| Nowcast kernel sum Σw is a fitting quantity linking past arrivals to the guest stock; it is below guests ÷ new arrivals where the base stock c_t carries part of the stock | Σw is not a length of stay | Not reported in any output |
 | Domestic nowcast interval coverage falls with horizon (90% at h ≤ 13 days, 71% at h > 120) | Late test-period domestic bounds are too narrow | Reported; no horizon-specific correction |
 | Nationality split of pooled markets is a modelled share | Extra error per nationality (split WMAPE 14.0%) | Split variance added to nationality intervals |
 | Structural-only accuracy does not beat the seasonal prior | Structural chain is for scenario attribution more than for point forecasting | Hybrid reported alongside |

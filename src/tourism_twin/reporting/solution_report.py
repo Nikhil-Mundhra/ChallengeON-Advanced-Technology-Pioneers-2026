@@ -310,7 +310,7 @@ def build_solution_report() -> Path:
         [Paragraph("Flight Passengers (Pax)", styles["td_bold"]), Paragraph("12,604", styles["td_center"]), Paragraph("13,420", styles["td_center"]), Paragraph("+817 (+6.5%)", styles["td_center"]), Paragraph("Seats x Simulated Load Factor (93.0%)", styles["td"])],
         [Paragraph("Point-to-Point (P2P)", styles["td_bold"]), Paragraph("3,556", styles["td_center"]), Paragraph("3,786", styles["td_center"]), Paragraph("+230 (+6.5%)", styles["td_center"]), Paragraph("Pax x P2P Passenger Share (28.2%)", styles["td"])],
         [Paragraph("Hotel New Arrivals", styles["td_bold"]), Paragraph("3,789", styles["td_center"]), Paragraph("4,035", styles["td_center"]), Paragraph("+245 (+6.5%)", styles["td_center"]), Paragraph("P2P x Response Multiplier M (1.066)", styles["td"])],
-        [Paragraph("Hotel Guests (Guest-Days)", styles["td_bold"]), Paragraph("17,645", styles["td_center"]), Paragraph("18,788", styles["td_center"]), Paragraph("<b>+1,143 (+6.5%)</b>", styles["td_center"]), Paragraph("Arrivals x Length of Stay L (4.66 days)", styles["td"])],
+        [Paragraph("Hotel Guests (Guest-Days)", styles["td_bold"]), Paragraph("17,645", styles["td_center"]), Paragraph("18,788", styles["td_center"]), Paragraph("<b>+1,143 (+6.5%)</b>", styles["td_center"]), Paragraph("Arrivals x guests-per-arrival factor L", styles["td"])],
     ]
     t_chain = Table(chain_data, colWidths=[42 * mm, 20 * mm, 20 * mm, 26 * mm, 62 * mm])
     t_chain.setStyle(TableStyle([

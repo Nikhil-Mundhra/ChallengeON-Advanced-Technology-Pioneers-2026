@@ -97,6 +97,11 @@ cli/        the `twin` command
 - Domestic and international differ only by spec: route with `MarketRouter`, never subclass a model per series. Evaluate each series separately; a total-guests interval comes from back-test errors of the summed series, not from adding intervals (§3.3).
 - The competition task is a nowcast: test-split `New Arrivals` are inputs; never use a feature derived from `Guests`.
 - Fit components jointly (`models/fitters.py`); centre periodic contributions; the one level owner and event terms (zero outside their windows) are not centred.
+- Nowcast guests equation inputs: hotel New Arrivals (kernel) + calendar blocks only. Flight, transfer, premium and seat features do not enter it (`docs/model_design.md` §4.9).
+- Planning chain: one equation per link (flights → hotel arrivals → guests), simulated end to end; never put flights and arrivals in the same guests equation.
+- Calendar terms go in every equation; never de-seasonalize a variable separately before fitting.
+- A new input enters as a mixing weight inside the arrivals kernel or as a centred ratio, with one pooled coefficient; never as a free additive log term, never fitted per country.
+- Kernel weights, their sum and guests ÷ arrivals ratios are fitting quantities: never output, export or label them as length of stay; label the planning factor L "guests-per-arrival factor".
 - Nowcast specs are per series (`docs/model_design.md` §4.6): the arrivals kernel owns the level; DOMESTIC adds a centred slope and no events; INTERNATIONAL has events and no slope.
 - Before changing a nowcast model, reproduce the reference evaluation in `docs/model_design.md` §5.7 and compare with its expected values.
 - Compare models only through `models/backtest.backtest` with `RollingOrigin`/`HoldoutSplit`; pass `period_days=7` for weekly panels (else look-ahead leakage).

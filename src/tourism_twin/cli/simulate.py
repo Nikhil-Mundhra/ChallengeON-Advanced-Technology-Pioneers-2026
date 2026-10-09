@@ -27,7 +27,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("--delta-mult-pct", dest="delta_mult_pct", type=float, default=0.0,
                         help="Proportional shift in response multiplier from marketing (e.g. +0.05)")
     parser.add_argument("--delta-los", dest="delta_los", type=float, default=0.0,
-                        help="Absolute shift in length of stay days (e.g. +0.3)")
+                        help="Absolute shift in the guests-per-arrival factor (e.g. +0.3)")
     parser.set_defaults(func=run)
 
 
@@ -79,7 +79,6 @@ def run(args: argparse.Namespace) -> None:
     print(f"{'Load Factor (LF)':<32} {s_res.base_lf:>11.1%} {s_res.sim_lf:>11.1%} {s_res.sim_lf - s_res.base_lf:>+15.1%}")
     print(f"{'P2P Passenger Share':<32} {s_res.base_p2p_share:>11.1%} {s_res.sim_p2p_share:>11.1%} {s_res.sim_p2p_share - s_res.base_p2p_share:>+15.1%}")
     print(f"{'Effective Response Multiplier':<32} {s_res.base_multiplier:>12.3f} {s_res.sim_multiplier:>12.3f} {s_res.sim_multiplier - s_res.base_multiplier:>+16.3f}")
-    print(f"{'Length of Stay (LOS days)':<32} {s_res.base_los:>12.2f} {s_res.sim_los:>12.2f} {s_res.sim_los - s_res.base_los:>+16.2f}")
 
     print("\n3. EXACT WATERFALL ATTRIBUTION (Decomposition of Incremental Guests):")
     print("-" * 80)
@@ -90,7 +89,7 @@ def run(args: argparse.Namespace) -> None:
     print(f"{'2. Load Factor Optimization Effect':<38} {s_res.waterfall_lf:>+16,.1f} {s_res.waterfall_lf / total_lift:>17.1%}")
     print(f"{'3. P2P Share Shift Effect':<38} {s_res.waterfall_p2p:>+16,.1f} {s_res.waterfall_p2p / total_lift:>17.1%}")
     print(f"{'4. Response Multiplier Uplift Effect':<38} {s_res.waterfall_multiplier:>+16,.1f} {s_res.waterfall_multiplier / total_lift:>17.1%}")
-    print(f"{'5. Stay Duration Extension Effect':<38} {s_res.waterfall_los:>+16,.1f} {s_res.waterfall_los / total_lift:>17.1%}")
+    print(f"{'5. Guests-per-arrival factor effect':<38} {s_res.waterfall_los:>+16,.1f} {s_res.waterfall_los / total_lift:>17.1%}")
     print("-" * 80)
     total_waterfall = (
         s_res.waterfall_seats

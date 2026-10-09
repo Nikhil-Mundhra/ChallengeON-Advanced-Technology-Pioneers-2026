@@ -41,7 +41,7 @@ def plot_waterfall(report, out_path: Path) -> Path:
         "2. Load Factor",
         "3. P2P Mix",
         "4. Multiplier",
-        "5. Stay Duration",
+        "5. Guests/Arrival",
         "TOTAL LIFT",
     ]
     values = [

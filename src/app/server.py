@@ -104,7 +104,6 @@ class DigitalTwinHandler(BaseHTTPRequestHandler):
                     "load_factor": {"base": s.base_lf, "sim": s.sim_lf, "delta": s.sim_lf - s.base_lf},
                     "p2p_share": {"base": s.base_p2p_share, "sim": s.sim_p2p_share, "delta": s.sim_p2p_share - s.base_p2p_share},
                     "multiplier": {"base": s.base_multiplier, "sim": s.sim_multiplier, "delta": s.sim_multiplier - s.base_multiplier},
-                    "los": {"base": s.base_los, "sim": s.sim_los, "delta": s.sim_los - s.base_los},
                 },
                 "waterfall": {
                     "seats_effect": s.waterfall_seats,

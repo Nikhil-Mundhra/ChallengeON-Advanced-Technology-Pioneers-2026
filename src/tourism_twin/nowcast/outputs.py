@@ -1,8 +1,7 @@
 """Business outputs derived from the guest model (stock-flow plan step 8), as one JSON document.
 
 Per market and test week: forecast, p10/p90, direction to the next week with a probability,
-year-on-year change, and the calendar drivers; per market: implied mean stay and short-stay share
-from the fitted survival curve, with the base-stock share that the curve does not explain.
+year-on-year change, and the calendar drivers.
 Narration (briefings, LLM text) reads this document only and never computes numbers.
 
 Weekly sums, bounds and directions: nowcast/weekly.py (AR(1) daily errors, NoiseModel); the
@@ -22,12 +21,9 @@ from tourism_twin.nowcast.predict import TestPredictions
 from tourism_twin.nowcast.weekly import weekly_forecast
 
 DRIVER_BLOCKS = ("time", "holiday", "flight", "residual")  # every block except the flow (the level)
-MAX_BASE_STOCK_SHARE = 0.25  # above this the survival curve explains too little of the stock to quote
 ASSUMPTIONS = [
     "Direction accuracy is a nowcast skill: the model sees each week's observed new arrivals; compare it with arrivals_direction.",
     "Weekly p10/p90 and direction_prob come from AR(1) daily log errors (per-market phi) fitted on the rolling-origin back-test.",
-    "short_stay_share = 1 - w2 / w0 and implied_mean_stay_days = sum(w) describe the arrivals kernel only; "
-    "base_stock_share of the training stock is outside it, and both are null when that share exceeds 0.25.",
     "top_drivers are model blocks other than the arrivals flow (time: season, weekday and the slope held at its "
     "last training value; holiday: events), as % against the training average or an ordinary day.",
 ]
@@ -41,10 +37,9 @@ def build_outputs(predictions: TestPredictions, history: pd.DataFrame, spec: str
     weekly = weekly_forecast(predictions.market_daily, predictions.noise, coverage)
     actual_weekly = (history.assign(week_start=week_monday(history["date"]))
                      .groupby(["market", "week_start"])["guests"].sum(min_count=7))
-    explain = predictions.model.explain() if predictions.model is not None else {}
     markets: Dict[str, Any] = {}
     for market, rows in weekly.groupby("market"):
-        markets[market] = {**_stay(explain.get(market, {}).get("arrivals", {})), "weeks": [
+        markets[market] = {"weeks": [
             {
                 "week_start": str(record.week_start.date()),
                 "forecast": round(float(record.forecast), 1),
@@ -61,16 +56,6 @@ def build_outputs(predictions: TestPredictions, history: pd.DataFrame, spec: str
     if predictions.backtest_predictions is not None:
         document["direction_backtest"] = direction_backtest(predictions.backtest_predictions, history, predictions.noise, coverage)
     return document
-
-
-def _stay(arrivals: Dict[str, Any]) -> Dict[str, Any]:
-    survival, base_share = arrivals.get("survival_w"), arrivals.get("base_stock_share")
-    quotable = bool(survival) and survival[0] > 0 and base_share is not None and base_share <= MAX_BASE_STOCK_SHARE
-    return {
-        "base_stock_share": round(float(base_share), 3) if base_share is not None else None,
-        "implied_mean_stay_days": round(float(np.sum(survival)), 2) if quotable else None,
-        "short_stay_share": round(float(1 - survival[2] / survival[0]), 3) if quotable else None,
-    }
 
 
 def _yoy(forecast: float, last_year: float) -> float | None:

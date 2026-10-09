@@ -378,7 +378,7 @@ def test_arrivals_convolution_recovers_a_known_survival_kernel():
     model = AdditiveLogModel([ArrivalsConvolution(max_lag=max_lag)], fitter=Backfitting(), include_flag="lag_complete").fit(frame)
     fitted = model.explain()["M"]["arrivals"]
     np.testing.assert_allclose(fitted["survival_w"], true_w, atol=0.01)
-    assert fitted["implied_mean_stay_days"] == pytest.approx(true_w.sum(), rel=0.01)
+    assert sum(fitted["survival_w"]) == pytest.approx(true_w.sum(), rel=0.01)
     assert all(a >= b - 1e-12 for a, b in zip(fitted["survival_w"], fitted["survival_w"][1:])) and fitted["w0"] <= 1 + 1e-9
 
 
@@ -595,12 +595,12 @@ def test_weighted_kernel_follows_the_favoured_regime():
     frame["date"] = pd.date_range("2022-01-01", periods=len(frame), freq="D")
     frame["regime"] = np.repeat(["early", "late"], 600)
 
-    def stay(weighting):
+    def kernel_sum(weighting):
         model = AdditiveLogModel([ArrivalsConvolution(max_lag=7)], fitter=Backfitting(), include_flag="lag_complete",
                                  weighting=weighting).fit(frame)
-        return model.explain()["M"]["arrivals"]["implied_mean_stay_days"]
+        return sum(model.explain()["M"]["arrivals"]["survival_w"])
 
-    unweighted, favour_late = stay(None), stay(ByColumn("regime", {"late": 50.0}))
+    unweighted, favour_late = kernel_sum(None), kernel_sum(ByColumn("regime", {"late": 50.0}))
     assert early.sum() < unweighted < late.sum()
     assert abs(favour_late - late.sum()) < abs(unweighted - late.sum()) / 3
 
@@ -884,18 +884,6 @@ def test_direction_backtest_scores_each_week_once_against_its_baselines():
     assert accuracy["arrivals_direction"] < 1.0  # reversed arrivals mostly disagree
     assert 0.4 <= accuracy["majority_direction"] <= 0.6  # training alternates evenly
     assert result["weekly_band_coverage"] == 1.0
-
-
-def test_stay_outputs_come_from_the_kernel_and_are_withheld_when_the_base_stock_dominates():
-    from tourism_twin.nowcast.outputs import _stay
-
-    survival = [0.9, 0.6, 0.45, 0.3]
-    quoted = _stay({"survival_w": survival, "base_stock_share": 0.1})
-    assert quoted["implied_mean_stay_days"] == pytest.approx(2.25)
-    assert quoted["short_stay_share"] == pytest.approx(0.5)
-    withheld = _stay({"survival_w": survival, "base_stock_share": 0.4})
-    assert withheld["implied_mean_stay_days"] is None and withheld["short_stay_share"] is None
-    assert withheld["base_stock_share"] == 0.4
 
 
 def test_same_day_model_recovers_a_weekday_effect_and_reads_suppressed_values_as_zero():

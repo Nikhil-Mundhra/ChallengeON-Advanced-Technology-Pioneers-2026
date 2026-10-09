@@ -27,7 +27,7 @@ def p2p_share(frame: pd.DataFrame, **_) -> np.ndarray:
 
 @PANEL_FEATURES.feature(Kind.RATIO, requires=["guests", "new_arrivals"])
 def implied_los(frame: pd.DataFrame, **_) -> np.ndarray:
-    """Guests per new arrival: the length of stay implied by the stock-flow identity."""
+    """Guests per new arrival: a stock-to-flow ratio (not a measured length of stay)."""
     return np.where(
         (frame["new_arrivals"] > 0) & frame["guests"].notnull(),
         frame["guests"] / frame["new_arrivals"],

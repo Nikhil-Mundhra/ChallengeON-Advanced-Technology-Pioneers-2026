@@ -2,7 +2,7 @@
 
 Replaces naive uncalibrated Gaussian assumptions with:
 1. Beta-distributed sampling for bounded proportions (Load Factor, P2P Share).
-2. Parameter uncertainty propagation (Response Multipliers, Length of Stay).
+2. Parameter uncertainty propagation (response multipliers, guests-per-arrival factor).
 3. Historical block-bootstrapped residuals preserving serial autocorrelation.
 4. Conformal coverage validation on held-out data.
 """

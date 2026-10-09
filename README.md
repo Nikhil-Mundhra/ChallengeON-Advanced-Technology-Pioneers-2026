@@ -5,7 +5,7 @@ Analytics lake, daily guest nowcast and scenario simulator for the [ChallengeON 
 | Model | Question | Grain | Command |
 | :--- | :--- | :--- | :--- |
 | Daily nowcast (`twin_daily`) | Hotel guests on the withheld test days (2025-08-01 to 2026-02-28), given that period's new arrivals | Market-day, written per test-file row | `twin predict` |
-| Weekly planning model | Guest effect of aviation levers (weekly frequency, aircraft gauge, seats, load factor, P2P share, response multiplier, length of stay) | Market × season, weekly | `twin simulate`, `twin serve` |
+| Weekly planning model | Guest effect of aviation levers (weekly frequency, aircraft gauge, seats, load factor, P2P share, response multiplier, stay factor) | Market × season, weekly | `twin simulate`, `twin serve` |
 
 - Method, data contract, results, limitations: [docs/solution_documentation.md](docs/solution_documentation.md)
 - CLI, web UI, Python API, outputs: [docs/user_guide.md](docs/user_guide.md)
@@ -102,9 +102,9 @@ Model parts:
 
 | Part | Module | What it does |
 | :--- | :--- | :--- |
-| Daily nowcast | `nowcast/specs.py` (`twin_daily`) | Per market, log guests = log(c_t + Σ_{k=0..21} w_k · arrivals_{t−k}) + season + weekday (+ events for international, + centred slope for domestic). `w` is a non-increasing survival curve with w₀ ≤ 1. |
+| Daily nowcast | `nowcast/specs.py` (`twin_daily`) | Per market, log guests = log(c_t + Σ_{k=0..21} w_k · arrivals_{t−k}) + season + weekday (+ events for international, + centred slope for domestic). `w` is a non-increasing lag-weight curve with w₀ ≤ 1: a fitting device, not a measured stay distribution. |
 | Noise model | `models/noise.py` | AR(1) log errors along the horizon, fitted on rolling-origin back-test errors; Gaussian intervals in log. |
-| Structural chain | `planning/structural.py` | Seats × load factor → passengers × P2P share → P2P × response multiplier $M_{m,s}$ → hotel arrivals × length of stay $L_{m,s}$ → weekly guests, per market $m$ and season $s$. Sequential waterfall over 5 levers; the parts sum to the total lift (tested to < 1e-9). |
+| Structural chain | `planning/structural.py` | Seats × load factor → passengers × P2P share → P2P × response multiplier $M_{m,s}$ → hotel arrivals × stay factor $L_{m,s}$ (guests ÷ hotel arrivals) → weekly guests, per market $m$ and season $s$. Sequential waterfall over 5 levers; the parts sum to the total lift (tested to < 1e-9). |
 | Residual ML | `planning/residual.py`, `planning/calendar_features.py` | One RidgeCV per market on week-of-year harmonics, quarter, season, holiday-week and major-event-week flags. No aviation inputs. Target: actual guests − planning-mode structural prediction. |
 | Archetypes | `domain/archetypes.py` | 7 archetypes; unmodeled countries (e.g. `SWEDEN`) get their archetype's default parameters (cold start). |
 | Weekly uncertainty & sensitivity | `planning/uncertainty.py`, `planning/conformal.py`, `planning/sensitivity.py` | Monte Carlo P10/P50/P90, per-market conformal margins, tornado ranking. |
@@ -135,7 +135,7 @@ Calibration: 104 complete weeks (2023-01-02 to 2024-12-23 week starts, 2,132 mar
 | Setting | WMAPE | Bias | MAE | RMSE | Inputs |
 | :--- | :---: | :---: | :---: | :---: | :--- |
 | International planning | 27.52% | +1.52% | 2,466.5 | 3,920.7 | Scheduled seats + calibrated seasonal priors |
-| International realized-chain | 24.54% | −5.67% | 2,199.9 | 3,308.7 | Realized P2P × calibrated multiplier × LOS |
+| International realized-chain | 24.54% | −5.67% | 2,199.9 | 3,308.7 | Realized P2P × calibrated multiplier × stay factor |
 | Domestic forecast | 16.04% | +13.05% | 17,485.2 | 21,078.9 | Calibrated seasonal prior; no holdout arrivals |
 | Combined planning | 23.14% | +5.93% | 3,192.1 | 6,007.8 | International + domestic |
 | Combined realized-chain | 21.30% | +1.48% | 2,938.3 | 5,646.6 | International + domestic |
@@ -162,7 +162,7 @@ The two tables are not comparable: the nowcast uses the predicted period's new a
 | `lake/curated/flight_monthly.parquet` | Monthly | 1,213 | 2022 records on 12 month-start dates (built by `build-lake`; not committed) |
 | `lake/curated/weekly_market_panel.parquet` | Market-week | 3,507 | 21 markets (top 15 + 5 regional clusters + `DOMESTIC`), both splits, 39 columns |
 | `lake/curated/daily_market_panel.parquet` | Market-day | 31,920 | 21 markets × 1,520 days, both splits, arrival lags 0–21 (not committed) |
-| `lake/curated/structural_calibration.json` | Market-season | 21 markets × 4 seasons | Calibrated seats, load factor, P2P share, multiplier, LOS |
+| `lake/curated/structural_calibration.json` | Market-season | 21 markets × 4 seasons | Calibrated seats, load factor, P2P share, multiplier, stay factor |
 | `lake/curated/residual_engine.pkl` | — | 21 models | RidgeCV residual models |
 | `lake/curated/conformal_calibrator.json` | Market | 21 markets | Conformal margins, target alpha 0.2, demonstrated coverage |
 | `lake/curated/evaluation_results.json` | — | — | Weekly back-test metrics, benchmark leaders, market and season breakdowns |
