@@ -79,6 +79,7 @@ def backtest(
     date_column: str = "date",
     target: str = "guests",
     period_days: int = 1,
+    metrics: Callable[[np.ndarray, np.ndarray], Dict[str, float]] = forecast_metrics,
 ) -> BacktestResult:
     """Fit a fresh model per (model, fold) on rows before the fold and score its test rows.
 
@@ -86,6 +87,7 @@ def backtest(
     trains only if its whole period ends before the origin, and is tested if its period starts
     inside the test window, so a week straddling an origin is never seen in training. Rows
     without a target are never used. Calibration happens inside fit(), on training rows only.
+    `metrics(actual, pred)` scores each fold and segment (default: WMAPE, bias, MAE, RMSE).
     """
     if not panel.index.is_unique:
         raise ValueError("Panel index must be unique")
@@ -121,7 +123,7 @@ def backtest(
     if skipped:
         warnings.warn(f"Skipped folds without training or test rows: {skipped}", stacklevel=2)
     predictions = pd.concat(records, ignore_index=True)
-    return BacktestResult(predictions, score(predictions), skipped, pd.DataFrame(fit_counts))
+    return BacktestResult(predictions, score(predictions, metrics), skipped, pd.DataFrame(fit_counts))
 
 
 def segment_of(markets: pd.Series) -> np.ndarray:
@@ -129,13 +131,13 @@ def segment_of(markets: pd.Series) -> np.ndarray:
     return np.where(markets.to_numpy() == DOMESTIC, "domestic", "international")
 
 
-def score(predictions: pd.DataFrame) -> pd.DataFrame:
+def score(predictions: pd.DataFrame, metrics: Callable[[np.ndarray, np.ndarray], Dict[str, float]] = forecast_metrics) -> pd.DataFrame:
     """Metrics per fold, model and segment; an empty segment gets n=0 and no metrics."""
     rows = []
     for (fold, model), group in predictions.groupby(["fold", "model"], sort=False):
         labels = segment_of(group["market"])
         for segment in ("all", "domestic", "international"):
             part = group if segment == "all" else group[labels == segment]
-            metrics = forecast_metrics(part["actual"].to_numpy(), part["pred"].to_numpy()) if len(part) else {}
-            rows.append({"fold": fold, "model": model, "segment": segment, "n": len(part), **metrics})
+            values = metrics(part["actual"].to_numpy(), part["pred"].to_numpy()) if len(part) else {}
+            rows.append({"fold": fold, "model": model, "segment": segment, "n": len(part), **values})
     return pd.DataFrame(rows)

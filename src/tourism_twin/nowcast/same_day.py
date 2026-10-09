@@ -9,13 +9,13 @@ as missing instead keeps only the high days and leaves pooled markets with almos
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import PoissonRegressor
 
-from tourism_twin.models.backtest import HoldoutSplit, RollingOrigin, segment_of
+from tourism_twin.models.backtest import HoldoutSplit, RollingOrigin, backtest
 
 TARGET = "same_day_guests"
 
@@ -80,22 +80,10 @@ def poisson_deviance(actual: np.ndarray, pred: np.ndarray) -> float:
 
 
 def same_day_backtest(panel: pd.DataFrame, splitter: HoldoutSplit | RollingOrigin) -> pd.DataFrame:
-    """Mean Poisson deviance per fold and segment (domestic / international) for SameDayPoisson
-    and SameDayNaive, each fitted on rows before the fold's origin."""
-    y = same_day_target(panel)
-    rows: List[Dict[str, object]] = []
-    for fold in splitter.folds(panel["date"]):
-        train = panel[(panel["date"] < fold.train_end) & y.notna()]
-        test = panel[(panel["date"] >= fold.test_start) & (panel["date"] <= fold.test_end) & y.notna()]
-        if train.empty or test.empty:
-            continue
-        test = test[test["market"].isin(set(train["market"]))]
-        segment = segment_of(test["market"])
-        for name, model in (("poisson_glm", SameDayPoisson()), ("naive_mean", SameDayNaive())):
-            pred = model.fit(train).predict(test)
-            for seg in ("domestic", "international"):
-                mask = segment == seg
-                if mask.any():
-                    rows.append({"fold": fold.name, "model": name, "segment": seg, "rows": int(mask.sum()),
-                                 "deviance": poisson_deviance(y[test.index][mask], pred[mask])})
-    return pd.DataFrame(rows)
+    """Mean Poisson deviance per fold and segment (domestic / international) for SameDayPoisson and
+    SameDayNaive, through the back-test harness (fresh fit per fold on rows before its origin)."""
+    panel = panel.assign(same_day_target=same_day_target(panel))
+    result = backtest({"poisson_glm": SameDayPoisson, "naive_mean": SameDayNaive}, panel, splitter,
+                      target="same_day_target", metrics=lambda actual, pred: {"deviance": poisson_deviance(actual, pred)})
+    scored = result.metrics[(result.metrics["segment"] != "all") & (result.metrics["n"] > 0)]
+    return scored.rename(columns={"n": "rows"})[["fold", "model", "segment", "rows", "deviance"]].reset_index(drop=True)
