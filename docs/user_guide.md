@@ -27,6 +27,7 @@ Steps:
 | `international_test_guests.csv` | 9,202 | `Date`, `New Arrivals`, `Same-Day Guests`, `Nationality`, `Residence (groups)`, `Guests` |
 | `test_guests_intervals.csv` | 9,414 | `Date`, `Nationality` (empty for domestic), `Residence (groups)`, `Guests_p10`, `Guests_p50`, `Guests_p90`; international rows first, then domestic. `Guests_p50` equals `Guests`. Not written with `--no-intervals` |
 | `test_total_guests.csv` | 212 | `Date`, `Guests_total` (domestic + international), `Guests_total_p10`, `Guests_total_p90`: the total's own 80% interval from the back-test errors of the summed series (empty bounds with `--no-intervals`) |
+| `nowcast_serving.json` | — | Serving bundle for the API (daily predictions per market, `INTERNATIONAL` and `TOTAL`, recent actual guests, the noise model's AR(1) parameters, nationality predictions); not written with `--no-intervals` |
 | `market_outputs.json` | — | Per-market weekly outputs (below) |
 | `test_predictions.png` | — | One panel per market: last 365 training days of actual guests, test predictions, 80% band |
 
@@ -250,3 +251,15 @@ twin report database     # output/pdf/challengeon_schema_database_report.pdf (ne
 ```
 
 `model_benchmark.png` reads `lake/curated/evaluation_results.json`.
+
+## Nowcast API (`twin serve`)
+
+Answers come from `output/predictions/nowcast_serving.json` (written by `twin predict`); nothing is refitted per request. Without the bundle the endpoints return 503.
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /api/nowcast/series` | Series names (21 markets, `INTERNATIONAL`, `TOTAL`), the predicted period, interval coverage |
+| `GET /api/nowcast/range?series=TOTAL&start=YYYY-MM-DD&end=YYYY-MM-DD` | `guests` (predicted total), `p10`, `p90` (`NoiseModel.range_interval`: AR(1) covariance across the range; `INTERNATIONAL` and `TOTAL` have their own error series), `previous_guests` for the same-length range just before (actual guests for training days, predictions for test days), `change`, `direction`: `up` / `down` when \|change\| ≥ 0.08, else `no clear change` (over 2-week ranges the size of a change is off by 3–4 pp, docs/model_design.md §4.8) |
+| `GET /api/nowcast/nationalities?start=&end=` | Predicted guests per international nationality and its share of the international total (point predictions, no interval) |
+
+Ranges must lie inside the predicted period (400 otherwise).

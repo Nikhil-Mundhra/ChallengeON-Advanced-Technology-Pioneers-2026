@@ -213,6 +213,9 @@ def predict(args: argparse.Namespace) -> None:
         document = build_outputs(predictions, train, spec=args.spec)
         paths["outputs"] = out / "market_outputs.json"
         paths["outputs"].write_text(json.dumps(document, indent=2), encoding="utf-8")
+        from tourism_twin.nowcast.serving import build_bundle, save_bundle
+
+        paths["serving"] = save_bundle(build_bundle(predictions, train, spec=args.spec), out / "nowcast_serving.json")
         accuracy = document["direction_backtest"]["accuracy"]
         print("direction accuracy (back-test): " + ", ".join(f"{k} {v:.1%}" for k, v in accuracy.items()))
     for name, path in {**paths, "plot": plot}.items():

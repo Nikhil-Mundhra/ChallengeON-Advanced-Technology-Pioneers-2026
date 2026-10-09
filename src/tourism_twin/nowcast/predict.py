@@ -18,6 +18,7 @@ import pandas as pd
 
 from tourism_twin.data.daily_panel import build_daily_panel, build_nationality_rows
 from tourism_twin.data.repository import LakeRepository
+from tourism_twin.domain.markets import DOMESTIC
 from tourism_twin.models.backtest import RollingOrigin, backtest
 from tourism_twin.models.noise import NoiseModel
 from tourism_twin.nowcast.disaggregation import split_market_predictions, split_shares
@@ -27,6 +28,7 @@ from tourism_twin.nowcast.submission import apply_guest_floor, build_submission
 
 NOISE_ORIGINS = RollingOrigin("2024-07-01", "2025-02-01", horizon_months=7)  # test horizon is 7 months
 TOTAL = "TOTAL"  # domestic + international guests, with its own error series in the noise model
+INTERNATIONAL = "INTERNATIONAL"  # the 20 international markets summed, likewise
 
 
 @dataclass
@@ -59,7 +61,8 @@ def predict_test_split(
         backtest_predictions = backtest({spec: DAILY_SPECS[spec]}, panel, NOISE_ORIGINS).predictions
         # The total's errors are correlated across markets (shared calendar shocks), so its
         # interval comes from the back-test errors of the summed series, not from adding bounds.
-        noise = NoiseModel().fit(pd.concat([backtest_predictions, total_series(backtest_predictions)], ignore_index=True))
+        aggregates = [total_series(backtest_predictions), total_series(backtest_predictions, INTERNATIONAL)]
+        noise = NoiseModel().fit(pd.concat([backtest_predictions, *aggregates], ignore_index=True))
         market = market.join(noise.intervals(market, coverage))
         total = total.join(noise.intervals(total, coverage))
     else:
@@ -81,8 +84,11 @@ def predict_test_split(
     return TestPredictions(domestic, international, intervals, market, model, backtest_predictions, noise, total, test)
 
 
-def total_series(predictions: pd.DataFrame) -> pd.DataFrame:
-    """Predictions summed over markets per day (and per fold for back-test rows), as market TOTAL."""
+def total_series(predictions: pd.DataFrame, name: str = TOTAL) -> pd.DataFrame:
+    """Predictions summed per day (and per fold for back-test rows) over every market (TOTAL) or
+    over the international markets (INTERNATIONAL), labelled as that market."""
+    if name == INTERNATIONAL:
+        predictions = predictions[predictions["market"] != DOMESTIC]
     keys = [c for c in ("fold", "origin", "model", "date", "horizon_days") if c in predictions.columns]
     values = [c for c in ("pred", "actual") if c in predictions.columns]
-    return predictions.groupby(keys, as_index=False)[values].sum().assign(market=TOTAL)
+    return predictions.groupby(keys, as_index=False)[values].sum().assign(market=name)

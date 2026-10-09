@@ -878,6 +878,29 @@ def test_test_days_missing_from_the_file_get_below_threshold_arrivals():
     assert filled[5] == PUBLICATION_MIN  # a published test row had >= 10 arrivals: interpolated 8.67 is clipped
 
 
+def test_nowcast_service_answers_range_questions_from_the_bundle():
+    from tourism_twin.nowcast.serving import DIRECTION_THRESHOLD, NowcastService
+
+    test_days = pd.date_range("2025-08-01", periods=42, freq="D")
+    pred = np.where(test_days < "2025-08-29", 100.0, 120.0)  # last 14 days are 20% higher
+    history = pd.date_range("2025-07-01", periods=31, freq="D")
+    bundle = {"spec": "s", "coverage": 0.8, "test_start": "2025-08-01", "test_end": "2025-09-11",
+              "series": {"M": {"date": [str(d.date()) for d in test_days], "horizon_days": list(range(42)), "pred": pred.tolist()}},
+              "history": {"M": {"date": [str(d.date()) for d in history], "guests": [103.0] * 31}},
+              "noise": {"M": {"phi": 0.9, "sigma_eta": 0.02, "v0": 0.001}},
+              "nationalities": {"A": {"date": ["2025-08-01"], "pred": [30.0]}, "B": {"date": ["2025-08-01"], "pred": [10.0]}}}
+    service = NowcastService(bundle)
+    first = service.range_total("M", "2025-08-01", "2025-08-07")  # previous range: actual July guests
+    assert first["guests"] == 700.0 and first["previous_guests"] == 721.0 and first["direction"] == "no clear change"
+    noise = service.noise
+    assert (first["p10"], first["p90"]) == tuple(round(v, 1) for v in noise.range_interval("M", np.arange(7.0), np.full(7, 100.0)))
+    last = service.range_total("M", "2025-08-29", "2025-09-11")  # previous range: predictions
+    assert last["change"] == pytest.approx(0.2) and last["direction"] == "up" and DIRECTION_THRESHOLD == 0.08
+    with pytest.raises(ValueError, match="predicted period"):
+        service.range_total("M", "2025-07-20", "2025-08-03")
+    assert [row["share"] for row in service.nationalities("2025-08-01", "2025-08-01")] == [0.75, 0.25]
+
+
 def test_weekly_outputs_keep_full_weeks_and_give_a_direction_probability():
     from tourism_twin.nowcast.predict import total_series
     from tourism_twin.nowcast.weekly import weekly_forecast

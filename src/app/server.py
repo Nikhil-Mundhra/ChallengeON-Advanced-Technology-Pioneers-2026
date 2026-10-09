@@ -9,12 +9,22 @@ from pathlib import Path
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import ScenarioLever
+from tourism_twin.nowcast.serving import NowcastService
 from tourism_twin.planning.simulator import TourismDigitalTwin
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 RESULTS_PATH = SETTINGS.evaluation_results_path
 
 TWIN = TourismDigitalTwin()
+NOWCAST_BUNDLE = SETTINGS.predictions_dir / "nowcast_serving.json"
+_NOWCAST = {}
+
+
+def nowcast_service():
+    """The nowcast service, loaded once from the bundle (None when `twin predict` has not run)."""
+    if "service" not in _NOWCAST and NOWCAST_BUNDLE.exists():
+        _NOWCAST["service"] = NowcastService.load(NOWCAST_BUNDLE)
+    return _NOWCAST.get("service")
 
 
 class DigitalTwinHandler(BaseHTTPRequestHandler):
@@ -29,6 +39,8 @@ class DigitalTwinHandler(BaseHTTPRequestHandler):
             self.handle_simulate(query)
         elif path == "/api/benchmark":
             self.handle_benchmark()
+        elif path.startswith("/api/nowcast/"):
+            self.handle_nowcast(path[len("/api/nowcast/"):], query)
         elif path.startswith("/static/"):
             rel_path = path[len("/static/"):]
             file_path = STATIC_DIR / rel_path
@@ -144,6 +156,28 @@ class DigitalTwinHandler(BaseHTTPRequestHandler):
         with open(RESULTS_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
         self.send_json(data)
+
+    def handle_nowcast(self, endpoint, query):
+        """Nowcast answers from the bundle `twin predict` writes (no refitting):
+        series; range?series=TOTAL&start=YYYY-MM-DD&end=YYYY-MM-DD; nationalities?start=&end=."""
+        service = nowcast_service()
+        if service is None:
+            self.send_json({"error": f"No nowcast bundle at {NOWCAST_BUNDLE}; run `twin predict` first."}, status=503)
+            return
+        try:
+            if endpoint == "series":
+                self.send_json({"series": service.series_names(), "start": service.bundle["test_start"],
+                                "end": service.bundle["test_end"], "coverage": service.coverage})
+            elif endpoint == "range":
+                self.send_json(service.range_total(query.get("series", ["TOTAL"])[0], query["start"][0], query["end"][0]))
+            elif endpoint == "nationalities":
+                self.send_json({"nationalities": service.nationalities(query["start"][0], query["end"][0])})
+            else:
+                self.send_error(404, "Endpoint not found")
+        except KeyError as e:
+            self.send_json({"error": f"Missing or unknown parameter: {e}"}, status=400)
+        except ValueError as e:
+            self.send_json({"error": str(e)}, status=400)
 
     def send_json(self, data, status=200):
         body = json.dumps(data, indent=2).encode("utf-8")
