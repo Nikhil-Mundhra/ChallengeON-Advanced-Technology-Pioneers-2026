@@ -27,6 +27,26 @@ from scipy.optimize import lsq_linear, minimize
 from tourism_twin.features.lags import lag_column
 
 
+def _feasible(params: np.ndarray, k: int) -> np.ndarray:
+    """Clip to d >= 0, c >= 0 and scale d onto sum(d) <= 1 (SLSQP can stop short of feasibility)."""
+    params = np.clip(params, 0, None)
+    if params[:k].sum() > 1.0:
+        params[:k] = params[:k] / params[:k].sum()
+    return params
+
+
+def log_objective(p: np.ndarray, design: np.ndarray, penalty: np.ndarray, z: np.ndarray, floor: float) -> float:
+    """sum (z - log flow)^2 + |penalty @ p|^2 with flow = design @ p (floored at `floor`)."""
+    residual = z - np.log(np.maximum(design @ p, floor))
+    return float(residual @ residual + np.sum((penalty @ p) ** 2))
+
+
+def log_gradient(p: np.ndarray, design: np.ndarray, penalty: np.ndarray, z: np.ndarray, floor: float) -> np.ndarray:
+    flow = design @ p
+    weight = np.where(flow > floor, (z - np.log(np.maximum(flow, floor))) / np.maximum(flow, floor), 0.0)
+    return -2 * design.T @ weight + 2 * penalty.T @ (penalty @ p)
+
+
 class ArrivalsConvolution:
     owns_level = True
 
@@ -50,6 +70,9 @@ class ArrivalsConvolution:
         self.solver_success_ = True
         self.projected_ = False
         self.params_: np.ndarray | None = None
+        self.penalty_scale_: float | None = None  # fixed at the first pass of a fit
+        self.penalty_value_ = 0.0
+        self.floored_training_rows_ = 0
 
     def _base(self, dates: pd.Series) -> np.ndarray:
         """Hat-function basis for c_t over the knots (clamped beyond the first and last knot)."""
@@ -89,17 +112,17 @@ class ArrivalsConvolution:
         start_params = lsq_linear(system / norms, system_target, bounds=(lower, np.inf), method="bvls").x / norms
         if start_params[:k].sum() > 1.0:
             start_params[:k] /= start_params[:k].sum()
-            result = minimize(
+            start_params = minimize(
                 lambda p: np.sum((system @ p - system_target) ** 2) / len(target),
                 start_params, jac=lambda p: 2 * system.T @ (system @ p - system_target) / len(target),
                 method="SLSQP", bounds=[(0, None)] * design.shape[1],
                 constraints=[{"type": "ineq", "fun": lambda p: 1.0 - p[:k].sum(), "jac": lambda p: np.r_[-np.ones(k), np.zeros(len(p) - k)]}],
                 options={"maxiter": 500, "ftol": 1e-12},
-            )
-            start_params = result.x
-            self.solver_success_ = bool(result.success)
-        params = self._log_refine(design, penalty / max(float(np.mean(target)), 1e-12), (y - offset).to_numpy(),
-                                  self._feasible(start_params, k), k)
+            ).x  # a warm start only; the log refinement below decides
+        if self.penalty_scale_ is None:  # one scale per fit, so the penalised objective is the same function every pass
+            self.penalty_scale_ = max(float(np.mean(target)), 1e-12)
+        params = self._log_refine(design, penalty / self.penalty_scale_, (y - offset).to_numpy(), _feasible(start_params, k), k)
+        self.projected_ = bool(np.isclose(params[:k].sum(), 1.0))  # the w0 <= 1 constraint binds at the solution
         d, self.c_ = params[:k], params[k:]
         self.params_ = params
         self.w_ = np.cumsum(d[::-1])[::-1]  # w_k = sum_{j>=k} d_j
@@ -107,31 +130,21 @@ class ArrivalsConvolution:
         base = self._base(dates) @ self.c_
         self.base_share_ = float(base.sum() / flow.sum()) if flow.sum() > 0 else 0.0
         self.floor_ = max(1e-6, 0.01 * float(np.mean(flow[flow > 0])) if (flow > 0).any() else 1e-6)
+        self.floored_training_rows_ = int((flow < self.floor_).sum())  # rows where contribution() departs from the fitted objective
         return self
 
-    def _feasible(self, params: np.ndarray, k: int) -> np.ndarray:
-        """Clip to d >= 0, c >= 0 and scale d onto sum(d) <= 1 (SLSQP can stop short of feasibility)."""
-        params = np.clip(params, 0, None)
-        if params[:k].sum() > 1.0:
-            params[:k] = params[:k] / params[:k].sum()
-            self.projected_ = True
-        return params
+    def penalty(self) -> float:
+        """Value of this component's penalty at the current fit (part of the backfitting objective)."""
+        return self.penalty_value_
 
     def _log_refine(self, design: np.ndarray, penalty: np.ndarray, z: np.ndarray, start: np.ndarray, k: int) -> np.ndarray:
         """Minimise the model's own objective, sum (z - log flow)^2 plus the base-stock penalty
-        (made unitless by the mean target), from the raw-scale solution. Every other component is
-        fitted on this log-scale objective, so backfitting only descends if this step does too:
-        the result is kept only if it is no worse than this fit's previous pass."""
+        (unitless: divided by the first pass's mean target), from the raw-scale solution. Every
+        other component is fitted on this log-scale objective, so backfitting only descends if this
+        step does too: the result is kept only if it is no worse than this fit's previous pass."""
         floor = 1e-9 * max(float(np.exp(z).mean()), 1.0)
-
-        def objective(p: np.ndarray) -> float:
-            residual = z - np.log(np.maximum(design @ p, floor))
-            return float(residual @ residual + np.sum((penalty @ p) ** 2))
-
-        def gradient(p: np.ndarray) -> np.ndarray:
-            flow = design @ p
-            weight = np.where(flow > floor, (z - np.log(np.maximum(flow, floor))) / np.maximum(flow, floor), 0.0)
-            return -2 * design.T @ weight + 2 * penalty.T @ (penalty @ p)
+        objective = lambda p: log_objective(p, design, penalty, z, floor)  # noqa: E731
+        gradient = lambda p: log_gradient(p, design, penalty, z, floor)  # noqa: E731
 
         candidates = [start]
         if self.params_ is not None and len(self.params_) == len(start):
@@ -141,9 +154,12 @@ class ArrivalsConvolution:
                           constraints=[{"type": "ineq", "fun": lambda p: 1.0 - p[:k].sum(),
                                         "jac": lambda p: np.r_[-np.ones(k), np.zeros(len(p) - k)]}],
                           options={"maxiter": 500, "ftol": 1e-12})
-        self.solver_success_ = self.solver_success_ and bool(result.success)
-        refined = self._feasible(result.x, k)
-        return refined if objective(refined) <= objective(best) else best
+        refined = _feasible(result.x, k)
+        chosen = refined if objective(refined) <= objective(best) else best
+        # Status 8 ("positive directional derivative") at ftol 1e-12: no further descent found.
+        self.solver_success_ = bool(result.success or result.status == 8)
+        self.penalty_value_ = float(np.sum((penalty @ chosen) ** 2))
+        return chosen
 
     def _flow(self, panel: pd.DataFrame) -> np.ndarray:
         dates = pd.to_datetime(panel[self.date_column])
@@ -165,9 +181,10 @@ class ArrivalsConvolution:
             # Share of the training flow carried by the base stock c_t rather than the kernel; when it
             # is large, sum(w) understates the guests / new-arrivals ratio.
             "base_stock_share": self.base_share_,
-            "constraint_projected": self.projected_,
+            "w0_constraint_binds": self.projected_,
             "solver_success": self.solver_success_,
             "w0": float(self.w_[0]),
             "base_stock_by_knot": {str(k.date()): float(c) for k, c in zip(self.knots_, self.c_)},
             "floored_rows_last_call": self.floored_rows_,
+            "floored_training_rows": self.floored_training_rows_,
         }

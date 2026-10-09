@@ -26,7 +26,7 @@ class FitReport:
     rank: int = 0
     columns: int = 0
     unidentified: List[str] = field(default_factory=list)
-    objective: List[float] = field(default_factory=list)  # log-scale SSE after each backfitting pass
+    objective: List[float] = field(default_factory=list)  # log-scale SSE + every component's penalty, per pass
 
     @property
     def rank_deficient(self) -> bool:
@@ -94,7 +94,8 @@ class Backfitting:
                     max_change = max(max_change, float((updated - contributions[component.name]).abs().max()))
                     contributions[component.name] = updated
             total = sum(contributions.values(), pd.Series(0.0, index=panel.index))
-            objective.append(float(((y - total) ** 2).sum()))
+            penalties = sum(getattr(c, "penalty", lambda: 0.0)() for c in cycling)
+            objective.append(float(((y - total) ** 2).sum()) + penalties)
             if max_change < self.tol:
                 converged, iterations = True, iteration
                 break

@@ -71,6 +71,11 @@ class LinearComponent:
         """Rows D of a quadratic penalty |D @ coef|^2 added to the least squares; None = unpenalised."""
         return None
 
+    def penalty(self) -> float:
+        """Value of |D @ coef|^2 at the current fit (part of the backfitting objective)."""
+        rows = self.penalty_rows()
+        return float(np.sum((rows @ self.coef_) ** 2)) if rows is not None and self.coef_ is not None else 0.0
+
     def set_coef(self, coef: np.ndarray) -> None:
         self.coef_ = np.asarray(coef, dtype=float)
 

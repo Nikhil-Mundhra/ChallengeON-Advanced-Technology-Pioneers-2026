@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 def weekly_nowcast_summary(market: str, market_outputs: Dict[str, Any], week: Dict[str, Any]) -> str:
     """One-paragraph summary of a market's week, using only fields of the outputs document
-    (services/outputs.py); it formats numbers, never computes them."""
+    (nowcast/outputs.py); it formats numbers, never computes them."""
     parts = [f"{market.title()}, week of {week['week_start']}: about {week['forecast']:,.0f} guest-nights"]
     if week.get("p10") is not None and week.get("p90") is not None:
         parts.append(f"(80% range {week['p10']:,.0f}-{week['p90']:,.0f})")

@@ -42,8 +42,9 @@ def intl_nowcast(gbm: bool = False) -> AdditiveLogModel:
 
 def domestic_nowcast() -> AdditiveLogModel:
     """Domestic nowcast (docs/model_design.md §3, §4.6): arrivals kernel (owns the level) + centred
-    log-slope + season + weekday; no event kernels. Weekday × season lost to plain weekday by 0.07 pp
-    on 13 rolling origins (under the 0.3 pp gate), so the simpler one ships."""
+    log-slope + season + weekday; no event kernels. Weekday × season beat plain weekday by only 0.07 pp
+    daily WAPE on 13 rolling origins (scripts/compare_domestic_weekday.py), under the 0.3 pp gate, so
+    the simpler one ships."""
     components = [ArrivalsConvolution(max_lag=21), CentredSlope(), AnnualFourier(4), DayOfWeek()]
     return AdditiveLogModel(components, fitter=Backfitting(max_iter=BACKFIT_MAX_ITER, tol=BACKFIT_TOL),
                             exclude_flag="is_one_off_period", include_flag="lag_complete")

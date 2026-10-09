@@ -440,22 +440,52 @@ def _conv_frame(true_w: np.ndarray, base: float, noise: float, n: int = 900, see
     return PANEL_FEATURES.apply(_daily(np.log(guests), new_arrivals_filled=arrivals), ["arrival_lags"], max_lag=max_lag)
 
 
-def test_backfitting_with_the_arrivals_kernel_never_increases_the_objective():
-    # Every block, the kernel included, must minimise the same log-scale objective; a kernel fitted
-    # on the raw scale made the objective cycle and the domestic fit depend on the pass cap (#13).
-    rng = np.random.default_rng(11)
-    n, true_w = 900, 1.4 * np.exp(-np.arange(8) / 2.5)  # w0 > 1: the constraint binds
+def _calendar_conv_frame(seed: int = 11, noise: float = 0.05) -> pd.DataFrame:
+    """Guests = (base + kernel * arrivals) * exp(strong season and weekend multipliers + noise), w0 = 1.4."""
+    rng = np.random.default_rng(seed)
+    n, true_w = 900, 1.4 * np.exp(-np.arange(8) / 2.5)
     arrivals = 1000 * np.exp(0.4 * np.sin(2 * np.pi * np.arange(n) / 365.25) + rng.normal(0, 0.2, n))
     lags = np.column_stack([np.r_[np.full(k, np.nan), arrivals[:n - k]] for k in range(len(true_w))])
     dates = pd.date_range("2022-01-01", periods=n, freq="D")
-    calendar = 0.4 * (np.cos(2 * np.pi * dates.dayofyear / 365.25) + (dates.dayofweek >= 4))  # strong multipliers
-    guests = (200.0 + np.nan_to_num(lags) @ true_w) * np.exp(calendar + rng.normal(0, 0.05, n))
-    frame = PANEL_FEATURES.apply(_daily(np.log(guests), new_arrivals_filled=arrivals), ["arrival_lags"], max_lag=7)
-    components = [ArrivalsConvolution(max_lag=7, base_smoothing=0.0), AnnualFourier(2), DayOfWeek()]  # no penalties: objective = SSE
-    model = AdditiveLogModel(components, fitter=Backfitting(max_iter=40, tol=0.0), include_flag="lag_complete").fit(frame)
+    calendar = 0.4 * (np.cos(2 * np.pi * dates.dayofyear / 365.25) + (dates.dayofweek >= 4))
+    guests = (200.0 + np.nan_to_num(lags) @ true_w) * np.exp(calendar + rng.normal(0, noise, n))
+    return PANEL_FEATURES.apply(_daily(np.log(guests), new_arrivals_filled=arrivals), ["arrival_lags"], max_lag=7)
+
+
+def test_backfitting_with_the_arrivals_kernel_never_increases_the_objective():
+    # Every block, the kernel included, must minimise the same penalised log-scale objective; a
+    # kernel fitted on the raw scale made it cycle and the domestic fit depend on the pass cap (#13).
+    components = [ArrivalsConvolution(max_lag=7), AnnualFourier(2), DayOfWeek(), EventKernel()]
+    model = AdditiveLogModel(components, fitter=Backfitting(max_iter=40, tol=0.0), include_flag="lag_complete").fit(_calendar_conv_frame())
     objective = model.fitted_["M"][1].objective
     assert len(objective) == 40
     assert all(later <= earlier * (1 + 1e-10) for earlier, later in zip(objective, objective[1:]))
+
+
+def test_arrivals_kernel_log_gradient_matches_finite_differences():
+    from tourism_twin.models.components.arrivals_conv import log_gradient, log_objective
+
+    rng = np.random.default_rng(2)
+    design, penalty = rng.uniform(1, 50, (200, 6)), 0.1 * rng.normal(size=(3, 6))
+    z, p = np.log(rng.uniform(100, 400, 200)), rng.uniform(0.5, 2.0, 6)
+    numeric = np.array([(log_objective(p + h, design, penalty, z, 1e-9) - log_objective(p - h, design, penalty, z, 1e-9)) / 2e-6
+                        for h in 1e-6 * np.eye(6)])
+    np.testing.assert_allclose(log_gradient(p, design, penalty, z, 1e-9), numeric, rtol=1e-5)
+
+
+def test_arrivals_kernel_beats_its_raw_scale_warm_start_on_the_log_objective():
+    from scipy.optimize import lsq_linear
+
+    frame = _calendar_conv_frame(noise=0.3)
+    model = AdditiveLogModel([ArrivalsConvolution(max_lag=7, base_smoothing=0.0)], fitter=Backfitting(), include_flag="lag_complete").fit(frame)
+    rows = frame[frame["lag_complete"]]
+    component = model.fitted_["M"][0][0]
+    lags = rows[component.lag_columns].to_numpy()
+    design = np.hstack([lags @ np.triu(np.ones((8, 8))), component._base(rows["date"])])
+    raw = lsq_linear(design, rows["guests"].to_numpy(), bounds=(0, np.inf)).x
+    raw[:8] /= max(1.0, raw[:8].sum())  # the raw fit, made feasible
+    log_sse = lambda flow: float(np.sum((np.log(rows["guests"].to_numpy()) - np.log(flow)) ** 2))  # noqa: E731
+    assert log_sse(component._flow(rows)) < 0.99 * log_sse(design @ raw)
 
 
 def test_arrivals_convolution_enforces_w0_at_most_one_when_it_binds():
@@ -638,6 +668,7 @@ def test_model_packages_have_no_row_loops():
 
 
 # Allowed tourism_twin imports per package; nowcast and planning never import each other.
+_BELOW_ADAPTERS = {"config", "domain", "features", "data", "models", "nowcast", "planning"}
 ALLOWED_IMPORTS = {
     "domain": {"domain"},
     "features": {"domain", "features"},
@@ -645,21 +676,39 @@ ALLOWED_IMPORTS = {
     "models": {"config", "domain", "features", "models"},
     "nowcast": {"config", "domain", "features", "data", "models", "nowcast"},
     "planning": {"config", "domain", "features", "data", "models", "planning"},
+    "reporting": _BELOW_ADAPTERS | {"reporting"},
+    "cli": _BELOW_ADAPTERS | {"reporting", "cli"},
 }
 
 
-def test_packages_import_only_lower_layers():
+def _imported_packages(path: Path, package: str):
+    """tourism_twin sub-packages a module imports, in any import form (absolute, aliased, relative)."""
     import ast
 
+    for node in ast.walk(ast.parse(path.read_text())):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                parts = alias.name.split(".")
+                if parts[0] == "tourism_twin" and len(parts) > 1:
+                    yield parts[1]
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:  # relative: resolve against this module's package
+                base = list(path.relative_to(Path(SETTINGS.root) / "src" / "tourism_twin").parts[:-1])
+                base = base[:len(base) - (node.level - 1)] if node.level > 1 else base
+                parts = base + (node.module.split(".") if node.module else [])
+                yield parts[0] if parts else package
+            elif node.module == "tourism_twin":
+                yield from (alias.name for alias in node.names)
+            elif node.module and node.module.startswith("tourism_twin."):
+                yield node.module.split(".")[1]
+
+
+def test_packages_import_only_lower_layers():
     root = Path(SETTINGS.root) / "src" / "tourism_twin"
-    violations = []
-    for package, allowed in ALLOWED_IMPORTS.items():
-        for path in (root / package).rglob("*.py"):
-            for node in ast.walk(ast.parse(path.read_text())):
-                if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("tourism_twin."):
-                    target = node.module.split(".")[1]
-                    if target not in allowed:
-                        violations.append(f"{path.relative_to(root)} imports {node.module}")
+    violations = [f"{path.relative_to(root)} imports {target}"
+                  for package, allowed in ALLOWED_IMPORTS.items()
+                  for path in (root / package).rglob("*.py")
+                  for target in _imported_packages(path, package) if target not in allowed]
     assert violations == []
 
 
