@@ -26,7 +26,7 @@ from tourism_twin.features.lags import DEFAULT_MAX_LAG, lag_column
 from tourism_twin.domain.archetypes import MarketArchetype, get_market_archetype
 from tourism_twin.domain.markets import REGIONAL_CLUSTERS, TOP_15_INTERNATIONAL_MARKETS
 from tourism_twin.domain.scenario import ScenarioLever
-from tourism_twin.domain.seasons import SEASONS
+from tourism_twin.domain.seasons import SEASONS, assign_season
 
 EXPECTED_MARKETS = {*TOP_15_INTERNATIONAL_MARKETS, *REGIONAL_CLUSTERS, "DOMESTIC"}
 WATERFALL_PARTS = ("waterfall_seats", "waterfall_lf", "waterfall_p2p", "waterfall_multiplier", "waterfall_los")
@@ -784,21 +784,38 @@ def test_a_served_route_that_converts_nobody_brings_no_aviation_arrivals():
     assert unserved.arrivals_from(0.0, 0.5) == 200.0  # a never-served market keeps its non-aviation arrivals
 
 
-def test_scenario_residual_follows_the_scenario_season():
+def test_scenario_residual_is_the_mean_fit_over_the_season_training_weeks():
     from tourism_twin.domain.scenario import SimulationResult
+    from tourism_twin.models.features import calendar_feature_matrix
     from tourism_twin.models.residual import ResidualMLEngine
 
-    class SummerFlag:  # residual = the is_summer calendar feature (last column)
-        def predict(self, x):
-            return x[:, -1]
+    class NoStructure:
+        def planning_guests_for(self, frame):
+            return np.zeros(len(frame))
 
-    engine = ResidualMLEngine()
-    engine.models = {"M": SummerFlag()}
-    assert engine.season_residual("M", "Summer_Trough") == 1.0
-    assert engine.season_residual("M", "Winter_Peak") == 0.0
+    weeks = pd.date_range("2023-01-02", periods=104, freq="7D")
+    holiday = (weeks.isocalendar().week.to_numpy() % 6 == 0).astype(int)
+    frame = pd.DataFrame({"market": "M", "week_start": weeks, "iso_week": weeks.isocalendar().week.to_numpy(),
+                          "quarter": weeks.quarter, "month": weeks.month, "season": [assign_season(m) for m in weeks.month],
+                          "is_holiday_week": holiday, "is_major_event_week": 0,
+                          "guests": 1000.0 * holiday + 50.0 * np.sin(2 * np.pi * weeks.dayofyear / 365.25)})
+    engine = ResidualMLEngine().fit(frame, NoStructure())
+    fitted = engine.models["M"].predict(calendar_feature_matrix(frame))
+    for season in SEASONS:
+        expected = fitted[(frame["season"] == season).to_numpy()].mean()  # holidays included, as in the baseline
+        assert engine.season_residual("M", season) == pytest.approx(expected)
+    assert engine.season_residual("UNSEEN", "Winter_Peak") == 0.0
     zeros = {name: 0.0 for name in SimulationResult.__dataclass_fields__ if name not in ("market", "season", "is_cold_start")}
     result = SimulationResult(market="M", season="Summer_Trough", is_cold_start=False, **zeros)
-    assert engine.predict_hybrid(result)["residual_correction"] == 1.0
+    assert engine.predict_hybrid(result)["residual_correction"] == pytest.approx(engine.season_residual("M", "Summer_Trough"))
+
+
+def test_waterfall_guard_is_relative_for_large_scenarios(twin):
+    # ~1.5e7 guests: float rounding in the five parts is ~2e-9 absolute, which an absolute 1e-9 guard rejected.
+    lever = ScenarioLever("GERMANY", delta_frequency=1335.0, aircraft_gauge=451.0, delta_seats_pct=17.47,
+                          delta_load_factor=-0.02, delta_p2p_share=-0.01, delta_multiplier_pct=-0.46, delta_los=6.1)
+    result = twin.structural_engine.simulate("GERMANY", "Autumn_Shoulder", lever)
+    assert abs(waterfall_total(result) - result.delta_guests) <= 1e-9 * result.sim_guests
 
 
 @pytest.mark.parametrize("market", ["UNITED KINGDOM", "GERMANY", "INDIA"])

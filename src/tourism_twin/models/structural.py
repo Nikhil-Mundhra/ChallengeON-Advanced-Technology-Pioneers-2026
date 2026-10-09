@@ -16,6 +16,7 @@ Includes:
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -193,11 +194,11 @@ class StructuralEngine:
         sim = _domestic_scenario(base, lever) if domestic else _international_scenario(p, base, lever)
         waterfall = _waterfall(base, sim, domestic)
 
-        discrepancy = abs(sum(waterfall) - (sim.guests - base.guests))
-        if discrepancy > 1e-9:
+        attributed, lift = sum(waterfall), sim.guests - base.guests
+        if not math.isclose(attributed, lift, rel_tol=1e-9, abs_tol=1e-6):  # relative: guests reach 1e7
             raise ArithmeticError(
-                f"Waterfall attribution discrepancy {discrepancy:.3e} > 1e-9 for market={market_norm!r}, "
-                f"season={season!r}: the decomposition does not reconcile to delta_guests."
+                f"Waterfall attribution {attributed:.6f} does not reconcile to delta_guests {lift:.6f} "
+                f"for market={market_norm!r}, season={season!r}."
             )
         return SimulationResult(
             market=market_norm,

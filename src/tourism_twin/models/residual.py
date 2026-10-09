@@ -17,13 +17,8 @@ from sklearn.linear_model import RidgeCV
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import SimulationResult
-from tourism_twin.domain.seasons import assign_season
 from tourism_twin.models.features import calendar_feature_matrix, extract_calendar_features
 from tourism_twin.models.structural import StructuralEngine
-
-# ISO weeks 1-52 of a reference year with their Monday, the date the weekly panel anchors on.
-SEASON_REFERENCE_WEEKS = [(week, pd.Timestamp.fromisocalendar(2025, week, 1)) for week in range(1, 53)]
-
 
 class ResidualMLEngine:
     """Monotonic ML residual correction engine."""
@@ -32,6 +27,7 @@ class ResidualMLEngine:
         self.models: Dict[str, RidgeCV] = {}
         self.residual_history: Dict[str, np.ndarray] = {}
         self.residual_std: Dict[str, float] = {}
+        self.season_residual_: Dict[str, Dict[str, float]] = {}
 
     def fit(
         self,
@@ -66,6 +62,10 @@ class ResidualMLEngine:
             self.models[m] = model
             self.residual_history[m] = y
             self.residual_std[m] = float(np.std(y - model.predict(X)))
+            # The structural baseline is a seasonal mean over all training weeks, holidays
+            # included, so the scenario residual is the mean prediction over the same weeks.
+            fitted = pd.Series(model.predict(X), index=m_df.index)
+            self.season_residual_[m] = {season: float(v) for season, v in fitted.groupby(m_df["season"]).mean().items()}
 
         return self
 
@@ -95,10 +95,8 @@ class ResidualMLEngine:
         return r_hat
 
     def season_residual(self, market: str, season: str) -> float:
-        """Mean calendar residual over the season's ordinary weeks (ISO weeks 1-52 whose Monday
-        falls in one of the season's months, no holiday or major event)."""
-        weeks = [(week, monday.month) for week, monday in SEASON_REFERENCE_WEEKS if assign_season(monday.month) == season]
-        return float(np.mean([self.predict_residual(market, week, (month - 1) // 3 + 1, month) for week, month in weeks]))
+        """Mean fitted residual over the market's training weeks in `season` (0 if none)."""
+        return self.season_residual_.get(market.upper().strip(), {}).get(season, 0.0)
 
     def predict_hybrid(self, structural_result: SimulationResult) -> Dict[str, float]:
         """Combine a structural simulation with the residual correction for its market and season."""
@@ -136,6 +134,7 @@ class ResidualMLEngine:
             "models": self.models,
             "residual_history": self.residual_history,
             "residual_std": self.residual_std,
+            "season_residual": self.season_residual_,
         }
         with open(model_path, "wb") as f:
             pickle.dump(state, f)
@@ -150,4 +149,5 @@ class ResidualMLEngine:
         engine.models = state["models"]
         engine.residual_history = state["residual_history"]
         engine.residual_std = state["residual_std"]
+        engine.season_residual_ = state["season_residual"]
         return engine

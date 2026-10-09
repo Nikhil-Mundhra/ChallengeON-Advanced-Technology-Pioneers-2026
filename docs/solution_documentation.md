@@ -150,7 +150,7 @@ Guests = Seats × LF × P2PShare × M × L
 - **Market bridge.** Departure country $k$ is linked to nationality $k$. $M_{m,s}$ absorbs non-national passengers, indirect connections and overland arrivals (e.g. via DXB). A full 45 × 33 country-to-nationality matrix (1,485 parameters) is not identifiable from aggregate weekly series and is not estimated.
 - **Planning prediction** (`planning_guests`): scheduled seats × calibrated LF, P2P share, $M$, $L$. A served market whose seats carry no P2P passengers has zero aviation arrivals; an unserved market keeps its calibrated arrivals; `DOMESTIC` = calibrated arrivals × $L$, independent of seats. The simulator's baseline applies the same rule (`MarketSeasonParams.arrivals_from`).
 - **Cold start.** A country without calibration gets its archetype's default LF, P2P share, $M$ and $L$ (`domain/archetypes.py`; unknown countries map to Emerging / Sparse).
-- **Waterfall.** The scenario lift is attributed sequentially: seats, load factor, P2P share, multiplier, LOS. The five parts sum to the total lift (tested to < 1e-9 for every calibrated market, a cold-start market, all seasons and 6 lever sets).
+- **Waterfall.** The scenario lift is attributed sequentially: seats, load factor, P2P share, multiplier, LOS. The five parts sum to the total lift (tested to < 1e-9 for every calibrated market, a cold-start market, all seasons and 6 lever sets). `simulate` raises if they differ by more than a relative 1e-9 (absolute 1e-6).
 
 ### 7.2 Residual ML (`models/residual.py`, `models/features.py`)
 
@@ -158,7 +158,7 @@ Guests = Seats × LF × P2PShare × M × L
 Hybrid = max(0, planning_guests + residual)
 ```
 
-One `RidgeCV` per market. Features: two week-of-year sine/cosine harmonic pairs, quarter dummies, winter and summer flags, holiday-week flag (Eid al-Fitr, Eid al-Adha, UAE National Day, New Year / festive weeks) and major-event-week flag (e.g. ADIPEC, Formula 1). Target: actual guests − `planning_guests`, so training and serving use the same structural prediction. In a scenario the residual is the mean of the market's prediction over the season's ordinary weeks (ISO weeks whose Monday falls in a season month, no holiday or major event). No aviation inputs: the residual does not change with a capacity lever, so the hybrid lift equals the structural lift unless the max(0, ·) floor binds (tested: lift ≥ 0 for +2 flights in 5 markets).
+One `RidgeCV` per market. Features: two week-of-year sine/cosine harmonic pairs, quarter dummies, winter and summer flags, holiday-week flag (Eid al-Fitr, Eid al-Adha, UAE National Day, New Year / festive weeks) and major-event-week flag (e.g. ADIPEC, Formula 1). Target: actual guests − `planning_guests`, so training and serving use the same structural prediction. In a scenario the residual is the mean fitted residual over the market's training weeks in that season, holidays and events included, matching the all-weeks seasonal baseline (stored as `season_residual` in `residual_engine.pkl`). No aviation inputs: the residual does not change with a capacity lever, so the hybrid lift equals the structural lift unless the max(0, ·) floor binds (tested: lift ≥ 0 for +2 flights in 5 markets).
 
 ### 7.3 Domestic demand
 
@@ -323,7 +323,7 @@ Stated `direction_prob` vs share right: 0.55 → 59%, 0.65 → 78%, 0.75 → 82%
 
 ## 10. Tests
 
-104 tests: 80 in `tests/test_tourism_twin.py` (lake grain contract, feature registry, weekly and daily panel contracts, daily-to-weekly reconciliation, synthetic recovery for every model component, event registry, back-test harness leakage and parity with `evaluation_results.json`, noise model, prediction validator, outputs document, same-day GLM, waterfall identity, route closure, domestic decoupling, monotonicity, cold start, deterministic uncertainty, API validation) and 24 in `tests/test_audit_agent.py`. On a fresh clone 103 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022` needs `flight_monthly.parquet` from `twin build-lake`). Details: [user guide §10](user_guide.md#10-tests).
+105 tests: 81 in `tests/test_tourism_twin.py` (lake grain contract, feature registry, weekly and daily panel contracts, daily-to-weekly reconciliation, synthetic recovery for every model component, event registry, back-test harness leakage and parity with `evaluation_results.json`, noise model, prediction validator, outputs document, same-day GLM, waterfall identity, route closure, domestic decoupling, monotonicity, cold start, deterministic uncertainty, API validation) and 24 in `tests/test_audit_agent.py`. On a fresh clone 104 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022` needs `flight_monthly.parquet` from `twin build-lake`). Details: [user guide §10](user_guide.md#10-tests).
 
 ## 11. Limitations
 

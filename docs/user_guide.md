@@ -198,7 +198,7 @@ Trains on complete train-split weeks with complete guest inputs up to `--max-dat
 | File | Contents |
 | :--- | :--- |
 | `lake/curated/structural_calibration.json` | Seats, load factor, P2P share, response multiplier, LOS and baseline guests for 21 markets × 4 seasons |
-| `lake/curated/residual_engine.pkl` | One RidgeCV per market on week-of-year harmonics, quarter, season, holiday-week and major-event-week flags; no aviation inputs. Target: actual guests − planning-mode structural prediction (scheduled seats × calibrated seasonal priors) |
+| `lake/curated/residual_engine.pkl` | One RidgeCV per market on week-of-year harmonics, quarter, season, holiday-week and major-event-week flags; no aviation inputs. Target: actual guests − planning-mode structural prediction (scheduled seats × calibrated seasonal priors). Also stores the mean fitted residual per market and season, used by the simulator |
 | `lake/curated/conformal_calibrator.json` | Per-market conformal margins (target alpha 0.2) and the demonstrated holdout coverage, read from `evaluation_results.json` (run `twin evaluate` first) |
 
 ---
@@ -228,7 +228,7 @@ Results are in the [README](../README.md#32-weekly-planning-model-forward-holdou
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-104 tests: 80 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`. On a fresh clone 103 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022`, until `twin build-lake` creates `flight_monthly.parquet`). The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required. The raw workbooks are not required either: `twin predict` itself is not run by the tests.
+105 tests: 81 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`. On a fresh clone 104 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022`, until `twin build-lake` creates `flight_monthly.parquet`). The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required. The raw workbooks are not required either: `twin predict` itself is not run by the tests.
 
 Product checks in `tests/test_tourism_twin.py`:
 
@@ -240,7 +240,7 @@ Product checks in `tests/test_tourism_twin.py`:
 | `test_weekly_panel_rebuilds_from_the_lake_exactly` | Rebuilding the weekly panel from the curated Parquet equals the committed panel |
 | `test_daily_panel_contract`, `test_daily_lags_cross_the_train_test_boundary`, `test_daily_panel_sums_to_the_weekly_panel` | Lag completeness, lags continue across the train→test boundary, weekly sums of daily guests and arrivals equal the weekly panel |
 | `test_waterfall_reconciles_exactly_for_every_market_and_season` | For every calibrated market + `SWEDEN`, every season, 6 lever sets: waterfall sum = lift within 1e-9; zero levers give zero lift |
-| `test_a_served_route_that_converts_nobody_*`, `test_scenario_residual_follows_the_scenario_season` | Planning and simulation share one arrivals rule; the scenario residual is the mean over the season's ordinary weeks |
+| `test_a_served_route_that_converts_nobody_*`, `test_scenario_residual_is_the_mean_fit_*`, `test_waterfall_guard_is_relative_*` | Planning and simulation share one arrivals rule; the scenario residual is the mean fit over the season's training weeks; the waterfall check is relative for 1e7-guest scenarios |
 | `test_route_closure_removes_all_aviation_demand` | `delta_seats_pct=-1` zeroes seats through guests; all lift attributed to seats |
 | `test_domestic_ignores_aviation_levers` | Domestic seats stay 0; only multiplier and LOS move guests |
 | `test_added_capacity_never_lowers_demand` | +2 flights gives structural lift ≥ 0 and hybrid lift ≥ 0 for 5 markets |
