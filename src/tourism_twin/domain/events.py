@@ -16,8 +16,10 @@ from importlib.resources import files
 
 import pandas as pd
 
+from tourism_twin.domain.markets import MODELED_MARKETS
+
 EVENT_KINDS = ("lunar", "solar", "one_off")
-EVENT_SCOPES = ("all", "domestic", "international")
+EVENT_SCOPES = ("all", "domestic", "international")  # or one market name (e.g. CHINA, OTHER_MENA)
 
 # Event types fitted by EventKernel by default. new_years_eve is excluded: its window lies inside
 # christmas_new_year every year, so a separate kernel is not identifiable.
@@ -42,7 +44,7 @@ def load_event_calendar() -> pd.DataFrame:
     unknown = set(calendar["kind"]) - set(EVENT_KINDS)
     if unknown:
         raise ValueError(f"Unknown event kinds in events.csv: {sorted(unknown)}")
-    unknown = set(calendar["scope"]) - set(EVENT_SCOPES)
+    unknown = set(calendar["scope"]) - set(EVENT_SCOPES) - set(MODELED_MARKETS)
     if unknown:
         raise ValueError(f"Unknown event scopes in events.csv: {sorted(unknown)}")
     if (calendar["window_start_offset"] > calendar["window_end_offset"]).any():

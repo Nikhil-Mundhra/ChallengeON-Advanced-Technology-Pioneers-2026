@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from tourism_twin.domain.events import DEFAULT_KERNEL_EVENTS, load_event_calendar
-from tourism_twin.features.events import event_offsets, offset_column
+from tourism_twin.features.events import event_offsets, in_scope, offset_column
 from tourism_twin.models.components.base import LinearComponent
 
 
@@ -40,7 +40,7 @@ class EventKernel(LinearComponent):
         self.smoothing = smoothing
         self.min_smoothed_days = min_smoothed_days
         self.date_column = date_column
-        self.requires = (date_column,)
+        self.requires = (date_column, "market")
         self.calendar = load_event_calendar() if calendar is None else calendar
         unknown = set(self.events) - set(self.calendar["event"])
         if unknown:
@@ -51,14 +51,20 @@ class EventKernel(LinearComponent):
             for event, g in rows.groupby("event")
         }
         self.occurrences = rows.groupby("event").size().to_dict()
+        scopes = rows.groupby("event")["scope"].unique()
+        mixed = [event for event, values in scopes.items() if len(values) > 1]
+        if mixed:
+            raise ValueError(f"Events with more than one scope: {mixed}")
+        self.scopes = {event: values[0] for event, values in scopes.items()}
 
     def _columns(self):
         return [(event, k) for event in self.events for k in self.offsets[event]]
 
     def design(self, panel: pd.DataFrame) -> pd.DataFrame:
         offsets = event_offsets(panel[self.date_column], self.calendar, self.events)
+        covered = {event: in_scope(panel["market"], self.scopes[event]).to_numpy() for event in self.events}
         columns = {
-            f"{event}@{k:+d}": (offsets[offset_column(event)] == k).astype(float)
+            f"{event}@{k:+d}": ((offsets[offset_column(event)] == k) & covered[event]).astype(float)
             for event, k in self._columns()
         }
         return pd.DataFrame(columns, index=panel.index)

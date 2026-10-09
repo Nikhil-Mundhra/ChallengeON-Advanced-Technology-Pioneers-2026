@@ -33,9 +33,11 @@ def event_day_offsets(frame: pd.DataFrame, anchor: str, **_) -> pd.DataFrame:
 
 
 def in_scope(markets: pd.Series, scope: str) -> pd.Series:
-    """Whether each market is covered by an event scope (all | domestic | international)."""
+    """Whether each market is covered by an event scope: all, domestic, international, or one market."""
     if scope == "all":
         return pd.Series(True, index=markets.index)
+    if scope not in ("domestic", "international"):
+        return markets == scope
     domestic = markets == DOMESTIC
     return domestic if scope == "domestic" else ~domestic
 

@@ -24,11 +24,11 @@ from tourism_twin.planning.evaluation import evaluate
 from tourism_twin.models.noise import NoiseModel, held_out_coverage
 from tourism_twin.models.fitters import Backfitting, JointLinear
 from tourism_twin.features.lags import DEFAULT_MAX_LAG, lag_column
-from tourism_twin.domain.markets import REGIONAL_CLUSTERS, TOP_15_INTERNATIONAL_MARKETS
+from tourism_twin.domain.markets import MODELED_MARKETS
 from tourism_twin.domain.scenario import ScenarioLever
 from tourism_twin.domain.seasons import SEASONS, assign_season
 
-EXPECTED_MARKETS = {*TOP_15_INTERNATIONAL_MARKETS, *REGIONAL_CLUSTERS, "DOMESTIC"}
+EXPECTED_MARKETS = set(MODELED_MARKETS)
 WATERFALL_PARTS = ("waterfall_seats", "waterfall_lf", "waterfall_p2p", "waterfall_multiplier", "waterfall_los")
 
 
@@ -232,9 +232,9 @@ def test_trend_origin_is_shared_across_markets_and_smearing_corrects_the_mean():
     assert model.smearing_["A"] == pytest.approx(np.exp(0.5 ** 2 / 2), rel=0.03)  # 1.13; no correction would be 1.0
 
 
-def _calendar(event: str, anchors, start: int, end: int, kind: str = "solar") -> pd.DataFrame:
+def _calendar(event: str, anchors, start: int, end: int, kind: str = "solar", scope: str = "all") -> pd.DataFrame:
     calendar = pd.DataFrame({"event": event, "kind": kind, "anchor_date": pd.to_datetime(anchors),
-                             "window_start_offset": start, "window_end_offset": end})
+                             "window_start_offset": start, "window_end_offset": end, "scope": scope})
     calendar["window_start"] = calendar["anchor_date"] + pd.to_timedelta(start, unit="D")
     calendar["window_end"] = calendar["anchor_date"] + pd.to_timedelta(end, unit="D")
     return calendar
@@ -254,6 +254,12 @@ def test_event_kernel_recovers_a_known_bump():
     contributions = model.decompose(frame)["events"]
     outside = ~frame["date"].isin([a + np.timedelta64(k, "D") for a in calendar["anchor_date"] for k in true_kernel])
     assert (contributions[outside] == 0).all()  # zero baseline: an event contributes nothing outside its windows
+    # A market-scoped event (e.g. Chinese New Year for CHINA) is zero for every other market.
+    scoped = EventKernel(["fest"], calendar=_calendar("fest", ["2023-04-10", "2024-04-10"], -1, 3, scope="M"))
+    other = frame.assign(market="OTHER")
+    pooled = pd.concat([frame, other], ignore_index=True)
+    design = scoped.design(pooled)
+    assert design.iloc[len(frame):].to_numpy().sum() == 0 and design.iloc[:len(frame)].to_numpy().sum() == 10
 
 
 def test_one_off_periods_are_flagged_and_masked_from_training():
@@ -337,7 +343,7 @@ def test_day_of_week_recovers_known_weekday_effects():
     assert fitted["effect_log_vs_monday"]["Tue"] == pytest.approx(0.0, abs=1e-9)
 
 
-def test_local_level_tracks_a_slow_level_and_extrapolates_flat_by_default():
+def test_level_and_slope_extrapolate_flat_by_default():
     t = np.arange(900)
     level = 8.0 + 0.4 * np.sin(2 * np.pi * t / 700) + 0.0004 * t
     frame = _daily(level + np.random.default_rng(3).normal(0, 0.03, len(t)))
@@ -349,6 +355,14 @@ def test_local_level_tracks_a_slow_level_and_extrapolates_flat_by_default():
     true_slope = 0.4 * 2 * np.pi / 700 * np.cos(2 * np.pi * 799 / 700) + 0.0004  # derivative at the last day
     assert sloped.explain()["M"]["level"]["slope_log_per_day"] == pytest.approx(true_slope, rel=0.5)
     np.testing.assert_allclose(np.diff(sloped.decompose(frame.iloc[800:830])["level"]), sloped.explain()["M"]["level"]["slope_log_per_day"], atol=1e-12)
+    # The centred slope, by default, stops at the last training day (damping_days=None keeps it linear).
+    from tourism_twin.models.components import CentredSlope
+
+    trended = _daily(8.0 + 0.2 * np.arange(900) / 365.25)
+    for damping, expect_flat in ((0.0, True), (None, False)):
+        model = AdditiveLogModel([LinearTrend(), CentredSlope(damping_days=damping)], fitter=JointLinear()).fit(trended.iloc[:800])
+        ahead = model.decompose(trended.iloc[800:])["slope"].to_numpy()
+        assert (np.ptp(ahead) == 0.0) == expect_flat
 
 
 def test_arrivals_convolution_recovers_a_known_survival_kernel():

@@ -47,3 +47,6 @@ REGIONAL_CLUSTERS: Dict[str, List[str]] = {
         "UZBEKISTAN", "AZERBAIJAN", "ARMENIA", "TURKEY",
     ],
 }
+
+# Every modeled market: 15 source markets, 6 regional clusters, DOMESTIC.
+MODELED_MARKETS = (*TOP_15_INTERNATIONAL_MARKETS, *REGIONAL_CLUSTERS, DOMESTIC)
