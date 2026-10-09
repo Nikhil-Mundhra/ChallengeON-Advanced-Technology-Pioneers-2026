@@ -135,6 +135,13 @@ class MarketRouter:
                         for flag in (True, False) if (is_domestic == flag).any()}
         return self
 
+    def diagnostics(self) -> dict:
+        totals: dict = {}
+        for model in self.models_.values():
+            for key, value in getattr(model, "diagnostics", lambda: {})().items():
+                totals[key] = totals.get(key, 0) + value
+        return totals
+
     def predict(self, panel: pd.DataFrame) -> pd.Series:
         is_domestic = panel["market"] == "DOMESTIC"
         out = pd.Series(np.nan, index=panel.index, dtype=float)
@@ -143,3 +150,18 @@ class MarketRouter:
             if len(rows):
                 out.loc[rows.index] = model.predict(rows).to_numpy()
         return out
+
+
+class ArrivalsRatio:
+    """Daily nowcast baseline: new arrivals times the market's training guests / arrivals ratio."""
+
+    def fit(self, panel: pd.DataFrame) -> "ArrivalsRatio":
+        totals = panel.groupby("market")[["guests", "new_arrivals_filled"]].sum()
+        self.ratio_ = (totals["guests"] / totals["new_arrivals_filled"]).to_dict()
+        return self
+
+    def predict(self, panel: pd.DataFrame) -> pd.Series:
+        unseen = sorted(set(panel["market"]) - set(self.ratio_))
+        if unseen:
+            raise ValueError(f"ArrivalsRatio has no ratio for markets {unseen}")
+        return panel["new_arrivals_filled"] * panel["market"].map(self.ratio_)

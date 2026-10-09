@@ -7,10 +7,10 @@ from tourism_twin.models.components.level import LocalLevel
 from tourism_twin.models.components.regressors import LinearRegressors
 from tourism_twin.models.components.residual_gbm import ResidualGBM
 from tourism_twin.models.components.season import AnnualFourier
-from tourism_twin.models.components.trend import LinearTrend
+from tourism_twin.models.components.trend import CentredSlope, LinearTrend
 from tourism_twin.models.components.weekday import DayOfWeek
 
 __all__ = [
-    "AnnualFourier", "ArrivalsConvolution", "Component", "DayOfWeek", "EventKernel", "LinearComponent",
+    "AnnualFourier", "ArrivalsConvolution", "CentredSlope", "Component", "DayOfWeek", "EventKernel", "LinearComponent",
     "LinearRegressors", "LinearTrend", "LocalLevel", "ResidualGBM",
 ]

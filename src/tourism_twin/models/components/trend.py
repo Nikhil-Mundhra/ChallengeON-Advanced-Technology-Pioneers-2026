@@ -41,3 +41,29 @@ class LinearTrend(LinearComponent):
     def reset(self) -> None:
         super().reset()
         self.origin_ = pd.Timestamp(self.origin) if self.origin else None
+
+
+class CentredSlope(LinearComponent):
+    """A log-linear trend that does not own the level: years since the first training day,
+    centred over the training rows. Used with a level-owning component such as the arrivals kernel."""
+
+    def __init__(self, name: str = "slope", date_column: str = "date") -> None:
+        super().__init__()
+        self.name = name
+        self.date_column = date_column
+        self.requires = (date_column,)
+        self.origin_: pd.Timestamp | None = None
+
+    def design(self, panel: pd.DataFrame) -> pd.DataFrame:
+        dates = pd.to_datetime(panel[self.date_column])
+        if self.origin_ is None:
+            self.origin_ = dates.min()
+        return pd.DataFrame({"slope_per_year": (dates - self.origin_).dt.days / 365.25}, index=panel.index)
+
+    def explain(self) -> Dict[str, Any]:
+        self._require_fitted()
+        return {"slope_log_per_year": float(self.coef_[0])}
+
+    def reset(self) -> None:
+        super().reset()
+        self.origin_ = None

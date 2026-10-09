@@ -132,6 +132,11 @@ class AdditiveLogModel:
                 prediction = prediction * panel[self.group_by].map(self.smearing_).astype(float)
         return prediction.rename(f"{self.target}_pred")
 
+    def diagnostics(self) -> Dict[str, int]:
+        """Counts the back-test harness records per fold: fits, and fits that hit max_iter."""
+        reports = [report for _, report in self.fitted_.values()]
+        return {"fits": len(reports), "non_converged": sum(not r.converged for r in reports)}
+
     def explain(self) -> Dict[Hashable, Dict[str, Any]]:
         return {
             key: {

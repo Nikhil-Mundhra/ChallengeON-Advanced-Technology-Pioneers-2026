@@ -64,6 +64,7 @@ class BacktestResult:
     predictions: pd.DataFrame  # fold, origin, model, row, market, date, horizon_days, actual, pred
     metrics: pd.DataFrame      # fold, model, segment (all | domestic | international), n, wmape, bias, mae, rmse
     skipped: List[str] = field(default_factory=list)  # folds with no training or no test rows
+    diagnostics: pd.DataFrame = field(default_factory=pd.DataFrame)  # fold, model, and each model's fit counts
 
     def summary(self) -> pd.DataFrame:
         """Mean of the per-fold metrics per model and segment. Folds overlap (a row is scored by
@@ -94,6 +95,7 @@ def backtest(
     observed = panel[target].notna()
     records: List[pd.DataFrame] = []
     skipped: List[str] = []
+    fit_counts: List[dict] = []
     for fold in splitter.folds(dates[observed]):
         train = panel[observed & (period_end < fold.train_end)]
         test = panel[observed & (dates >= fold.test_start) & (dates <= fold.test_end)]
@@ -101,7 +103,10 @@ def backtest(
             skipped.append(fold.name)
             continue
         for name, factory in models.items():
-            pred = factory().fit(train).predict(test)
+            model = factory().fit(train)
+            pred = model.predict(test)
+            if hasattr(model, "diagnostics"):
+                fit_counts.append({"fold": fold.name, "model": name, **model.diagnostics()})
             if not isinstance(pred, pd.Series) or not pred.index.equals(test.index):
                 raise ValueError(f"Model {name!r} must return a Series indexed like the test rows (fold {fold.name})")
             if pred.isna().any():
@@ -117,7 +122,7 @@ def backtest(
     if skipped:
         warnings.warn(f"Skipped folds without training or test rows: {skipped}", stacklevel=2)
     predictions = pd.concat(records, ignore_index=True)
-    return BacktestResult(predictions, score(predictions), skipped)
+    return BacktestResult(predictions, score(predictions), skipped, pd.DataFrame(fit_counts))
 
 
 def score(predictions: pd.DataFrame) -> pd.DataFrame:

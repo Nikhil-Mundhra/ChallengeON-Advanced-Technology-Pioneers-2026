@@ -400,15 +400,18 @@ def test_day_of_week_recovers_known_weekday_effects():
     assert fitted["effect_log_vs_monday"]["Tue"] == pytest.approx(0.0, abs=1e-9)
 
 
-def test_local_level_tracks_a_slow_level_and_extrapolates_its_slope():
+def test_local_level_tracks_a_slow_level_and_extrapolates_flat_by_default():
     t = np.arange(900)
     level = 8.0 + 0.4 * np.sin(2 * np.pi * t / 700) + 0.0004 * t
     frame = _daily(level + np.random.default_rng(3).normal(0, 0.03, len(t)))
-    model = AdditiveLogModel([LocalLevel(smoothing=1e4)], fitter=Backfitting()).fit(frame.iloc[:800])
-    fitted = model.decompose(frame.iloc[:800])["level"]
-    assert np.abs(fitted - level[:800]).mean() < 0.02
-    ahead = model.decompose(frame.iloc[800:830])["level"].to_numpy()
-    np.testing.assert_allclose(np.diff(ahead), model.explain()["M"]["level"]["slope_log_per_day"], atol=1e-12)
+    flat = AdditiveLogModel([LocalLevel(smoothing=1e4)], fitter=JointLinear()).fit(frame.iloc[:800])
+    assert np.abs(flat.decompose(frame.iloc[:800])["level"] - level[:800]).mean() < 0.02
+    ahead = flat.decompose(frame.iloc[800:830])["level"].to_numpy()
+    assert np.ptp(ahead) == 0.0
+    sloped = AdditiveLogModel([LocalLevel(smoothing=1e4, extrapolate_slope=True)], fitter=JointLinear()).fit(frame.iloc[:800])
+    true_slope = 0.4 * 2 * np.pi / 700 * np.cos(2 * np.pi * 799 / 700) + 0.0004  # derivative at the last day
+    assert sloped.explain()["M"]["level"]["slope_log_per_day"] == pytest.approx(true_slope, rel=0.5)
+    np.testing.assert_allclose(np.diff(sloped.decompose(frame.iloc[800:830])["level"]), sloped.explain()["M"]["level"]["slope_log_per_day"], atol=1e-12)
 
 
 def test_arrivals_convolution_recovers_a_known_survival_kernel():
@@ -425,6 +428,33 @@ def test_arrivals_convolution_recovers_a_known_survival_kernel():
     np.testing.assert_allclose(fitted["survival_w"], true_w, atol=0.01)
     assert fitted["implied_mean_stay_days"] == pytest.approx(true_w.sum(), rel=0.01)
     assert all(a >= b - 1e-12 for a, b in zip(fitted["survival_w"], fitted["survival_w"][1:])) and fitted["w0"] <= 1 + 1e-9
+
+
+def _conv_frame(true_w: np.ndarray, base: float, noise: float, n: int = 900, seed: int = 5) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    max_lag = len(true_w) - 1
+    arrivals = 1000 * np.exp(0.3 * np.sin(2 * np.pi * np.arange(n) / 365.25) + rng.normal(0, 0.15, n))
+    lags = np.column_stack([np.r_[np.full(k, np.nan), arrivals[:n - k]] for k in range(max_lag + 1)])
+    guests = (base + np.nan_to_num(lags) @ true_w) * np.exp(rng.normal(0, noise, n))
+    return PANEL_FEATURES.apply(_daily(np.log(guests), new_arrivals_filled=arrivals), ["arrival_lags"], max_lag=max_lag)
+
+
+def test_arrivals_convolution_enforces_w0_at_most_one_when_it_binds():
+    true_w = 1.3 * np.exp(-np.arange(8) / 2.0)  # data generated with w0 = 1.3: an unconstrained fit lands above 1
+    frame = _conv_frame(true_w, base=0.0, noise=0.02)
+    model = AdditiveLogModel([ArrivalsConvolution(max_lag=7)], fitter=Backfitting(), include_flag="lag_complete").fit(frame)
+    fitted = model.explain()["M"]["arrivals"]
+    assert fitted["w0"] <= 1.0 + 1e-12
+    assert all(a >= b - 1e-12 for a, b in zip(fitted["survival_w"], fitted["survival_w"][1:]))
+
+
+def test_arrivals_convolution_base_stock_is_flat_beyond_the_training_days():
+    frame = _conv_frame(np.exp(-np.arange(8) / 3.0), base=300.0, noise=0.0)
+    model = AdditiveLogModel([ArrivalsConvolution(max_lag=7)], fitter=Backfitting(), include_flag="lag_complete").fit(frame.iloc[:600])
+    component = model.fitted_["M"][0][0]
+    future = frame.iloc[600:]
+    base = component._base(future["date"]) @ component.c_
+    assert np.ptp(base) == 0.0 and base[0] == pytest.approx(list(model.explain()["M"]["arrivals"]["base_stock_by_knot"].values())[-1])
 
 
 def test_residual_gbm_picks_up_a_structure_the_other_parts_miss():

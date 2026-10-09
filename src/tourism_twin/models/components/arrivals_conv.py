@@ -47,6 +47,8 @@ class ArrivalsConvolution:
         self.knots_: pd.DatetimeIndex | None = None
         self.floor_ = 1e-6
         self.floored_rows_ = 0
+        self.solver_success_ = True
+        self.projected_ = False
 
     def _base(self, dates: pd.Series) -> np.ndarray:
         """Hat-function basis for c_t over the knots (clamped beyond the first and last knot)."""
@@ -94,9 +96,15 @@ class ArrivalsConvolution:
                 options={"maxiter": 500, "ftol": 1e-12},
             )
             start_params = result.x
+            self.solver_success_ = bool(result.success)
         d, self.c_ = np.clip(start_params[:k], 0, None), np.clip(start_params[k:], 0, None)
+        if d.sum() > 1.0:  # SLSQP can stop short of feasibility; project onto sum(d) <= 1 (w0 <= 1)
+            d = d / d.sum()
+            self.projected_ = True
         self.w_ = np.cumsum(d[::-1])[::-1]  # w_k = sum_{j>=k} d_j
         flow = self._flow(panel)
+        base = self._base(dates) @ self.c_
+        self.base_share_ = float(base.sum() / flow.sum()) if flow.sum() > 0 else 0.0
         self.floor_ = max(1e-6, 0.01 * float(np.mean(flow[flow > 0])) if (flow > 0).any() else 1e-6)
         return self
 
@@ -117,6 +125,11 @@ class ArrivalsConvolution:
         return {
             "survival_w": [float(v) for v in self.w_],
             "implied_mean_stay_days": float(self.w_.sum()),
+            # Share of the training flow carried by the base stock c_t rather than the kernel; when it
+            # is large, sum(w) understates the guests / new-arrivals ratio.
+            "base_stock_share": self.base_share_,
+            "constraint_projected": self.projected_,
+            "solver_success": self.solver_success_,
             "w0": float(self.w_[0]),
             "base_stock_by_knot": {str(k.date()): float(c) for k, c in zip(self.knots_, self.c_)},
             "floored_rows_last_call": self.floored_rows_,
