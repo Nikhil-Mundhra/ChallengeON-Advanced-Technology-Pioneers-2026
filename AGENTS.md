@@ -23,7 +23,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin evaluate` | Weekly benchmarks through the back-test harness → `evaluation_results.json` (run before `train`, which reads its coverage) | lake |
 | `twin predict [--spec S] [--no-intervals]` | Daily nowcast of the test split (default spec `twin_daily`); refuses output failing `validate_predictions` | output (`predictions/`) |
 | `twin ablate-blocks` | Nowcast block ablation on 13 rolling origins (~10 min) | output (`nowcast_block_ablation.json`) |
-| `twin evaluate-model [--spec S \| --model P] --start D --end D [--frozen-test]` | Fit a spec up to `--start` minus a 21-day gap (or load a saved model) and score it on the window without refitting → `evaluations/*.json`; refuses the frozen test window without `--frozen-test` | output (`models/`, `evaluations/`) |
+| `twin evaluate-model [--spec S \| --model P] --start D --end D [--frozen-test]` | Fit a spec (a `DAILY_SPECS` name, or `pooled_nationalities` at nationality grain with a per-nationality table) up to `--start` minus a 21-day gap (or load a saved model) and score it on the window without refitting → `evaluations/*.json`; refuses the frozen test window without `--frozen-test` | output (`models/`, `evaluations/`) |
 | `twin simulate --market M --season S [levers]` | Print a scenario briefing | — |
 | `twin charts` | Waterfall, tornado, benchmark figures | output |
 | `twin report {solution,database}` | PDF report (needs `report` extra) | output |

@@ -60,3 +60,29 @@ def test_scorecard_metrics_grains_direction_and_coverage():
     band.iloc[::4] = band.iloc[::4] * 2  # a quarter of the days miss the band
     covered = evaluate_fitted(_Shifted(1.0), frame, intervals=band).coverage
     assert covered.loc[0, "coverage"] == pytest.approx(0.75, abs=0.002)
+
+
+def test_scorecard_per_entity_table_and_nationality_grain_panels():
+    from tourism_twin.models.evaluate import card_for, evaluate_fitted
+
+    class _ByEntity:
+        """Predicts 1.2× the target for one nationality and the exact target for the other."""
+
+        def fit(self, panel):
+            return self
+
+        def predict(self, panel):
+            return panel["guests"] * np.where(panel["nationality"] == "A", 1.2, 1.0)
+
+    a, b = _synthetic(noise=0.05, seed=1), _synthetic(noise=0.05, seed=2)
+    frame = pd.concat([a.assign(nationality="A"), b.assign(nationality="B")], ignore_index=True).drop(columns="market")
+
+    card = card_for("pooled", frame, entity_column="nationality")
+    assert card.markets == ("A", "B")
+    score = evaluate_fitted(_ByEntity(), frame, group_column="nationality")
+    assert set(score.metrics["segment"]) == {"international"}  # no market column: nationality grain
+    per = score.by_group.set_index("nationality")
+    assert per.loc["A", "bias"] == pytest.approx(0.2) and per.loc["B", "wmape"] == 0
+    assert per.loc["A", "n"] == len(a)
+    assert score.to_dict()["by_group"][0]["nationality"] in {"A", "B"}
+    assert evaluate_fitted(_ByEntity(), frame).by_group is None  # the table only when asked for
