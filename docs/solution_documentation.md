@@ -1,7 +1,7 @@
 # Abu Dhabi Tourism Digital Twin — Solution and Technical Specification
 
 **Challenge:** DCT Abu Dhabi — Advanced Technology Pioneers 2026 ([challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en))
-**Status:** working prototype: CLI, web UI and JSON API, PDF reports, forward-holdout back-test, 59 automated tests.
+**Status:** working prototype: CLI, web UI and JSON API, PDF reports, forward-holdout back-test, 78 automated tests.
 **Run instructions:** [README](../README.md) and [user guide](user_guide.md).
 
 ## 1. Summary
@@ -204,7 +204,7 @@ Findings:
 
 ## 10. Tests
 
-59 tests: 35 in `tests/test_tourism_twin.py` (lake grain contract, feature registry, weekly and daily panel contracts, daily-to-weekly reconciliation, waterfall identity, route closure, domestic decoupling, monotonicity, cold start, deterministic uncertainty, API validation) and 24 in `tests/test_audit_agent.py`. On a fresh clone 58 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022` needs `flight_monthly.parquet` from `twin build-lake`). Details: [user guide §9](user_guide.md#9-tests).
+78 tests: 54 in `tests/test_tourism_twin.py` (lake grain contract, feature registry, weekly and daily panel contracts, daily-to-weekly reconciliation, waterfall identity, route closure, domestic decoupling, monotonicity, cold start, deterministic uncertainty, API validation, model components, event registry, back-test harness) and 24 in `tests/test_audit_agent.py`. On a fresh clone 77 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022` needs `flight_monthly.parquet` from `twin build-lake`). Details: [user guide §9](user_guide.md#9-tests).
 
 ## 11. Limitations and planned work
 

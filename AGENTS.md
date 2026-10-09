@@ -71,10 +71,10 @@ cli/        the `twin` command
 - Read `docs/model_design.md` (§3 form, §5 structure, §5.7 rules) and `docs/decisions.md` before changing any model. A decision changes only by a new entry in `docs/decisions.md`.
 - Build new model parts as components (`models/components/`, `Component` protocol) composed by `models/composite.py`; never hard-wire a new model into `training.py` or `evaluation.py`.
 - The competition task is a nowcast: test-split `New Arrivals` are inputs; never use a feature derived from `Guests`.
-- Fit components jointly (`models/fitters.py`); centre every contribution except the one level owner.
-- Nowcast specs: the arrivals kernel owns the level; no trend term in the calendar (decision D15).
+- Fit components jointly (`models/fitters.py`); centre periodic contributions; the one level owner and event terms (zero outside their windows) are not centred.
+- Nowcast specs are per series (decisions D19, D20): the arrivals kernel owns the level; DOMESTIC adds a centred slope and no events; INTERNATIONAL has events and no slope.
 - Before changing a nowcast model, reproduce the reference evaluation in `docs/model_design.md` §5.7 and compare with its expected values.
-- Judge event components only on back-test folds that contain their windows (decision D16).
+- Judge event components only on back-test folds that contain their windows (decision D16). Decide specs on rolling origins, not on the two reference folds alone.
 - Arrivals kernel: non-negative, non-increasing (`w = triu(ones) @ d`, `d >= 0`), `w_0 <= 1`.
 - Encode categoricals one-hot, season as Fourier terms, continuous inputs in log, lunar holidays from explicit dates.
 - Tune hyperparameters on validation folds with time-ordered splits only; compute calibration statistics (z-scores, conformal margins, σ) from training folds only.

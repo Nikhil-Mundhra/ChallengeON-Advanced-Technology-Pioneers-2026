@@ -169,7 +169,7 @@ Results are in the [README](../README.md#3-forward-holdout-results). Bias is (Σ
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-59 tests: 35 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`. On a fresh clone 58 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022`, until `twin build-lake` creates `flight_monthly.parquet`). The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required.
+78 tests: 54 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`. On a fresh clone 77 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022`, until `twin build-lake` creates `flight_monthly.parquet`). The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required.
 
 Product checks in `tests/test_tourism_twin.py`:
 

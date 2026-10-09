@@ -44,10 +44,12 @@ flow_t     = c_t + Σ_{k=0..K} w_k · Arrivals_{t−k}             arrivals kern
 m_t        = exp(   Fourier_H(day of year)                     annual season, H = 4
                   + day of week [× season]
                   + Σ_e Kernel_e(t − anchor_e) )               event kernels (Ramadan, Eids, National Day, ...)
-                                                               every term centred on the training window
+                  [+ slope_t]                                  DOMESTIC only (D19)
+                                                               periodic terms centred on the training window;
+                                                               event terms are zero outside their windows
 ```
 
-**No trend term in the nowcast (decision D15).** Arrivals already carry the level, so `m_t` has no trend or slope. A trend belongs only to time-only specs where arrivals are unknown (domestic forecast, planning); there a level component (`LinearTrend`, or a local level) owns the level instead of the kernel. A slope added to the nowcast extrapolated +10.7% international over the test period in the vertical-slice probe (§4.5); a linear trend overshot 2025 by ~20% (§4.3).
+**Trend in the nowcast is per series (decision D19, superseding D15).** The arrivals kernel owns the level in both series. DOMESTIC adds a centred log-slope to `m_t`: guests per arrival have fallen year on year (−3.9%/yr fitted), which a fixed kernel cannot follow. INTERNATIONAL has no trend: its fitted slope (+7.2%/yr) over-extrapolates and loses on the rolling back-test. Time-only specs (arrivals unknown: domestic forecast, planning) use a level component (`LinearTrend` or a local level) instead of the kernel. Evidence: §4.6.
 
 Kernel constraints:
 
@@ -146,8 +148,26 @@ An independent implementation built only from this document and AGENTS.md (panel
 | Joint, rolling origins (13 monthly, 2024-02 → 2025-02, 6-month horizon) | **4.75** (naive 18.8) | **5.23** (naive 19.3) | — |
 
 - Baselines reproduce within 0.4 points; the joint model reproduces and slightly improves on §4.1.
-- The probe's spec included a centred slope; on the test split it added +10.7% international / −6.1% domestic. That is why D15 removes the trend from nowcast specs.
-- Events failed the drop-one gate (+0.06 / +0.07 points) on the Feb–Jul folds, which contain Ramadan and both Eids but no National Day or Christmas–New Year. See D16.
+- This probe's joint spec included a centred slope for both series; on the test split the slope added +10.7% international / −6.1% domestic. The numbers in this table are therefore **with slope**; §4.6 separates the slope's effect.
+- Events failed the drop-one gate (+0.06 / +0.07 points) on the Feb–Jul folds, which contain Ramadan and both Eids but no National Day or Christmas–New Year. See D16 and §4.6.
+
+### 4.6 Slope and events in the nowcast: clean A/B — *Analysis finding (unmerged branch)*
+
+One implementation (second probe, §5.7 reference spec with box events), one component switched at a time. WAPE %.
+
+| Variant | DOM reference (2) | DOM rolling-13 | DOM Aug–Jan | INTL reference (2) | INTL rolling-13 | INTL Aug–Jan |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| No slope, events | 5.10 | 6.70 | 7.45 | 4.92 | 5.11 | 5.10 |
+| Slope, events | 4.65 | 4.72 | 4.92 | 4.25 | 5.34 | 5.68 |
+| Slope, no events | 4.72 | **4.65** | 4.74 | 4.07 | 5.16 | 5.89 |
+| No slope, no events | — | — | — | 4.68 | 5.08 | 5.45 |
+| Seasonal naive 364 | 16.31 | 18.8 | — | 18.59 | 19.28 | — |
+
+Rolling-13: monthly origins 2024-02-01 → 2025-02-01, 6-month horizon. Aug–Jan: test 2024-08-01 → 2025-01-31, the only fold containing National Day and Christmas–New Year.
+
+- **Slope:** DOMESTIC improves on every fold set (up to 2.5 points; fitted −3.9%/yr). INTERNATIONAL improves only on the two Feb–Jul reference folds and loses on rolling-13 and Aug–Jan (fitted +7.2%/yr). Decision D19.
+- **Events:** DOMESTIC is better without them everywhere it matters. INTERNATIONAL gains 0.35 on the event fold and is neutral on rolling-13. Decision D20. Box windows only; the smoothed `EventKernel` is untested in the nowcast.
+- The two Feb–Jul reference folds alone would have chosen the wrong international spec: check decisions on rolling origins and on folds containing the relevant windows.
 
 ## 5. Proposed code structure — *Partly implemented*
 
@@ -190,7 +210,7 @@ A spec is a named component list (`intl_nowcast`, `domestic_time`, `planning`, `
 
 ### 5.3 Event registry as data
 
-`domain/events.csv` with columns `event, kind (lunar|solar|one_off), anchor_date, window_start_offset, window_end_offset, label, source (detected|manual)`. Separate rows for Ramadan, Eid al-Fitr, Eid al-Adha, National Day, Christmas–New Year, F1, ADIPEC and the rest, including test-period dates. `one_off` rows are masked from training. `is_holiday_week` and `is_major_event_week` become features derived from the CSV so the weekly panel and its tests keep working. Candidate windows come from `event_detector.py` (robust z on residuals, seed |z| ≥ 3, extend while |z| ≥ 1.5, recurrence by calendar date or Ramadan offset ±3 days; an event needs ≥ 2 occurrences to be recurring).
+`domain/events.csv` with columns `event, kind (lunar|solar|one_off), anchor_date, window_start_offset, window_end_offset, scope, label, source (detected|manual)`. Separate rows for Ramadan, Eid al-Fitr, Eid al-Adha, National Day, Christmas–New Year, F1, ADIPEC and the rest, including test-period dates. `one_off` rows are masked from training. `is_holiday_week` and `is_major_event_week` become features derived from the CSV so the weekly panel and its tests keep working. Candidate windows come from `event_detector.py` (robust z on residuals, seed |z| ≥ 3, extend while |z| ≥ 1.5, recurrence by calendar date or Ramadan offset ±3 days; an event needs ≥ 2 occurrences to be recurring).
 
 ### 5.4 Back-test harness (#10, #11)
 
@@ -228,7 +248,7 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Encoding in linear/GLM parts: categoricals (day of week, month, market, holiday type) one-hot, never integer-coded; annual season as Fourier terms on day of year; continuous inputs (arrivals, P2P, seats) in log; load factor (bounded, saturating) as spline or bins | Integer-coded categoricals make a linear model look worse than a GBM for the wrong reason (*analysis*: holiday and encoding fixes cut ridge MAE 3,137 → 2,623) |
 | Lunar holidays from explicit dates per year, never a fixed month | They move ~11 days earlier each year |
 | Kernel: `w = triu(ones) @ d`, `d ≥ 0` (non-increasing); **not** `triu(ones).T` (non-decreasing) | Reversed matrix silently gives a non-physical kernel (*analysis*, bug found) |
-| Centre the calendar on the training window after every calendar step; the kernel owns the level | Otherwise the overall scale drifts into the calendar intercept and the kernel collapses toward zero (*analysis*) |
+| Centre periodic calendar terms on the training window after every calendar step; the kernel owns the level; event terms are zero outside their windows | Otherwise the overall scale drifts into the calendar intercept and the kernel collapses toward zero (*analysis*) |
 | Never fit a power α together with a free kernel | They trade off without limit and diverge; estimate α with the kernel fixed (*analysis*) |
 | Joint fit (backfitting to convergence), never one greedy pass | Greedy order changes the answer by up to 8.6 points (§4.1) |
 | No feature derived from `Guests` in the nowcast; lags of `New Arrivals` are allowed in both splits | Guests is the withheld target (D2) |
@@ -247,11 +267,12 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Training rows | date ≥ 2023-01-01, `lag_complete`, `guests` not null. 2022 guests unused |
 | Folds | test 2024-02-01 → 2024-07-31 (train before 2024-02-01) and test 2025-02-01 → 2025-07-31 (train before 2025-02-01). Report each fold and the mean |
 | Hyperparameters | Fixed, not tuned: K = 21, H = 4, ridge α = 1. Tuning (D11) applies to the production spec only, on validation folds (D18) |
-| Kernel | `flow = c + Σ_{k=0..21} w_k·A_{t−k}`, `w = triu(ones) @ d`, `d ≥ 0`, `w_0 ≤ 1`, `c ≥ 0`; fitted on Guests / m in raw scale, rows weighted by m |
-| Calendar (log) | Fourier on day of year / 365.25, H = 4; day of week one-hot (Monday = reference); event windows as 0/1 boxes: Ramadan (first day − 5 → day before Eid al-Fitr window), Eid al-Fitr and Eid al-Adha (−1 → +3), National Day (30 Nov → 4 Dec), Christmas–New Year (22 Dec → 7 Jan). **No trend** (D15). Ridge penalises calendar columns only; every contribution centred on the training rows |
+| Kernel | `flow = c + Σ_{k=0..21} w_k·A_{t−k}`, `w = triu(ones) @ d`, `d ≥ 0`, `w_0 ≤ 1`, `c ≥ 0`; fitted on Guests / m in raw scale, rows weighted by m (minimise Σ(G − m·flow)²); `w_0 ≤ 1` enforced exactly (bounded solve when it binds) |
+| Calendar (log) | Fourier on day of year / 365.25, H = 4; day of week one-hot (Monday = reference); event windows as 0/1 boxes: Ramadan (first day − 5 → day before Eid al-Fitr window), Eid al-Fitr and Eid al-Adha (−1 → +3), National Day (30 Nov → 4 Dec), Christmas–New Year (22 Dec → 7 Jan). These boxes are fixed for comparability and differ from the `domain/events.csv` windows used by `EventKernel`. Ridge α = 1 on the raw centred columns (scikit-learn `Ridge` convention); level owner and slope unpenalised. Periodic terms centred on the training rows; event boxes centred too in the reference (an implementation detail; `EventKernel` instead is zero outside its windows) |
+| Per-series terms | DOMESTIC: + centred log-slope (years since 2023-01-01), no events. INTERNATIONAL: events, no slope (D19, D20) |
 | Fit | Backfitting: kernel on Guests / m, calendar on log(Guests / flow), until the largest change in any log contribution < 1e-6 |
 | Metric | WAPE = Σ\|actual − predicted\| / Σ actual, per series and fold |
-| Expected | Joint ≈ 4.7 domestic / 4.1 international (§4.5; §4.1 without the w₀ / c constraints: 4.9 / 4.7). Baselines: naive 16.3 / 18.6, calendar only (with trend) ≈ 11.5, kernel only 8.1 / 6.1 |
+| Expected | Per-series spec above: DOMESTIC 4.72 reference / 4.65 rolling-13; INTERNATIONAL 4.92 reference / 5.11 rolling-13 (§4.6). Same spec for both series without slope, with events: 5.10 / 4.92. Baselines: naive 16.3 / 18.6, calendar only (with trend) ≈ 11.6, kernel only 8.1 / 6.1 |
 | Not inputs | Same-day guests (separate target, D17); anything derived from `Guests` |
 
 ### 5.8 Flight-side findings for feature work — *Analysis finding*
