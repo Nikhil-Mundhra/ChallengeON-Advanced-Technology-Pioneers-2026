@@ -649,21 +649,86 @@ def test_weekly_outputs_keep_full_weeks_and_give_a_direction_probability():
     dates = pd.date_range("2025-08-04", periods=17, freq="D")  # two full Monday weeks + 3 days
     pred = np.where(dates < "2025-08-11", 100.0, 120.0)
     daily = pd.DataFrame({"market": "M", "date": dates, "pred": pred, "lower": pred * 0.9, "upper": pred * 1.1})
-    weekly = weekly_forecast(daily)
+    weekly = weekly_forecast(daily, {"M": 0.9})
     assert list(weekly["week_start"].dt.strftime("%Y-%m-%d")) == ["2025-08-04", "2025-08-11"]
     assert weekly["forecast"].tolist() == [700.0, 840.0]
     assert weekly["direction"].iloc[0] == "increase" and weekly["direction_prob"].iloc[0] > 0.9
     assert weekly["direction"].iloc[1] is None
+    # Fully persistent errors keep the daily band; independent errors narrow it by sqrt(7).
+    same = weekly_forecast(daily, {"M": 1.0})
+    assert same["p90"].iloc[0] == pytest.approx(770.0)
+    independent = weekly_forecast(daily, {"M": 0.0})
+    assert np.log(independent["p90"].iloc[0] / 700) == pytest.approx(np.log(1.1) / np.sqrt(7))
+    # Persistent errors cancel in the week-to-week difference, so the direction is surer.
+    assert same["direction_prob"].iloc[0] > independent["direction_prob"].iloc[0]
+
+
+def test_direction_backtest_scores_each_week_once_against_its_baselines():
+    from tourism_twin.models.noise import NoiseModel
+    from tourism_twin.services.outputs import direction_backtest
+
+    dates = pd.date_range("2023-01-02", "2024-03-31", freq="D")  # starts on a Monday
+    week = (dates - dates[0]).days // 7
+    flipped = dates >= "2024-01-01"  # 2024 alternates in the opposite phase to 2023
+    guests = np.where((week % 2 == 0) ^ flipped, 100.0, 200.0)
+    history = pd.DataFrame({"market": "M", "date": dates, "guests": guests, "new_arrivals_filled": guests[::-1]})
+    test = history[history["date"] >= "2024-01-01"]
+    folds = [test.assign(fold=f"f{k}", origin=pd.Timestamp("2024-01-01") + np.timedelta64(7 * k, "D"))
+             .query("date >= origin") for k in range(2)]  # overlapping folds
+    predictions = pd.concat(folds, ignore_index=True).assign(
+        actual=lambda f: f["guests"], pred=lambda f: f["guests"],
+        horizon_days=lambda f: (f["date"] - f["origin"]).dt.days)
+    noise = NoiseModel(phi_={"M": 0.5}, sigma_eta_={"M": 0.1}, v0_={"M": 0.01})
+    result = direction_backtest(predictions, history, noise)
+    assert result["weeks_scored"] == 12  # 13 full weeks, the last has no next week; overlap counted once
+    accuracy = result["accuracy"]
+    assert accuracy["model"] == 1.0
+    assert accuracy["same_direction_as_last_year"] == 0.0  # a year back is the opposite phase
+    assert accuracy["arrivals_direction"] < 1.0  # reversed arrivals mostly disagree
+    assert 0.4 <= accuracy["majority_direction"] <= 0.6  # training alternates evenly
+    assert result["weekly_band_coverage"] == 1.0
+
+
+def test_stay_outputs_come_from_the_kernel_and_are_withheld_when_the_base_stock_dominates():
+    from tourism_twin.services.outputs import _stay
+
+    survival = [0.9, 0.6, 0.45, 0.3]
+    quoted = _stay({"survival_w": survival, "base_stock_share": 0.1})
+    assert quoted["implied_mean_stay_days"] == pytest.approx(2.25)
+    assert quoted["short_stay_share"] == pytest.approx(0.5)
+    withheld = _stay({"survival_w": survival, "base_stock_share": 0.4})
+    assert withheld["implied_mean_stay_days"] is None and withheld["short_stay_share"] is None
+    assert withheld["base_stock_share"] == 0.4
 
 
 def test_narration_only_formats_the_outputs_document():
     from tourism_twin.services.briefing import weekly_nowcast_summary
 
     week = {"week_start": "2025-12-22", "forecast": 1000.0, "p10": 900.0, "p90": 1100.0, "direction": "decrease",
-            "direction_prob": 0.8, "yoy_change": 0.05, "top_drivers": [{"component": "events", "effect_pct": 40.0}]}
-    text = weekly_nowcast_summary("M", {"implied_mean_stay_days": 3.5, "short_stay_share": 0.4}, week)
-    for fragment in ("1,000", "900-1,100", "+5.0%", "decrease (probability 80%)", "events +40%", "3.5 nights", "40%"):
+            "direction_prob": 0.8, "yoy_change": 0.05, "trend_vs_training_pct": -12.0,
+            "top_drivers": [{"component": "events", "effect_pct": 40.0}]}
+    market = {"implied_mean_stay_days": 3.5, "short_stay_share": 0.4, "base_stock_share": 0.1}
+    text = weekly_nowcast_summary("M", market, week)
+    for fragment in ("1,000", "900-1,100", "+5.0%", "decrease (probability 80%)", "events +40%", "Trend -12%",
+                     "3.5 nights", "40% gone", "10% of guests"):
         assert fragment in text
+
+
+def test_poisson_deviance_matches_its_closed_form():
+    from tourism_twin.models.same_day import poisson_deviance
+
+    assert poisson_deviance([0.0], [2.0]) == pytest.approx(4.0)  # 2 * mu when y = 0
+    assert poisson_deviance([3.0], [3.0]) == pytest.approx(0.0)
+    assert poisson_deviance([4.0], [2.0]) == pytest.approx(2 * (4 * np.log(2) - 2))
+    assert np.isfinite(poisson_deviance([1.0], [0.0]))
+
+
+def test_suppressed_same_day_values_count_as_zero():
+    from tourism_twin.models.same_day import same_day_target
+
+    panel = pd.DataFrame({"same_day_guests": [5.0, np.nan, 3.0, np.nan], "n_same_day_suppressed": [0, 2, 1, 0]})
+    target = same_day_target(panel)
+    assert target.iloc[:3].tolist() == [5.0, 0.0, 3.0] and np.isnan(target.iloc[3])
 
 
 def test_same_day_poisson_recovers_a_weekday_effect():

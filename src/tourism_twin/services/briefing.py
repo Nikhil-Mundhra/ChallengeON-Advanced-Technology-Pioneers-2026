@@ -52,7 +52,10 @@ def weekly_nowcast_summary(market: str, market_outputs: Dict[str, Any], week: Di
     drivers = [f"{d['component']} {d['effect_pct']:+.0f}%" for d in week.get("top_drivers", []) if abs(d["effect_pct"]) >= 1]
     if drivers:
         text += " Drivers: " + ", ".join(drivers) + "."
+    if week.get("trend_vs_training_pct") is not None:
+        text += f" Trend {week['trend_vs_training_pct']:+.0f}% against the training average."
     if market_outputs.get("implied_mean_stay_days") is not None:
-        text += (f" Implied mean stay {market_outputs['implied_mean_stay_days']:.1f} nights; "
-                 f"{market_outputs['short_stay_share']:.0%} of arrivals leave within two nights.")
+        text += (f" Arrivals kernel: mean stay {market_outputs['implied_mean_stay_days']:.1f} nights, "
+                 f"{market_outputs['short_stay_share']:.0%} gone within two nights "
+                 f"({market_outputs['base_stock_share']:.0%} of guests outside the kernel).")
     return text

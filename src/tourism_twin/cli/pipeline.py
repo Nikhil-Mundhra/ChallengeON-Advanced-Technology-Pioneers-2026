@@ -192,10 +192,10 @@ def predict(args: argparse.Namespace) -> None:
     panel = build_daily_panel()
     train = panel[panel["dataset_split"] == "train"]
     plot = plot_test_predictions(train, predictions.market_daily, out / "test_predictions.png")
-    document = build_outputs(predictions, train, spec=args.spec)
-    paths["outputs"] = out / "market_outputs.json"
-    paths["outputs"].write_text(json.dumps(document, indent=2), encoding="utf-8")
-    if "direction_backtest" in document:
+    if predictions.noise is not None:  # the outputs document needs the interval noise model
+        document = build_outputs(predictions, train, spec=args.spec)
+        paths["outputs"] = out / "market_outputs.json"
+        paths["outputs"].write_text(json.dumps(document, indent=2), encoding="utf-8")
         accuracy = document["direction_backtest"]["accuracy"]
         print("direction accuracy (back-test): " + ", ".join(f"{k} {v:.1%}" for k, v in accuracy.items()))
     for name, path in {**paths, "plot": plot}.items():
