@@ -17,7 +17,7 @@ Two prediction problems use different inputs:
 | Problem | Known inputs for the predicted period | Withheld | Model family |
 | --- | --- | --- | --- |
 | Nowcast (competition test split, 2025-08-01 to 2026-02-28) | Daily `New Arrivals` and same-day guests per nationality, date | `Guests` | Stock-flow: guests = past arrivals still in a hotel |
-| Planning / forecast (simulator) | Scheduled seats, planner levers, calibrated seasonal priors; no realized pax, P2P or arrivals | Everything downstream of seats | Structural chain (`models/structural.py`) |
+| Planning / forecast (simulator) | Scheduled seats, planner levers, calibrated seasonal priors; no realized pax, P2P or arrivals | Everything downstream of seats | Structural chain (`planning/structural.py`) |
 
 In the nowcast, arrivals carry most of the level and the event shocks (§4.3). In planning, arrivals are unknown, so the calendar and the structural priors carry them. The two are reported separately ([solution documentation §6](solution_documentation.md#6-operating-modes)).
 
@@ -25,17 +25,17 @@ In the nowcast, arrivals carry most of the level and the event shocks (§4.3). I
 
 | Model | Inputs | Output | Use | Status |
 | --- | --- | --- | --- | --- |
-| International Guests nowcast | Daily new arrivals (lags 0..K), date | Daily guests per market; pooled markets split to nationalities by arrival share | Competition forecast of withheld `Guests` | Implemented: `intl_nowcast` in `models/specs.py` (spec `twin_daily`), `twin predict` |
-| Domestic Guests | Domestic new arrivals (nowcast) or date only (time-only) | Daily guests | Competition forecast; planning baseline | Implemented: `domestic_nowcast` (spec `twin_daily`) and time-only `domestic_time` in `models/specs.py`; planning keeps `StructuralEngine.planning_guests`. Fit unstable, see §6 (#13) |
-| Same-day guests | Day of week, holiday week, log new arrivals | Daily same-day guests | Competition field | Implemented: Poisson GLM per market (`models/same_day.py`). Analysis: GBM with Poisson loss 19.4% vs 23.8% naive. Suppressed values, see §6 (#14) |
-| Planning (structural) | Seats, levers, seasonal priors | Weekly guests per market × season, waterfall | Simulator, scenario attribution | Implemented (`models/structural.py`, `models/residual.py`) |
+| International Guests nowcast | Daily new arrivals (lags 0..K), date | Daily guests per market; pooled markets split to nationalities by arrival share | Competition forecast of withheld `Guests` | Implemented: `intl_nowcast` in `nowcast/specs.py` (spec `twin_daily`), `twin predict` |
+| Domestic Guests | Domestic new arrivals (nowcast) or date only (time-only) | Daily guests | Competition forecast; planning baseline | Implemented: `domestic_nowcast` (spec `twin_daily`) and time-only `domestic_time` in `nowcast/specs.py`; planning keeps `StructuralEngine.planning_guests`. Fit unstable, see §6 (#13) |
+| Same-day guests | Day of week, holiday week, log new arrivals | Daily same-day guests | Competition field | Implemented: Poisson GLM per market (`nowcast/same_day.py`). Analysis: GBM with Poisson loss 19.4% vs 23.8% naive. Suppressed values, see §6 (#14) |
+| Planning (structural) | Seats, levers, seasonal priors | Weekly guests per market × season, waterfall | Simulator, scenario attribution | Implemented (`planning/structural.py`, `planning/residual.py`) |
 | Direction (derived) | Guests history, calendar | Up/down over +7 days | Briefing | Analysis finding: logistic + spline, 74% accuracy, Brier 0.18 vs 43% majority class (`model_baselines.py`) |
 | Short-stay share / weekly stay (derived) | Fitted kernel weights, or guests and arrivals | Share of guests from short stays; weekly guests ÷ arrivals | Briefing | Analysis finding for weekly guests ÷ arrivals: ridge 3.2% vs 6.2% naive. Short-stay share: Proposed, definition not fixed |
-| Intervals (derived) | Out-of-sample back-test errors | P10/P50/P90 | Competition predictions, briefing, simulator | Implemented: `NoiseModel` (`models/noise.py`, AR(1) on log errors by horizon) for daily predictions; Monte Carlo (`models/uncertainty.py`) and conformal margins (`models/conformal.py`) for the weekly simulator |
+| Intervals (derived) | Out-of-sample back-test errors | P10/P50/P90 | Competition predictions, briefing, simulator | Implemented: `NoiseModel` (`models/noise.py`, AR(1) on log errors by horizon) for daily predictions; Monte Carlo (`planning/uncertainty.py`) and conformal margins (`planning/conformal.py`) for the weekly simulator |
 
 All `model_baselines.py` figures are on a single 6-month holdout, 2025-02 to 2025-07.
 
-## 3. Model form — *Implemented (`models/specs.py`); evidence in §4*
+## 3. Model form — *Implemented (`nowcast/specs.py`); evidence in §4*
 
 ```text
 Guests_t   = flow_t × m_t                                      (log: log flow_t + log m_t)
@@ -89,7 +89,7 @@ Measured contribution of the blocks (daily totals, reference folds, WAPE domesti
 
 ### 3.3 Domestic and international
 
-The two series share one model form (blocks above) and differ only in their spec: domestic adds a slope and drops events, international keeps events and has no slope (§4.6). `MarketRouter` (`models/baselines.py`) routes `DOMESTIC` rows to one spec and every other market to the other; a new series type is a new spec passed to the router, not a subclass. Each series is fitted and evaluated separately (metrics never pooled). Total guests = domestic + international predictions; its interval is not the sum of the two intervals, because their errors are correlated (shared calendar shocks): estimate it from the back-test errors of the summed series.
+The two series share one model form (blocks above) and differ only in their spec: domestic adds a slope and drops events, international keeps events and has no slope (§4.6). `MarketRouter` (`nowcast/routing.py`) routes `DOMESTIC` rows to one spec and every other market to the other; a new series type is a new spec passed to the router, not a subclass. Each series is fitted and evaluated separately (metrics never pooled). Total guests = domestic + international predictions; its interval is not the sum of the two intervals, because their errors are correlated (shared calendar shocks): estimate it from the back-test errors of the summed series.
 
 ## 4. Evidence — *Analysis finding*
 
@@ -218,8 +218,8 @@ Status on `main` (verify with `git ls-files src/tourism_twin/models`):
 | `Model` protocol, `Component` / `LinearComponent`, `AdditiveLogModel`, `JointLinear` / `Backfitting` | Implemented |
 | Components: `ArrivalsConvolution`, `CentredSlope`, `LinearTrend`, `LocalLevel`, `AnnualFourier`, `DayOfWeek`, `EventKernel`, `LinearRegressors`, `ResidualGBM` | Implemented |
 | Event registry `domain/events.csv` | Implemented |
-| Back-test harness (`HoldoutSplit`, `RollingOrigin`), weekly and daily specs (`models/specs.py`), `MarketRouter` | Implemented |
-| `NoiseModel` (`models/noise.py`), test-split predictions (`services/predictions.py`, `twin predict`), same-day model (`models/same_day.py`) | Implemented |
+| Back-test harness (`HoldoutSplit`, `RollingOrigin`), weekly and daily specs (`planning/specs.py`, `nowcast/specs.py`), `MarketRouter` | Implemented |
+| `NoiseModel` (`models/noise.py`), test-split predictions (`nowcast/predict.py`, `twin predict`), same-day model (`nowcast/same_day.py`) | Implemented |
 | Block grouping (`group` tag + decomposition by block), time-only international spec, flight block | Proposed |
 | Shared kernel / season shape with per-market scale (partial pooling) | Proposed |
 
@@ -252,7 +252,7 @@ A spec is a named component list (`intl_nowcast`, `domestic_time`, `planning`, `
 
 ### 5.4 Back-test harness (#10, #11)
 
-`backtest(spec, panel, origins)` → per-fold metrics. Monthly rolling origins, ~6-month horizon, fit only on data before each origin, domestic and international reported separately (WAPE, MAE, bias). Any calibration (z-scores, conformal, alphas) uses the training fold only. Origins for the daily nowcast: monthly from 2024-02-01 to 2025-02-01 (13 folds). A component tied to dated windows (events) is judged only on folds whose test period contains those windows; for Christmas–New Year and National Day this needs a fold such as test 2024-08-01 → 2025-01-31. Inside it, a time-ordered split: train fits parameters, validation chooses hyperparameters (K, smoothing λ, event thresholds, H), and one final test period is evaluated once after all choices are frozen. The four benchmarks in `models/evaluation.py` become four specs.
+`backtest(spec, panel, origins)` → per-fold metrics. Monthly rolling origins, ~6-month horizon, fit only on data before each origin, domestic and international reported separately (WAPE, MAE, bias). Any calibration (z-scores, conformal, alphas) uses the training fold only. Origins for the daily nowcast: monthly from 2024-02-01 to 2025-02-01 (13 folds). A component tied to dated windows (events) is judged only on folds whose test period contains those windows; for Christmas–New Year and National Day this needs a fold such as test 2024-08-01 → 2025-01-31. Inside it, a time-ordered split: train fits parameters, validation chooses hyperparameters (K, smoothing λ, event thresholds, H), and one final test period is evaluated once after all choices are frozen. The four benchmarks in `planning/evaluation.py` become four specs.
 
 ### 5.5 Noise model
 
@@ -290,7 +290,7 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Never fit a power α together with a free kernel | They trade off without limit and diverge; estimate α with the kernel fixed (*analysis*) |
 | Joint fit (backfitting to convergence), never one greedy pass | Greedy order changes the answer by up to 8.6 points (§4.1) |
 | No feature derived from `Guests` in the nowcast; lags of `New Arrivals` are allowed in both splits | Guests is the withheld target (§1) |
-| Hyperparameters (K, H, λ, event windows, detector thresholds, ridge α) chosen on validation folds only; tuning CV is time-ordered (`TimeSeriesSplit`), never shuffled | Shuffled CV leaks the future; `models/residual.py` `RidgeCV` currently uses non-temporal CV |
+| Hyperparameters (K, H, λ, event windows, detector thresholds, ridge α) chosen on validation folds only; tuning CV is time-ordered (`TimeSeriesSplit`), never shuffled | Shuffled CV leaks the future; `planning/residual.py` `RidgeCV` currently uses non-temporal CV |
 | Event-detector z-scores, conformal margins and noise σ computed from training-fold residuals only | Whole-series statistics leak the test period |
 | Report domestic and international separately, never only pooled | Pooled raw-scale metrics are dominated by domestic (MAE 17,485 vs 2,466) |
 | A new component ships with a synthetic-data test: it must recover a known kernel / bump / sine | A component that can't recover its own truth can't be trusted on real data |
@@ -331,7 +331,7 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Gap | Where | Status |
 | --- | --- | --- |
 | Domestic nowcast does not converge | `domestic_nowcast`: results change with the backfitting cap; run to convergence the plain-weekday variant collapses to zero predictions. Daily totals, WAPE reference / rolling-13 / Aug–Jan: shipped (cap 20) 6.34 / 11.39 / 3.57; same spec converged 4.70 / 5.25 / 4.33 | Open, issue #13 |
-| Same-day suppressed values | `models/same_day.py` treats `*` as zero (earlier: dropped). `*` hides small, not necessarily zero, counts: zero biases down, dropping biased up. Needs a censored treatment | Open, issue #14 |
+| Same-day suppressed values | `nowcast/same_day.py` treats `*` as zero (earlier: dropped). `*` hides small, not necessarily zero, counts: zero biases down, dropping biased up. Needs a censored treatment | Open, issue #14 |
 | Weekly simulator uses legacy holiday flags | `is_holiday_week` / `is_major_event_week` lump Eid al-Fitr, Eid al-Adha, National Day and New Year; kept on purpose so shipped weekly results do not move. Daily models use `events.csv` | By design |
 | Weekly simulator intervals | Conformal margins from the training window (holdout coverage 65.2% vs 80% nominal); daily predictions use `NoiseModel` | Open for the weekly path |
 | Block grouping and per-block decomposition | §3.1 | Proposed |

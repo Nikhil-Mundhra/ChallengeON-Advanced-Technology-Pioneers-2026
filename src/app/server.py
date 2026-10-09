@@ -9,7 +9,7 @@ from pathlib import Path
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import ScenarioLever
-from tourism_twin.services.simulator import TourismDigitalTwin
+from tourism_twin.planning.simulator import TourismDigitalTwin
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 RESULTS_PATH = SETTINGS.evaluation_results_path

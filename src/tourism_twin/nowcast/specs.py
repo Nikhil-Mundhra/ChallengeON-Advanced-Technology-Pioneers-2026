@@ -1,8 +1,7 @@
-"""Named model specs: each name maps to a factory returning an unfitted Model.
+"""Named daily nowcast specs: each name maps to a factory returning an unfitted Model.
 
-An ablation is another entry with one component removed; no code change elsewhere.
-Weekly specs run on the weekly market panel (date column "week_start"); daily specs on the
-daily panel (date column "date").
+An ablation is another entry with one component removed; no code change elsewhere. Daily specs run
+on the daily panel (date column "date").
 """
 
 from __future__ import annotations
@@ -10,16 +9,6 @@ from __future__ import annotations
 from typing import Callable, Dict
 
 from tourism_twin.features.lags import lag_column
-from tourism_twin.models.baselines import (
-    ArrivalsRatio,
-    CalendarRidge,
-    LegacyHybrid,
-    MarketRouter,
-    RealizedChain,
-    SeasonalNaive,
-    SeasonalPrior,
-    StructuralPlanning,
-)
 from tourism_twin.models.components import (
     AnnualFourier,
     ArrivalsConvolution,
@@ -32,19 +21,9 @@ from tourism_twin.models.components import (
 from tourism_twin.models.composite import AdditiveLogModel
 from tourism_twin.models.fitters import Backfitting, JointLinear
 from tourism_twin.models.protocol import Model
+from tourism_twin.nowcast.baselines import ArrivalsRatio, SeasonalNaive
+from tourism_twin.nowcast.routing import MarketRouter
 
-WEEKLY_SPECS: Dict[str, Callable[[], Model]] = {
-    "seasonal_prior": SeasonalPrior,
-    "calendar_ridge": CalendarRidge,
-    "structural_planning": StructuralPlanning,
-    "hybrid_legacy": LegacyHybrid,
-}
-
-# Diagnostics that read realized test-period data (oracle covariates); never rank them with
-# planning or nowcast models.
-DIAGNOSTIC_SPECS: Dict[str, Callable[[], Model]] = {
-    "realized_chain": RealizedChain,
-}
 
 GBM_FEATURES = ("dow", "month", "iso_week", "is_holiday_week", lag_column(0), lag_column(7))
 
@@ -89,5 +68,3 @@ DAILY_SPECS: Dict[str, Callable[[], Model]] = {
     "twin_daily_gbm": lambda: MarketRouter(domestic_nowcast, lambda: intl_nowcast(gbm=True)),
     "domestic_time": domestic_time,
 }
-
-MODEL_SPECS: Dict[str, Callable[[], Model]] = {**WEEKLY_SPECS, **DAILY_SPECS}

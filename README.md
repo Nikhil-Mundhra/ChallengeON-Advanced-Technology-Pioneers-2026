@@ -82,30 +82,31 @@ src/tourism_twin/
 ├── features/      FeatureRegistry: derived columns (ratios, flags, calendar, arrival lags, event-day
 │                  offsets) declared once with their inputs and resolved in dependency order
 ├── data/          raw workbooks → validated lake; LakeRepository; weekly and daily panels; imputation
-├── models/
+├── models/        shared model kernel
 │   ├── components/   additive log-scale terms: LinearTrend, CentredSlope, LinearRegressors, EventKernel,
 │   │                 AnnualFourier, DayOfWeek, LocalLevel, ArrivalsConvolution, ResidualGBM
 │   ├── composite.py, fitters.py, protocol.py   AdditiveLogModel; JointLinear, Backfitting; Model (fit/predict)
-│   ├── backtest.py, specs.py, baselines.py     harness (HoldoutSplit, RollingOrigin); named specs; benchmarks
-│   ├── noise.py, same_day.py                   interval model; same-day guests Poisson GLM
-│   └── structural.py, residual.py, uncertainty.py, conformal.py, training.py, evaluation.py   weekly planning model
-├── services/      predictions (`twin predict`), market outputs JSON, simulator, tornado sensitivity, briefing
+│   └── backtest.py, noise.py                   harness (HoldoutSplit, RollingOrigin); interval model
+├── nowcast/       daily competition model: specs (twin_daily), routing, baselines, predict (`twin predict`),
+│                  nationality disaggregation, outputs JSON, narration, same-day guests Poisson GLM
+├── planning/      weekly scenario model: structural chain, residual, conformal, Monte Carlo, tornado
+│                  sensitivity, simulator, briefing, training, weekly benchmark specs and evaluation
 ├── reporting/     scenario charts, test-prediction plot, solution PDF, schema & database PDF
 └── cli/           the `twin` command
 ```
 
-`src/app/` (`server.py` + `static/index.html`) is the web server; it calls `config`, `domain` and `services`. `src/audit_agent/` is a separate LLM data-audit tool ([manual](src/audit_agent/README.md)) and does not import `tourism_twin`.
+`src/app/` (`server.py` + `static/index.html`) is the web server; it calls `config`, `domain` and `planning`. `src/audit_agent/` is a separate LLM data-audit tool ([manual](src/audit_agent/README.md)) and does not import `tourism_twin`.
 
 Model parts:
 
 | Part | Module | What it does |
 | :--- | :--- | :--- |
-| Daily nowcast | `models/specs.py` (`twin_daily`) | Per market, log guests = log(c_t + Σ_{k=0..21} w_k · arrivals_{t−k}) + season + weekday (+ events for international, + centred slope for domestic). `w` is a non-increasing survival curve with w₀ ≤ 1. |
+| Daily nowcast | `nowcast/specs.py` (`twin_daily`) | Per market, log guests = log(c_t + Σ_{k=0..21} w_k · arrivals_{t−k}) + season + weekday (+ events for international, + centred slope for domestic). `w` is a non-increasing survival curve with w₀ ≤ 1. |
 | Noise model | `models/noise.py` | AR(1) log errors along the horizon, fitted on rolling-origin back-test errors; Gaussian intervals in log. |
-| Structural chain | `models/structural.py` | Seats × load factor → passengers × P2P share → P2P × response multiplier $M_{m,s}$ → hotel arrivals × length of stay $L_{m,s}$ → weekly guests, per market $m$ and season $s$. Sequential waterfall over 5 levers; the parts sum to the total lift (tested to < 1e-9). |
-| Residual ML | `models/residual.py`, `models/features.py` | One RidgeCV per market on week-of-year harmonics, quarter, season, holiday-week and major-event-week flags. No aviation inputs. Target: actual guests − planning-mode structural prediction. |
+| Structural chain | `planning/structural.py` | Seats × load factor → passengers × P2P share → P2P × response multiplier $M_{m,s}$ → hotel arrivals × length of stay $L_{m,s}$ → weekly guests, per market $m$ and season $s$. Sequential waterfall over 5 levers; the parts sum to the total lift (tested to < 1e-9). |
+| Residual ML | `planning/residual.py`, `planning/calendar_features.py` | One RidgeCV per market on week-of-year harmonics, quarter, season, holiday-week and major-event-week flags. No aviation inputs. Target: actual guests − planning-mode structural prediction. |
 | Archetypes | `domain/archetypes.py` | 7 archetypes; unmodeled countries (e.g. `SWEDEN`) get their archetype's default parameters (cold start). |
-| Weekly uncertainty & sensitivity | `models/uncertainty.py`, `models/conformal.py`, `services/sensitivity.py` | Monte Carlo P10/P50/P90, per-market conformal margins, tornado ranking. |
+| Weekly uncertainty & sensitivity | `planning/uncertainty.py`, `planning/conformal.py`, `planning/sensitivity.py` | Monte Carlo P10/P50/P90, per-market conformal margins, tornado ranking. |
 
 **Market bridge.** The data has no passenger-level link between departure country and guest nationality; a 45 × 33 nationality-by-country matrix (1,485 parameters) is not identifiable from aggregate weekly series. The planning model links departure country $k$ to nationality $k$ and calibrates $M_{m,s} = \text{arrivals}_{m,s} / \text{P2P}_{m,s}$.
 

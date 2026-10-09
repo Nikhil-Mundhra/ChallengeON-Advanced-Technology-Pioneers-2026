@@ -26,7 +26,7 @@ from reportlab.platypus import (
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import ScenarioLever
 from tourism_twin.reporting.pdf_palette import BLUE, INK, LINE, MINT, MUTED, NAVY, PALE, SKY, TEAL, WHITE
-from tourism_twin.services.simulator import TourismDigitalTwin
+from tourism_twin.planning.simulator import TourismDigitalTwin
 
 OUTPUT_PDF = SETTINGS.pdf_dir / "challengeon_solution_report.pdf"
 FIG_DIR = SETTINGS.figures_dir

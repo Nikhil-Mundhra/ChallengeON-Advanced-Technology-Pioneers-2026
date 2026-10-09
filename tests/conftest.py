@@ -5,7 +5,7 @@ import pytest
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.data.daily_panel import build_daily_panel
-from tourism_twin.services.simulator import TourismDigitalTwin
+from tourism_twin.planning.simulator import TourismDigitalTwin
 
 
 @pytest.fixture(scope="session")

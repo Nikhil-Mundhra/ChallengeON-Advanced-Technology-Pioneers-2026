@@ -20,7 +20,7 @@ import pandas as pd
 from scipy.stats import norm
 
 from tourism_twin.models.noise import NoiseModel
-from tourism_twin.services.predictions import TestPredictions
+from tourism_twin.nowcast.predict import TestPredictions
 
 LEVEL_COMPONENTS = {"arrivals", "level", "trend"}
 NOT_DRIVERS = {"weekday", "slope"}  # weekday averages ~0 over a week; slope is reported as a trend

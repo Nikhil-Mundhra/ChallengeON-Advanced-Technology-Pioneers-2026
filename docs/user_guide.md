@@ -9,7 +9,7 @@ How to write the test-split predictions, run scenarios, read the output, retrain
 ```bash
 twin predict                       # default spec twin_daily, with intervals
 twin predict --no-intervals        # skip the interval back-test; no intervals file, no market_outputs.json
-twin predict --spec arrivals_ratio # any name in DAILY_SPECS (models/specs.py)
+twin predict --spec arrivals_ratio # any name in DAILY_SPECS (nowcast/specs.py)
 ```
 
 Needs the raw test workbooks (`data domestic_test.xlsx`, `data international_test.xlsx`) in `01a - DCT Dataset/` (or `TWIN_SOURCE_DIR`) and the committed `lake/curated/guest_daily.parquet`. Writes to `output/predictions/` (`TWIN_OUTPUT_DIR/predictions`).
@@ -59,7 +59,7 @@ Season effects are relative to the training average, event effects to a day outs
 
 Stay fields are withheld for 7 of 21 markets (DOMESTIC, CHINA, EGYPT, INDIA, PHILIPPINES, OTHER_ASIA_PACIFIC, UNITED STATES OF AMERICA), whose base stock carries more than 25% of the training stock.
 
-`services.briefing.weekly_nowcast_summary(market, document["markets"][market], week)` formats one week of the document as a paragraph; it computes no numbers.
+`nowcast.narration.weekly_nowcast_summary(market, document["markets"][market], week)` formats one week of the document as a paragraph; it computes no numbers.
 
 ---
 
@@ -150,7 +150,7 @@ The five `OTHER_*` clusters pool the remaining nationalities (membership in `src
 ## 6. Python API
 
 ```python
-from tourism_twin.services.simulator import TourismDigitalTwin
+from tourism_twin.planning.simulator import TourismDigitalTwin
 from tourism_twin.domain.scenario import ScenarioLever
 
 twin = TourismDigitalTwin()   # loads the calibrated artifacts from lake/curated/

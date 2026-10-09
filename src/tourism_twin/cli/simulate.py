@@ -6,7 +6,7 @@ import argparse
 
 from tourism_twin.domain.scenario import ScenarioLever
 from tourism_twin.domain.seasons import SEASONS
-from tourism_twin.services.simulator import TourismDigitalTwin
+from tourism_twin.planning.simulator import TourismDigitalTwin
 
 
 def register(subparsers: argparse._SubParsersAction) -> None:

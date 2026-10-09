@@ -18,11 +18,11 @@ from typing import Any, Dict, List, Optional
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.archetypes import get_market_archetype
 from tourism_twin.domain.scenario import ScenarioLever, SimulationResult
-from tourism_twin.models.residual import ResidualMLEngine
-from tourism_twin.models.structural import StructuralEngine
-from tourism_twin.models.uncertainty import UncertaintyBands, UncertaintyEngine
-from tourism_twin.services.briefing import generate_executive_recommendation
-from tourism_twin.services.sensitivity import compute_tornado_sensitivity
+from tourism_twin.planning.residual import ResidualMLEngine
+from tourism_twin.planning.structural import StructuralEngine
+from tourism_twin.planning.uncertainty import UncertaintyBands, UncertaintyEngine
+from tourism_twin.planning.briefing import generate_executive_recommendation
+from tourism_twin.planning.sensitivity import compute_tornado_sensitivity
 
 
 @dataclass

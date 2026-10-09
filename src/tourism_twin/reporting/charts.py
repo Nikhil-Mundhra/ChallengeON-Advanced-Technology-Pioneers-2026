@@ -17,7 +17,7 @@ import numpy as np
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import ScenarioLever
 from tourism_twin.reporting.palette import AMBER, BLUE, NAVY, TEAL
-from tourism_twin.services.simulator import TourismDigitalTwin
+from tourism_twin.planning.simulator import TourismDigitalTwin
 
 OUTPUT_DIR = SETTINGS.figures_dir
 RESULTS_PATH = SETTINGS.evaluation_results_path

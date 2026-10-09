@@ -9,7 +9,7 @@ from typing import Any, Dict
 import numpy as np
 import pandas as pd
 
-from tourism_twin.models.structural import StructuralEngine
+from tourism_twin.planning.structural import StructuralEngine
 
 # Coverage reported when no back-test result is available yet.
 DEFAULT_DEMONSTRATED_COVERAGE = 66.7

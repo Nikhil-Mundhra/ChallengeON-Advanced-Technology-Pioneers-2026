@@ -15,9 +15,8 @@ from typing import Dict, NamedTuple, Optional, Tuple
 
 import numpy as np
 
-from tourism_twin.domain.archetypes import get_archetype_profile, get_market_archetype
 from tourism_twin.domain.scenario import ScenarioLever, SimulationResult
-from tourism_twin.models.structural import StructuralEngine
+from tourism_twin.planning.structural import StructuralEngine
 
 
 @dataclass

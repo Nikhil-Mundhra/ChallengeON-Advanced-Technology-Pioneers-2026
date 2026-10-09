@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from tourism_twin.domain.scenario import ScenarioLever
-from tourism_twin.models.structural import StructuralEngine
+from tourism_twin.planning.structural import StructuralEngine
 
 
 def compute_tornado_sensitivity(

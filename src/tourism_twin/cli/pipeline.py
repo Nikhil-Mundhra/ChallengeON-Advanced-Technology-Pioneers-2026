@@ -86,7 +86,7 @@ def build_daily_panel(args: argparse.Namespace) -> None:
 
 
 def train(args: argparse.Namespace) -> None:
-    from tourism_twin.models.training import train_models
+    from tourism_twin.planning.training import train_models
 
     print("=" * 80)
     print("TRAINING ABU DHABI TOURISM DIGITAL TWIN MODELS")
@@ -109,8 +109,8 @@ def train(args: argparse.Namespace) -> None:
 
 
 def evaluate(args: argparse.Namespace) -> None:
-    from tourism_twin.models.evaluation import evaluate as run_evaluation
-    from tourism_twin.models.evaluation import save_evaluation
+    from tourism_twin.planning.evaluation import evaluate as run_evaluation
+    from tourism_twin.planning.evaluation import save_evaluation
 
     payload = run_evaluation()
     _print_evaluation(payload)
@@ -174,8 +174,8 @@ def _print_evaluation(payload: dict) -> None:
 def predict(args: argparse.Namespace) -> None:
     from tourism_twin.data.daily_panel import build_daily_panel
     from tourism_twin.reporting.predictions_plot import plot_test_predictions
-    from tourism_twin.services.outputs import build_outputs
-    from tourism_twin.services.predictions import predict_test_split, validate_predictions
+    from tourism_twin.nowcast.outputs import build_outputs
+    from tourism_twin.nowcast.predict import predict_test_split, validate_predictions
 
     predictions = predict_test_split(spec=args.spec, with_intervals=args.intervals)
     problems = validate_predictions(predictions)

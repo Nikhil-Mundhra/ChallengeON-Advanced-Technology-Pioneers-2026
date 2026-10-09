@@ -11,9 +11,9 @@ import pandas as pd
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.data.panel import TRAINING_CUTOFF, training_window
-from tourism_twin.models.conformal import calibrate_conformal, save_conformal
-from tourism_twin.models.residual import ResidualMLEngine
-from tourism_twin.models.structural import StructuralEngine
+from tourism_twin.planning.conformal import calibrate_conformal, save_conformal
+from tourism_twin.planning.residual import ResidualMLEngine
+from tourism_twin.planning.structural import StructuralEngine
 
 
 @dataclass

@@ -134,7 +134,7 @@ Results from different modes are reported separately.
 
 §7.1–7.4: weekly planning model (simulator). §7.5–7.9: daily nowcast (`twin predict`).
 
-### 7.1 Structural chain (`models/structural.py`)
+### 7.1 Structural chain (`planning/structural.py`)
 
 Per market $m$ and season $s$, calibrated from the mean of weekly seats, pax, P2P, arrivals and guests in the training window:
 
@@ -152,7 +152,7 @@ Guests = Seats × LF × P2PShare × M × L
 - **Cold start.** A country without calibration gets its archetype's default LF, P2P share, $M$ and $L$ (`domain/archetypes.py`; unknown countries map to Emerging / Sparse).
 - **Waterfall.** The scenario lift is attributed sequentially: seats, load factor, P2P share, multiplier, LOS. The five parts sum to the total lift (tested to < 1e-9 for every calibrated market, a cold-start market, all seasons and 6 lever sets). `simulate` raises if they differ by more than a relative 1e-9 (absolute 1e-6).
 
-### 7.2 Residual ML (`models/residual.py`, `models/features.py`)
+### 7.2 Residual ML (`planning/residual.py`, `planning/calendar_features.py`)
 
 ```text
 Hybrid = max(0, planning_guests + residual)
@@ -164,7 +164,7 @@ One `RidgeCV` per market. Features: two week-of-year sine/cosine harmonic pairs,
 
 `DOMESTIC` uses its calibrated seasonal arrivals × LOS. Seat, frequency, load-factor and P2P levers have no effect; multiplier and LOS levers do (tested).
 
-### 7.4 Uncertainty and sensitivity (`models/uncertainty.py`, `models/conformal.py`, `services/sensitivity.py`)
+### 7.4 Uncertainty and sensitivity (`planning/uncertainty.py`, `planning/conformal.py`, `planning/sensitivity.py`)
 
 | Component | Method |
 | --- | --- |
@@ -172,7 +172,7 @@ One `RidgeCV` per market. Features: two week-of-year sine/cosine harmonic pairs,
 | Conformal margin | Per market: (1 − α) quantile of in-sample relative planning-mode error on the training window, α = 0.2 |
 | Tornado | Guest swing for ±15% seats, ±4 pp LF, ±5 pp P2P share, ±10% multiplier, ±0.5 days LOS; cold-start markets use a reference route |
 
-### 7.5 Daily nowcast (`models/specs.py`, `models/components/`, `models/composite.py`)
+### 7.5 Daily nowcast (`nowcast/specs.py`, `models/components/`, `models/composite.py`)
 
 One `AdditiveLogModel` per market: log guests is the sum of component contributions, and the prediction is exp of that sum (the conditional median).
 
@@ -207,11 +207,11 @@ bounds = pred × exp(± z · sqrt(var(h))),   z = Φ⁻¹(0.9) for 80%
 
 `twin predict` fits it on 8 monthly origins (2024-07-01 to 2025-02-01) with a 7-month horizon, the length of the test period, and counts h from 2025-08-01. No month or bias factor.
 
-### 7.7 Nationality split (`services/predictions.py`)
+### 7.7 Nationality split (`nowcast/predict.py`)
 
 A pooled market's prediction is split across its nationalities by share = (trailing 7-day new arrivals × the nationality's training guests ÷ new arrivals ratio), normalised per market and day. Splitting actual market guests over the last training year this way gives a nationality WMAPE of 14.0%, against 24.0% for shares of same-day arrivals. Nationality bounds add the split's log-error variance (s.d. 0.18–0.25 per pooled market, last 365 training days) to the market's.
 
-### 7.8 Derived outputs (`services/outputs.py`)
+### 7.8 Derived outputs (`nowcast/outputs.py`)
 
 `market_outputs.json`, computed from the fitted model and its intervals only:
 
@@ -225,9 +225,9 @@ A pooled market's prediction is split across its nationalities by share = (trail
 | Trend vs training | Domestic slope contribution relative to the training mean, extrapolated |
 | Implied mean stay, short-stay share | Σ w_k and 1 − w₂ / w₀; withheld when the base stock carries more than 25% of the training stock (7 of 21 markets) |
 
-`services/briefing.weekly_nowcast_summary` formats one week of this document; it computes no numbers.
+`nowcast/narration.weekly_nowcast_summary` formats one week of this document; it computes no numbers.
 
-### 7.9 Same-day guests (`models/same_day.py`)
+### 7.9 Same-day guests (`nowcast/same_day.py`)
 
 `SameDayPoisson`: one Poisson GLM per market on weekday, holiday week and log(1 + new arrivals); markets with fewer than 60 training days use their mean. A suppressed nationality value (`*`) counts as 0: no observed same-day value is 0, observed counts fall from 1 (6,814 rows) to 2 (5,179) to 3 (2,967), and suppressed days have lower arrivals (CHINA median 328 vs 501). `same_day_backtest` scores it on rolling origins. Not called by `twin predict` (the test workbooks contain `Same-Day Guests`).
 

@@ -17,8 +17,8 @@ from sklearn.linear_model import RidgeCV
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import SimulationResult
-from tourism_twin.models.features import calendar_feature_matrix, extract_calendar_features
-from tourism_twin.models.structural import StructuralEngine
+from tourism_twin.planning.calendar_features import calendar_feature_matrix, extract_calendar_features
+from tourism_twin.planning.structural import StructuralEngine
 
 class ResidualMLEngine:
     """Monotonic ML residual correction engine."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -13,13 +14,13 @@ from tourism_twin.data.panel import build_weekly_panel
 from tourism_twin.features import PANEL_FEATURES, FeatureRegistry, FeatureSpec, Kind
 from tourism_twin.domain.events import DEFAULT_KERNEL_EVENTS, load_event_calendar
 from tourism_twin.features.events import offset_column
-from tourism_twin.models.baselines import SeasonalNaive
+from tourism_twin.nowcast.baselines import SeasonalNaive
 from tourism_twin.models.components import (
     AnnualFourier, ArrivalsConvolution, DayOfWeek, EventKernel, LinearRegressors, LinearTrend, LocalLevel, ResidualGBM,
 )
 from tourism_twin.models.backtest import RollingOrigin, backtest
 from tourism_twin.models.composite import AdditiveLogModel
-from tourism_twin.models.evaluation import evaluate
+from tourism_twin.planning.evaluation import evaluate
 from tourism_twin.models.noise import NoiseModel, held_out_coverage
 from tourism_twin.models.fitters import Backfitting, JointLinear
 from tourism_twin.features.lags import DEFAULT_MAX_LAG, lag_column
@@ -560,9 +561,11 @@ def test_harness_rejects_misindexed_or_missing_predictions_and_reports_skipped_f
 
 
 def test_oracle_diagnostics_are_not_ranked_with_forecast_models():
-    from tourism_twin.models.specs import DIAGNOSTIC_SPECS, MODEL_SPECS
+    from tourism_twin.nowcast.specs import DAILY_SPECS
+    from tourism_twin.planning.specs import DIAGNOSTIC_SPECS, WEEKLY_SPECS
 
-    assert "realized_chain" in DIAGNOSTIC_SPECS and "realized_chain" not in MODEL_SPECS
+    assert "realized_chain" in DIAGNOSTIC_SPECS
+    assert "realized_chain" not in WEEKLY_SPECS and "realized_chain" not in DAILY_SPECS
 
 
 def _ar1_backtest(phi: float, sigma: float, folds: int = 40, horizon: int = 120, seed: int = 11, scale: dict | None = None) -> pd.DataFrame:
@@ -609,21 +612,43 @@ def test_held_out_coverage_is_close_to_nominal_and_ignores_the_held_out_fold():
     assert noisy.set_index("fold").loc["origin_20", "covered"] < 0.5  # its own large errors did not widen its bounds
 
 
-def test_models_package_has_no_row_loops():
-    from pathlib import Path
-
-    import tourism_twin.models as models_package
-
-    offenders = [p.name for p in Path(models_package.__file__).parent.rglob("*.py") if ".iterrows(" in p.read_text()]
+def test_model_packages_have_no_row_loops():
+    root = Path(SETTINGS.root) / "src" / "tourism_twin"
+    offenders = [str(p.relative_to(root)) for package in ("models", "nowcast", "planning")
+                 for p in (root / package).rglob("*.py") if ".iterrows(" in p.read_text()]
     assert offenders == []
+
+
+# Allowed tourism_twin imports per package; nowcast and planning never import each other.
+ALLOWED_IMPORTS = {
+    "domain": {"domain"},
+    "features": {"domain", "features"},
+    "data": {"config", "domain", "features", "data"},
+    "models": {"config", "domain", "features", "models"},
+    "nowcast": {"config", "domain", "features", "data", "models", "nowcast"},
+    "planning": {"config", "domain", "features", "data", "models", "planning"},
+}
+
+
+def test_packages_import_only_lower_layers():
+    import ast
+
+    root = Path(SETTINGS.root) / "src" / "tourism_twin"
+    violations = []
+    for package, allowed in ALLOWED_IMPORTS.items():
+        for path in (root / package).rglob("*.py"):
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("tourism_twin."):
+                    target = node.module.split(".")[1]
+                    if target not in allowed:
+                        violations.append(f"{path.relative_to(root)} imports {node.module}")
+    assert violations == []
 
 
 # --- competition predictions --------------------------------------------------------------
 
 def test_prediction_validator_accepts_mirrored_files_and_flags_bad_ones():
-    from tourism_twin.services.predictions import (
-        DOMESTIC_TEST_FILE, INTERNATIONAL_TEST_FILE, TestPredictions, read_raw_workbook, validate_predictions,
-    )
+    from tourism_twin.nowcast.predict import DOMESTIC_TEST_FILE, INTERNATIONAL_TEST_FILE, TestPredictions, read_raw_workbook, validate_predictions
 
     if not (SETTINGS.source_dir / INTERNATIONAL_TEST_FILE).exists():
         pytest.skip("raw test workbooks are supplied locally, not committed")
@@ -644,7 +669,7 @@ def test_prediction_validator_accepts_mirrored_files_and_flags_bad_ones():
 
 
 def test_weekly_outputs_keep_full_weeks_and_give_a_direction_probability():
-    from tourism_twin.services.outputs import weekly_forecast
+    from tourism_twin.nowcast.outputs import weekly_forecast
 
     dates = pd.date_range("2025-08-04", periods=17, freq="D")  # two full Monday weeks + 3 days
     pred = np.where(dates < "2025-08-11", 100.0, 120.0)
@@ -665,7 +690,7 @@ def test_weekly_outputs_keep_full_weeks_and_give_a_direction_probability():
 
 def test_direction_backtest_scores_each_week_once_against_its_baselines():
     from tourism_twin.models.noise import NoiseModel
-    from tourism_twin.services.outputs import direction_backtest
+    from tourism_twin.nowcast.outputs import direction_backtest
 
     dates = pd.date_range("2023-01-02", "2024-03-31", freq="D")  # starts on a Monday
     week = (dates - dates[0]).days // 7
@@ -690,7 +715,7 @@ def test_direction_backtest_scores_each_week_once_against_its_baselines():
 
 
 def test_stay_outputs_come_from_the_kernel_and_are_withheld_when_the_base_stock_dominates():
-    from tourism_twin.services.outputs import _stay
+    from tourism_twin.nowcast.outputs import _stay
 
     survival = [0.9, 0.6, 0.45, 0.3]
     quoted = _stay({"survival_w": survival, "base_stock_share": 0.1})
@@ -702,7 +727,7 @@ def test_stay_outputs_come_from_the_kernel_and_are_withheld_when_the_base_stock_
 
 
 def test_narration_only_formats_the_outputs_document():
-    from tourism_twin.services.briefing import weekly_nowcast_summary
+    from tourism_twin.nowcast.narration import weekly_nowcast_summary
 
     week = {"week_start": "2025-12-22", "forecast": 1000.0, "p10": 900.0, "p90": 1100.0, "direction": "decrease",
             "direction_prob": 0.8, "yoy_change": 0.05, "trend_vs_training_pct": -12.0,
@@ -715,7 +740,7 @@ def test_narration_only_formats_the_outputs_document():
 
 
 def test_poisson_deviance_matches_its_closed_form():
-    from tourism_twin.models.same_day import poisson_deviance
+    from tourism_twin.nowcast.same_day import poisson_deviance
 
     assert poisson_deviance([0.0], [2.0]) == pytest.approx(4.0)  # 2 * mu when y = 0
     assert poisson_deviance([3.0], [3.0]) == pytest.approx(0.0)
@@ -724,7 +749,7 @@ def test_poisson_deviance_matches_its_closed_form():
 
 
 def test_suppressed_same_day_values_count_as_zero():
-    from tourism_twin.models.same_day import same_day_target
+    from tourism_twin.nowcast.same_day import same_day_target
 
     panel = pd.DataFrame({"same_day_guests": [5.0, np.nan, 3.0, np.nan], "n_same_day_suppressed": [0, 2, 1, 0]})
     target = same_day_target(panel)
@@ -732,7 +757,7 @@ def test_suppressed_same_day_values_count_as_zero():
 
 
 def test_same_day_poisson_recovers_a_weekday_effect():
-    from tourism_twin.models.same_day import SameDayPoisson
+    from tourism_twin.nowcast.same_day import SameDayPoisson
 
     rng = np.random.default_rng(13)
     dates = pd.date_range("2023-01-02", periods=700, freq="D")
@@ -772,7 +797,7 @@ def test_waterfall_reconciles_exactly_for_every_market_and_season(twin, lever_na
 
 def test_a_served_route_that_converts_nobody_brings_no_aviation_arrivals():
     from tourism_twin.domain.scenario import MarketSeasonParams
-    from tourism_twin.models.structural import StructuralEngine
+    from tourism_twin.planning.structural import StructuralEngine
 
     params = dict(market="M", season="Winter_Peak", archetype="Long-Haul Leisure", baseline_weekly_seats=1000.0,
                   baseline_load_factor=0.8, baseline_p2p_share=0.0, effective_response_multiplier=0.5,
@@ -786,8 +811,8 @@ def test_a_served_route_that_converts_nobody_brings_no_aviation_arrivals():
 
 def test_scenario_residual_is_the_mean_fit_over_the_season_training_weeks():
     from tourism_twin.domain.scenario import SimulationResult
-    from tourism_twin.models.features import calendar_feature_matrix
-    from tourism_twin.models.residual import ResidualMLEngine
+    from tourism_twin.planning.calendar_features import calendar_feature_matrix
+    from tourism_twin.planning.residual import ResidualMLEngine
 
     class NoStructure:
         def planning_guests_for(self, frame):

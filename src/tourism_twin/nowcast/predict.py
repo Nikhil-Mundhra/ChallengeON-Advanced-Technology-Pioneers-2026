@@ -22,7 +22,8 @@ from tourism_twin.data.ingest import read_raw_workbook
 from tourism_twin.data.repository import LakeRepository
 from tourism_twin.models.backtest import RollingOrigin, backtest
 from tourism_twin.models.noise import NoiseModel
-from tourism_twin.models.specs import MODEL_SPECS
+from tourism_twin.nowcast.disaggregation import split_error_variance, split_shares
+from tourism_twin.nowcast.specs import DAILY_SPECS
 
 DOMESTIC_TEST_FILE = "data domestic_test.xlsx"
 INTERNATIONAL_TEST_FILE = "data international_test.xlsx"
@@ -48,12 +49,12 @@ def predict_test_split(
 ) -> TestPredictions:
     panel = build_daily_panel(repository)
     train, test = panel[panel["dataset_split"] == "train"], panel[panel["dataset_split"] == "test"]
-    model = MODEL_SPECS[spec]().fit(train)
+    model = DAILY_SPECS[spec]().fit(train)
     market = test[["market", "date"]].assign(pred=model.predict(test))
     market["horizon_days"] = (market["date"] - market["date"].min()).dt.days
     backtest_predictions, noise = None, None
     if with_intervals:
-        backtest_predictions = backtest({spec: MODEL_SPECS[spec]}, panel, NOISE_ORIGINS).predictions
+        backtest_predictions = backtest({spec: DAILY_SPECS[spec]}, panel, NOISE_ORIGINS).predictions
         noise = NoiseModel().fit(backtest_predictions)
         market = market.join(noise.intervals(market, coverage))
     else:
@@ -85,40 +86,6 @@ def predict_test_split(
         intervals = intervals.iloc[0:0]
     return TestPredictions(domestic.drop(columns=["_lower", "_upper"]), international.drop(columns=["_lower", "_upper"]),
                            intervals, market, model, backtest_predictions, noise)
-
-
-SHARE_WINDOW_DAYS = 7
-SPLIT_ERROR_DAYS = 365
-
-
-def split_shares(rows: pd.DataFrame) -> pd.Series:
-    """Each nationality's share of its market on a day: trailing SHARE_WINDOW_DAYS new arrivals
-    times the nationality's training guests / arrivals ratio (guests are a stock of recent
-    arrivals, and stay length differs by nationality), normalised within (market, date). Shares
-    cover every nationality-day, including those absent from the test file."""
-    rows = rows.sort_values(["nationality", "date"])
-    trailing = rows.groupby(["residence_group", "nationality"], dropna=False)["new_arrivals_filled"].transform(
-        lambda s: s.rolling(SHARE_WINDOW_DAYS, min_periods=1).sum())
-    train = rows[(rows["dataset_split"] == "train") & rows["guests"].notna()]
-    by_nationality = train.groupby("nationality")[["guests", "new_arrivals_filled"]].sum()
-    by_market = train.groupby("market")[["guests", "new_arrivals_filled"]].sum()
-    ratio = rows["nationality"].map(by_nationality["guests"] / by_nationality["new_arrivals_filled"])
-    ratio = ratio.fillna(rows["market"].map(by_market["guests"] / by_market["new_arrivals_filled"])).fillna(1.0)
-    weight = trailing * ratio
-    totals = weight.groupby([rows["market"], rows["date"]]).transform("sum")
-    counts = weight.groupby([rows["market"], rows["date"]]).transform("size")
-    return (weight / totals).where(totals > 0, 1.0 / counts).reindex(rows.index)
-
-
-def split_error_variance(train_rows: pd.DataFrame) -> pd.Series:
-    """Per market, the variance of log(actual / split) when the market's actual guests are split by
-    split_shares over the last SPLIT_ERROR_DAYS training days; 0 for single-nationality markets."""
-    rows = train_rows[train_rows["date"] > train_rows["date"].max() - np.timedelta64(SPLIT_ERROR_DAYS, "D")]
-    rows = rows[rows["guests"] > 0]
-    market_guests = rows.groupby(["market", "date"])["guests"].transform("sum")
-    errors = np.log(rows["guests"] / (market_guests * rows["share"]))
-    return errors.groupby(rows["market"]).apply(lambda e: float(np.mean(e ** 2)) if len(e) else 0.0)
-
 
 
 def _attach(raw: pd.DataFrame, rows: pd.DataFrame, keys: list[str]) -> pd.DataFrame:

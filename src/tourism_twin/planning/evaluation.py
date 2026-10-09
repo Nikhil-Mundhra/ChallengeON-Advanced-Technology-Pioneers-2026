@@ -29,9 +29,9 @@ from tourism_twin.data.panel import training_window
 from tourism_twin.domain.markets import DOMESTIC
 from tourism_twin.domain.seasons import SEASONS
 from tourism_twin.models.backtest import HoldoutSplit, backtest, forecast_metrics
-from tourism_twin.models.conformal import calibrate_conformal
-from tourism_twin.models.specs import DIAGNOSTIC_SPECS, WEEKLY_SPECS
-from tourism_twin.models.structural import StructuralEngine
+from tourism_twin.planning.conformal import calibrate_conformal
+from tourism_twin.planning.specs import DIAGNOSTIC_SPECS, WEEKLY_SPECS
+from tourism_twin.planning.structural import StructuralEngine
 
 # First Monday of the forward holdout; everything before it is the calibration window.
 HOLDOUT_START = "2024-12-30"
