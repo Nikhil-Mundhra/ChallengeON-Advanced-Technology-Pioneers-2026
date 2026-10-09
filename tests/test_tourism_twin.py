@@ -473,6 +473,25 @@ def test_an_arrivals_proportional_base_stock_follows_an_arrival_shock():
         assert (np.abs(ratio - 0.55) < 0.01).all() == follows, base
 
 
+def test_group_scale_recovers_each_series_scale_in_a_pooled_fit():
+    from tourism_twin.models.components import GroupScale
+
+    rng = np.random.default_rng(8)
+    frames = [_daily(7.0 + scale + 0.3 * np.sin(2 * np.pi * np.arange(700) / 365.25) + rng.normal(0, 0.02, 700), sin=np.sin(2 * np.pi * np.arange(700) / 365.25))
+              .assign(nationality=name) for name, scale in (("A", 0.0), ("B", 0.7), ("C", -0.4))]
+    pooled = pd.concat(frames, ignore_index=True).assign(family="F")
+    model = AdditiveLogModel([LinearTrend(), GroupScale(ridge=1e-6), LinearRegressors(["sin"], name="season")],
+                             fitter=JointLinear(), group_by="family").fit(pooled)
+    scales = model.explain()["F"]["group_scale"]["scale_log"]
+    assert scales["B"] - scales["A"] == pytest.approx(0.7, abs=0.01) and scales["C"] - scales["A"] == pytest.approx(-0.4, abs=0.01)
+    assert model.explain()["F"]["season"]["coef"]["sin"] == pytest.approx(0.3, abs=0.01)  # one shared shape
+    unseen = model.decompose(frames[0].assign(nationality="Z", family="F"))["group_scale"]
+    assert np.allclose(unseen, unseen.iloc[0])  # an unseen series gets the shared level
+    shrunk = AdditiveLogModel([LinearTrend(), GroupScale(ridge=1e6), LinearRegressors(["sin"], name="season")],
+                              fitter=JointLinear(), group_by="family").fit(pooled)
+    assert np.ptp(list(shrunk.explain()["F"]["group_scale"]["scale_log"].values())) < 0.05  # a large ridge pools the scales
+
+
 def test_residual_gbm_picks_up_a_structure_the_other_parts_miss():
     rng = np.random.default_rng(7)
     flag = (rng.random(800) > 0.5).astype(float)
@@ -661,6 +680,9 @@ def test_rolling_origin_never_trains_on_the_future_and_scores_segments():
     for last_train, (fold, row) in zip(_LastTrainDate.seen, folds.iterrows()):
         assert last_train < row["min"] == pd.Timestamp(fold.removeprefix("origin_"))
         assert row["max"] == row["min"] + pd.DateOffset(months=2) - np.timedelta64(1, "D")
+    _LastTrainDate.seen = []  # the protocol's gap: training ends 21 days before each origin
+    backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2024-03-01", "2024-03-01", horizon_months=1, gap_days=21))
+    assert _LastTrainDate.seen[0] < pd.Timestamp("2024-03-01") - np.timedelta64(20, "D")
     first = result.metrics[result.metrics["fold"] == "origin_2024-03-01"].set_index("segment")
     domestic = result.predictions[(result.predictions["fold"] == "origin_2024-03-01") & (result.predictions["market"] == "DOMESTIC")]
     assert first.loc["domestic", "n"] == first.loc["international", "n"] == len(domestic)
@@ -683,6 +705,23 @@ class _BadIndex(_LastTrainDate):
 class _Gaps(_LastTrainDate):
     def predict(self, panel):
         return pd.Series(np.nan, index=panel.index)
+
+
+def test_block_bootstrap_compare_detects_a_real_difference_and_not_a_null_one():
+    from tourism_twin.models.backtest import compare
+
+    rng = np.random.default_rng(3)
+    dates = np.tile(pd.date_range("2024-01-01", periods=180, freq="D"), 3)
+    folds = np.repeat(["f1", "f2", "f3"], 180)
+    actual = 1000 * np.exp(rng.normal(0, 0.05, len(dates)))
+    error = rng.normal(0, 0.10, len(dates))
+    frame = lambda model, scale: pd.DataFrame({"fold": folds, "row": np.arange(len(dates)), "model": model, "date": dates,  # noqa: E731
+                                               "actual": actual, "pred": actual * np.exp(scale * error)})
+    predictions = pd.concat([frame("base", 1.0), frame("better", 0.5), frame("same", 1.0)], ignore_index=True)
+    better = compare(predictions, "base", "better")
+    assert better["difference_pp"] < 0 and better["ci_high"] < 0 and better["share_folds_same_sign"] == 1.0
+    same = compare(predictions, "base", "same")
+    assert same["difference_pp"] == 0 and same["ci_low"] <= 0 <= same["ci_high"]
 
 
 def test_harness_rejects_misindexed_or_missing_predictions_and_reports_skipped_folds():

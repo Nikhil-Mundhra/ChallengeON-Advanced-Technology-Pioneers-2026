@@ -14,6 +14,7 @@ from tourism_twin.models.components import (
     CentredSlope,
     DayOfWeek,
     EventKernel,
+    GroupScale,
     LinearRegressors,
     LinearTrend,
     LocalLevel,
@@ -77,6 +78,7 @@ COMPONENTS.register("slope", CentredSlope)                    # time
 COMPONENTS.register("annual_fourier", AnnualFourier)          # time
 COMPONENTS.register("weekday", DayOfWeek)                     # time
 COMPONENTS.register("events", EventKernel)                    # holiday
+COMPONENTS.register("group_scale", GroupScale)                # flow (per-series scale in a pooled fit)
 COMPONENTS.register("regressors", LinearRegressors)           # flight
 COMPONENTS.register("residual_gbm", ResidualGBM)              # residual
 

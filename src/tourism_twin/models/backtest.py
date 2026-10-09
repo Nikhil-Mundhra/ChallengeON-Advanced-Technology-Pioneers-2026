@@ -23,29 +23,42 @@ class Fold:
 
 
 class HoldoutSplit:
-    """A single forward split: train before `start`, test from `start` to `end` (or the last date)."""
+    """A single forward split: test from `start` to `end` (or the last date); training rows end
+    `gap_days` before `start`."""
 
-    def __init__(self, start: str, end: str | None = None) -> None:
-        self.start, self.end = pd.Timestamp(start), pd.Timestamp(end) if end else None
+    def __init__(self, start: str, end: str | None = None, gap_days: int = 0) -> None:
+        self.start, self.end, self.gap_days = pd.Timestamp(start), pd.Timestamp(end) if end else None, gap_days
 
     def folds(self, dates: pd.Series) -> List[Fold]:
         end = self.end or pd.to_datetime(dates).max()
-        return [Fold(f"holdout_{self.start.date()}", self.start, self.start, end)]
+        train_end = self.start - np.timedelta64(self.gap_days, "D")
+        return [Fold(f"holdout_{self.start.date()}", train_end, self.start, end)]
 
 
 class RollingOrigin:
-    """Monthly origins from `first` to `last`; each fold trains before its origin and tests the
-    next `horizon_months` months."""
+    """Monthly origins from `first` to `last`; each fold trains on rows ending `gap_days` before its
+    origin (expanding window) and tests the next `horizon_months` months, cut at `end`."""
 
-    def __init__(self, first: str, last: str, horizon_months: int = 6) -> None:
+    def __init__(self, first: str, last: str, horizon_months: int = 6, gap_days: int = 0, end: str | None = None) -> None:
         self.first, self.last, self.horizon_months = pd.Timestamp(first), pd.Timestamp(last), horizon_months
+        self.gap_days, self.end = gap_days, pd.Timestamp(end) if end else None
 
     def folds(self, dates: pd.Series) -> List[Fold]:
         folds = []
         for origin in pd.date_range(self.first, self.last, freq="MS"):
             end = origin + pd.DateOffset(months=self.horizon_months) - np.timedelta64(1, "D")
-            folds.append(Fold(f"origin_{origin.date()}", origin, origin, end))
+            if self.end is not None:
+                end = min(end, self.end)
+            folds.append(Fold(f"origin_{origin.date()}", origin - np.timedelta64(self.gap_days, "D"), origin, end))
         return folds
+
+
+# Evaluation protocol (issue #11): every choice (spec, hyperparameter, the 0.3 pp gate) is made on
+# VALIDATION_ORIGINS; FROZEN_TEST is scored once, after all choices are fixed. Rows are never
+# shuffled; training ends 21 days before each origin (kernel lags and error memory).
+PROTOCOL_GAP_DAYS = 21
+VALIDATION_ORIGINS = RollingOrigin("2024-02-01", "2024-08-01", horizon_months=6, gap_days=PROTOCOL_GAP_DAYS, end="2025-01-31")
+FROZEN_TEST = HoldoutSplit("2025-02-01", "2025-07-31", gap_days=PROTOCOL_GAP_DAYS)
 
 
 def forecast_metrics(actual: np.ndarray, pred: np.ndarray) -> Dict[str, float]:
@@ -141,3 +154,35 @@ def score(predictions: pd.DataFrame, metrics: Callable[[np.ndarray, np.ndarray],
             values = metrics(part["actual"].to_numpy(), part["pred"].to_numpy()) if len(part) else {}
             rows.append({"fold": fold, "model": model, "segment": segment, "n": len(part), **values})
     return pd.DataFrame(rows)
+
+
+def compare(predictions: pd.DataFrame, baseline: str, candidate: str, block_days: int = 28,
+            n_boot: int = 2000, coverage: float = 0.9, seed: int = 0) -> Dict[str, float]:
+    """WAPE difference (candidate - baseline, percentage points; negative = candidate better) over
+    every fold's rows of `predictions`, with a moving-block bootstrap interval: dates are resampled
+    in blocks of `block_days` consecutive days, shared by both models and every fold, so serial
+    correlation and overlapping folds stay inside a block. Also the share of folds whose own
+    difference has the same sign. A difference counts only if the interval excludes 0 and the sign
+    holds in most folds."""
+    keys = ["fold", "row"]
+    a = predictions[predictions["model"] == baseline].set_index(keys)
+    b = predictions[predictions["model"] == candidate].set_index(keys)
+    joined = a[["date", "actual", "pred"]].join(b[["pred"]], rsuffix="_b", how="inner")
+    if joined.empty:
+        raise ValueError(f"No rows scored by both {baseline!r} and {candidate!r}")
+    gain = (joined["pred_b"] - joined["actual"]).abs() - (joined["pred"] - joined["actual"]).abs()
+    by_day = pd.DataFrame({"gain": gain.to_numpy(), "actual": joined["actual"].to_numpy()},
+                          index=pd.to_datetime(joined["date"]).to_numpy()).groupby(level=0).sum()
+    days = pd.date_range(by_day.index.min(), by_day.index.max(), freq="D")
+    by_day = by_day.reindex(days, fill_value=0.0)
+    gain_day, actual_day = by_day["gain"].to_numpy(), by_day["actual"].to_numpy()
+    rng = np.random.default_rng(seed)
+    n_blocks = int(np.ceil(len(days) / block_days))
+    starts = rng.integers(0, max(len(days) - block_days, 0) + 1, size=(n_boot, n_blocks))
+    index = (starts[:, :, None] + np.arange(block_days)).reshape(n_boot, -1)[:, :len(days)]
+    draws = gain_day[index].sum(axis=1) / actual_day[index].sum(axis=1) * 100
+    difference = float(gain_day.sum() / actual_day.sum() * 100)
+    per_fold = (gain.groupby(level="fold").sum() / joined["actual"].groupby(level="fold").sum()) * 100
+    tail = (1 - coverage) / 2
+    return {"difference_pp": difference, "ci_low": float(np.quantile(draws, tail)), "ci_high": float(np.quantile(draws, 1 - tail)),
+            "share_folds_same_sign": float((np.sign(per_fold) == np.sign(difference)).mean()), "folds": int(len(per_fold))}

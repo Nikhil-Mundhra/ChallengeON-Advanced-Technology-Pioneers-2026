@@ -137,6 +137,21 @@ def build_daily_panel(
     return PANEL_FEATURES.apply(panel, DAILY_FEATURES, anchor="date", max_lag=max_lag)
 
 
+def build_nationality_panel(
+    repository: Optional[LakeRepository] = None,
+    max_lag: int = DEFAULT_MAX_LAG,
+) -> pd.DataFrame:
+    """One row per international (nationality, date) across both splits, with the nationality's
+    own arrival lags 0..max_lag and the calendar features of the daily panel. Guests are missing
+    on days the nationality was absent from the source (fewer than 10 guests in train)."""
+    rows = build_nationality_rows(repository)
+    rows = rows[rows["residence_group"] == "International"].sort_values(["nationality", "date"]).reset_index(drop=True)
+    gaps = rows.groupby("nationality")["date"].diff().dt.days.dropna()
+    if (gaps != 1).any():
+        raise ValueError("A nationality's daily series is not contiguous; lags would be misaligned")
+    return PANEL_FEATURES.apply(rows, DAILY_FEATURES, anchor="date", max_lag=max_lag, series="nationality")
+
+
 def save_daily_panel(
     output_path: Path = SETTINGS.daily_panel_path,
     repository: Optional[LakeRepository] = None,
