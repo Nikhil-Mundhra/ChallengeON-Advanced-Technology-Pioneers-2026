@@ -50,7 +50,7 @@ Source workbooks are read from `01a - DCT Dataset/` (organizer-provided, not red
 | International guests, test | Nationality-day, 2025-08-01 to 2026-02-28 | New arrivals, same-day guests (Guests withheld) | Competition forecast inputs |
 | Domestic guests, train/test | Day | Guests, new arrivals, same-day guests | Separate domestic prior |
 | Flights | Route-airline-date, 2022 (monthly) and 2023-01-01 to 2026-02-28 (daily) | Seats, pax, P2P, transfer, transit, load factor, frequency, origin, airline | Structural chain |
-| Data dictionary | 8-page PDF | Field definitions | Reference |
+| Data dictionary | 8-page PDF; documents the two test guest files and the flight file only, lists `Guests` in the test files (absent there), lists 6 international / 5 domestic columns (the files have 5 / 4) and calls the flight file monthly (daily from 2023) | Field definitions | Reference |
 
 ### 4.1 Lake (`twin build-lake`)
 
@@ -64,12 +64,14 @@ Source workbooks are read from `01a - DCT Dataset/` (organizer-provided, not red
 | Duplicate candidate keys (guest, flight) | 0, 0 |
 | Passenger identity mismatches (`Total PAX = P2P + Transfer + Transit`) | 0 |
 
+`twin build-lake` aborts unless duplicate keys, train rows missing `Guests`, test rows with `Guests`, passenger identity mismatches, rows with `new_arrivals > guests` and negative guest or arrival counts are all 0, and load factor equals pax ÷ seats within 1e-9 (`data/validation.py`).
+
 ### 4.2 Data findings that shape the model
 
 1. Guests: 1,308 labeled days followed by 212 test days.
-2. 45 guest nationalities vs. 33 flight departure countries; the fields are not semantically equivalent even when labels match.
-3. 2022 flights exist on only 12 month-start dates; daily flights start 2023-01-01. Joint flight–guest modeling starts in 2023; 2022 flights are isolated in `flight_monthly.parquet`.
-4. `*` in the source (suppressed / unavailable) is kept as null, never zero: 840 suppressed new-arrival rows and 40,004 suppressed same-day rows, flagged by `is_suppressed_arrival` / `is_suppressed_same_day`.
+2. 45 guest nationalities vs. 33 flight departure countries; the fields are not semantically equivalent even when labels match. 12 nationalities have no flight-origin rows: Australia, Brazil, Czechia, Denmark, Finland, Mexico, Morocco, Norway, Pakistan, Romania, South Africa, Sweden.
+3. 2022 flights exist on only 12 month-start dates; daily flights start 2023-01-01. Joint flight–guest modeling starts in 2023; 2022 flights are isolated in `flight_monthly.parquet`, so the `guest_flight_daily` view (joined to `flight_daily`) has NULL flight measures for 2022 dates (its load-factor outlier count is 0).
+4. `*` in the source (suppressed / unavailable) is kept as null, never zero: 264 new-arrival and 39,428 same-day values, flagged by `is_suppressed_arrival` / `is_suppressed_same_day` (840 and 40,004 including the 576 absent grid rows, which are flagged too). Same-day guests never exceed guests.
 5. Domestic demand is modeled separately; international flight changes do not create domestic guests.
 6. Realized pax, P2P, load factor and new arrivals are valid for calibration but unknown before a future flight operates.
 7. International train-split guests ÷ new arrivals = 3.61 (stock-to-flow ratio, not a measured length of stay).
@@ -217,6 +219,7 @@ Findings:
 | Structural-only accuracy does not beat the seasonal prior | Structural chain is for scenario attribution more than for point forecasting | Hybrid reported alongside |
 | Cold-start markets use archetype defaults | Weak estimates for new origins | Flagged `is_cold_start` in results |
 | No room inventory | Occupancy cannot be reported | Output is guests, not occupancy |
+| No bookings, room rates, marketing spend, airfares, visa or macroeconomic data | Demand drivers beyond arrivals and the calendar are not modelled | Stated as a scope limit |
 | Single forward split | One holdout period; no Autumn_Shoulder weeks | Season breakdown reported |
 | Observational data | No causal identification | Results described as planning estimates |
 
@@ -225,10 +228,11 @@ Findings:
 ## 12. Open questions for the organizers
 
 1. Are the 2022 flight records intended to be monthly and later records daily?
-2. Will room inventory, occupancy, events, aircraft type or schedule files be provided?
-3. Is the competition forecast scored on international and domestic guests jointly or separately?
-4. Is hotel `Guests` an end-of-day stock, a daily occupied-guest count, or another convention?
-5. Should a new route be allocated to nationality markets by planner input, a comparable-market prior, or both?
+2. Does an absent nationality-day row mean zero guests or a missing report? (The dictionary does not say; 576 grid rows are absent.)
+3. Will room inventory, occupancy, events, aircraft type or schedule files be provided?
+4. Is the competition forecast scored on international and domestic guests jointly or separately?
+5. Is hotel `Guests` an end-of-day stock, a daily occupied-guest count, or another convention?
+6. Should a new route be allocated to nationality markets by planner input, a comparable-market prior, or both?
 
 ## 13. Responsible use
 

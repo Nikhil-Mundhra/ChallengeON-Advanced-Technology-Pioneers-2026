@@ -51,7 +51,7 @@ def validate(guests: pd.DataFrame, flights: pd.DataFrame) -> dict[str, int | flo
             .max()
         ),
         # FIX (P1-E): Implement the new_arrivals <= guests invariant gate.
-        # DATA_ISSUES.md asserted this check existed; it was a phantom. Now real.
+        # Data dictionary: New Arrivals is always a subset of Guests.
         "guest_arrivals_exceeds_guests_violations": int(
             (
                 guests["is_source_present"]

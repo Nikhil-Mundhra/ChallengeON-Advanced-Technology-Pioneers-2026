@@ -1,4 +1,3 @@
-PYTHON := .venv/bin/python
 PYTEST  := .venv/bin/pytest
 TWIN    := .venv/bin/twin
 
@@ -6,7 +5,7 @@ TWIN    := .venv/bin/twin
 LAKE_DIR   := $(or $(TWIN_LAKE_DIR),lake)
 OUTPUT_DIR := $(or $(TWIN_OUTPUT_DIR),output)
 
-.PHONY: all install lake panel evaluate train charts report data-issues-pdf test clean
+.PHONY: all install lake panel evaluate train charts report test clean
 
 ## Rebuild every metric and artifact from the raw workbooks (one-command reproducibility).
 ## Needs the organizer-provided dataset in '01a - DCT Dataset/' (or TWIN_SOURCE_DIR).
@@ -45,10 +44,6 @@ charts:
 ## Step 6 — build final PDF solution report
 report:
 	$(TWIN) report solution
-
-## Build DATA_ISSUES.pdf from DATA_ISSUES.md
-data-issues-pdf:
-	$(PYTHON) scripts/build_data_issues_pdf.py
 
 ## Run full test suite
 test:

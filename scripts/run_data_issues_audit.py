@@ -23,9 +23,9 @@ def parser() -> argparse.ArgumentParser:
         choices=("init", "validate", "status", "watch", "run", "render", "retry", "escalate"),
     )
     result.add_argument("--root", type=Path, default=Path.cwd())
-    result.add_argument("--checklist", type=Path, default=Path("DATA_ISSUES_CHECKLIST.md"))
+    result.add_argument("--checklist", type=Path, default=Path("audits/data_issues/checklist.json"))
     result.add_argument("--audit-dir", type=Path, default=Path("audit"))
-    result.add_argument("--output", type=Path, default=Path("DATA_ISSUES_GEMMA.md"))
+    result.add_argument("--output", type=Path, default=Path("audit/issues.md"))
     result.add_argument("--endpoint", default="http://localhost:8000/v1/chat/completions")
     result.add_argument("--model", default="mlx-community/Qwen3.5-4B-MLX-4bit")
     result.add_argument(

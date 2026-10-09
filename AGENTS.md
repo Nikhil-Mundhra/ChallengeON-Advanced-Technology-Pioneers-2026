@@ -28,7 +28,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin query "SQL" [--database P] [--limit N]` | Read-only SQL on `analytics.duckdb` | — |
 
 - `twin query` and `twin report database` need `lake/analytics.duckdb` (gitignored; built by `twin build-lake`).
-- Makefile targets: `install`, `lake`, `panel` (weekly + daily), `evaluate`, `train`, `charts`, `report` (solution), `data-issues-pdf`, `test`, `all` (lake → panel → evaluate → train → charts → report → test), `clean`.
+- Makefile targets: `install`, `lake`, `panel` (weekly + daily), `evaluate`, `train`, `charts`, `report` (solution), `test`, `all` (lake → panel → evaluate → train → charts → report → test), `clean`.
 
 ## Tests
 
@@ -39,7 +39,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 
 ## Layout and layering
 
-Packages under `src/`: `tourism_twin` (pipeline and model), `app` (`server.py` + `static/index.html`), `audit_agent` (LLM data-audit tool, run via `scripts/run_data_issues_audit.py`).
+Packages under `src/`: `tourism_twin` (pipeline and model), `app` (`server.py` + `static/index.html`), `audit_agent` (LLM data-audit tool, run via `scripts/run_data_issues_audit.py`; input `audits/data_issues/checklist.json`, output `audit/issues.md`). Committed audit inputs and dated snapshots live in `audits/`, never in the repo root; run state and fresh output go to `audit/` (gitignored).
 
 `src/tourism_twin/`, lowest layer first; a module imports only from its own layer or layers above it in this list:
 
@@ -93,7 +93,7 @@ cli/        the `twin` command
 
 - Refactors must prove unchanged outputs: rebuild into a scratch dir and compare against the committed artifacts.
 - Ship metric or behaviour changes as a separate change and report them explicitly; never silently.
-- Dated records keep historical paths; do not "fix" them: `DATA_ISSUES*.md`, `research/real_world_validation/*.md`, evidence strings in `scripts/direct_audit_runner.py`.
+- Dated records keep historical paths; do not "fix" them: `audits/data_issues/` (checklist and the dated issues snapshot), `research/real_world_validation/*.md`, evidence strings in `scripts/direct_audit_runner.py`.
 
 ## Agent skills (`.agents/skills/`)
 
