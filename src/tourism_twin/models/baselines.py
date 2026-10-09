@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import RidgeCV
 
+from tourism_twin.domain.markets import DOMESTIC
 from tourism_twin.models.features import calendar_feature_matrix
 from tourism_twin.models.residual import ResidualMLEngine
 from tourism_twin.models.structural import StructuralEngine
@@ -75,7 +76,7 @@ class RealizedChain:
         planning = self.engine_.planning_guests_for(panel)
         params = [self.engine_.get_or_create_params(m, s) for m, s in zip(panel["market"], panel["season"])]
         realized = np.array([p2p * p.effective_response_multiplier * p.baseline_los for p2p, p in zip(panel["p2p"], params)])
-        return pd.Series(np.where(panel["market"] == "DOMESTIC", planning, realized), index=panel.index)
+        return pd.Series(np.where(panel["market"] == DOMESTIC, planning, realized), index=panel.index)
 
 
 class LegacyHybrid:
@@ -130,7 +131,7 @@ class MarketRouter:
         self.factories = {True: domestic, False: international}
 
     def fit(self, panel: pd.DataFrame) -> "MarketRouter":
-        is_domestic = panel["market"] == "DOMESTIC"
+        is_domestic = panel["market"] == DOMESTIC
         self.models_ = {flag: self.factories[flag]().fit(panel[is_domestic == flag])
                         for flag in (True, False) if (is_domestic == flag).any()}
         return self
@@ -138,7 +139,7 @@ class MarketRouter:
     def decompose(self, panel: pd.DataFrame) -> pd.DataFrame:
         """Per-component log contributions from whichever model serves each row (NaN where a
         component does not exist in that model)."""
-        is_domestic = panel["market"] == "DOMESTIC"
+        is_domestic = panel["market"] == DOMESTIC
         parts = [self.models_[flag].decompose(panel[is_domestic == flag])
                  for flag in self.models_ if (is_domestic == flag).any()]
         return pd.concat(parts).reindex(panel.index)
@@ -154,7 +155,7 @@ class MarketRouter:
         return totals
 
     def predict(self, panel: pd.DataFrame) -> pd.Series:
-        is_domestic = panel["market"] == "DOMESTIC"
+        is_domestic = panel["market"] == DOMESTIC
         out = pd.Series(np.nan, index=panel.index, dtype=float)
         for flag, model in self.models_.items():
             rows = panel[is_domestic == flag]

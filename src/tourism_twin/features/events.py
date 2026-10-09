@@ -7,6 +7,7 @@ from typing import Iterable, Optional
 import numpy as np
 import pandas as pd
 
+from tourism_twin.domain.markets import DOMESTIC
 from tourism_twin.domain.events import load_event_calendar
 from tourism_twin.features.registry import PANEL_FEATURES, Kind
 
@@ -35,7 +36,7 @@ def in_scope(markets: pd.Series, scope: str) -> pd.Series:
     """Whether each market is covered by an event scope (all | domestic | international)."""
     if scope == "all":
         return pd.Series(True, index=markets.index)
-    domestic = markets == "DOMESTIC"
+    domestic = markets == DOMESTIC
     return domestic if scope == "domestic" else ~domestic
 
 

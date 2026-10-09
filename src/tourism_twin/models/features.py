@@ -46,22 +46,6 @@ def extract_calendar_features(
     ], dtype=float)
 
 
-FEATURE_NAMES = [
-    "sin_week1",
-    "cos_week1",
-    "sin_week2",
-    "cos_week2",
-    "is_holiday_week",
-    "is_major_event_week",
-    "q1",
-    "q2",
-    "q3",
-    "q4",
-    "is_winter",
-    "is_summer",
-]
-
-
 CALENDAR_COLUMNS = ("iso_week", "quarter", "month", "is_holiday_week", "is_major_event_week")
 
 

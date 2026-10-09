@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 
 from tourism_twin.domain.archetypes import get_market_archetype
+from tourism_twin.domain.markets import DOMESTIC
 from tourism_twin.features.registry import PANEL_FEATURES, Kind
 
 
@@ -33,4 +34,4 @@ def archetype(frame: pd.DataFrame, **_) -> pd.Series:
 
 @PANEL_FEATURES.feature(Kind.ATTRIBUTE, requires=["market"])
 def is_domestic(frame: pd.DataFrame, **_) -> pd.Series:
-    return (frame["market"] == "DOMESTIC").astype(int)
+    return (frame["market"] == DOMESTIC).astype(int)

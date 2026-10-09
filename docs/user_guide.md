@@ -228,7 +228,7 @@ Results are in the [README](../README.md#32-weekly-planning-model-forward-holdou
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-102 tests: 78 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`. On a fresh clone 101 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022`, until `twin build-lake` creates `flight_monthly.parquet`). The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required. The raw workbooks are not required either: `twin predict` itself is not run by the tests.
+104 tests: 80 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`. On a fresh clone 103 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022`, until `twin build-lake` creates `flight_monthly.parquet`). The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required. The raw workbooks are not required either: `twin predict` itself is not run by the tests.
 
 Product checks in `tests/test_tourism_twin.py`:
 
@@ -240,6 +240,7 @@ Product checks in `tests/test_tourism_twin.py`:
 | `test_weekly_panel_rebuilds_from_the_lake_exactly` | Rebuilding the weekly panel from the curated Parquet equals the committed panel |
 | `test_daily_panel_contract`, `test_daily_lags_cross_the_train_test_boundary`, `test_daily_panel_sums_to_the_weekly_panel` | Lag completeness, lags continue across the train→test boundary, weekly sums of daily guests and arrivals equal the weekly panel |
 | `test_waterfall_reconciles_exactly_for_every_market_and_season` | For every calibrated market + `SWEDEN`, every season, 6 lever sets: waterfall sum = lift within 1e-9; zero levers give zero lift |
+| `test_a_served_route_that_converts_nobody_*`, `test_scenario_residual_follows_the_scenario_season` | Planning and simulation share one arrivals rule; the scenario residual is the mean over the season's ordinary weeks |
 | `test_route_closure_removes_all_aviation_demand` | `delta_seats_pct=-1` zeroes seats through guests; all lift attributed to seats |
 | `test_domestic_ignores_aviation_levers` | Domestic seats stay 0; only multiplier and LOS move guests |
 | `test_added_capacity_never_lowers_demand` | +2 flights gives structural lift ≥ 0 and hybrid lift ≥ 0 for 5 markets |

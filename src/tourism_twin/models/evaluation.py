@@ -26,6 +26,7 @@ import pandas as pd
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.data.panel import training_window
+from tourism_twin.domain.markets import DOMESTIC
 from tourism_twin.domain.seasons import SEASONS
 from tourism_twin.models.backtest import HoldoutSplit, backtest, forecast_metrics
 from tourism_twin.models.conformal import calibrate_conformal
@@ -47,7 +48,6 @@ BENCHMARK_SPECS = {
     "3. Structural-Only Engine": "structural_planning",
     "4. Hybrid Digital Twin": "hybrid_legacy",
 }
-BENCHMARK_NAMES = tuple(BENCHMARK_SPECS)
 
 
 def benchmark_leaders(benchmark: Dict[str, Dict[str, float]]) -> Dict[str, str]:
@@ -72,8 +72,8 @@ def evaluate(panel_path: Path = SETTINGS.panel_path) -> Dict[str, Any]:
     structural = StructuralEngine.calibrate(train)
     conformal = calibrate_conformal(train, structural)
 
-    intl = test[test["market"] != "DOMESTIC"]
-    dom = test[test["market"] == "DOMESTIC"]
+    intl = test[test["market"] != DOMESTIC]
+    dom = test[test["market"] == DOMESTIC]
     diagnostics = {
         "international_planning_mode": forecast_metrics(intl["guests"].values, intl["structural_planning"].values),
         "international_realized_chain": forecast_metrics(intl["guests"].values, intl["realized_chain"].values),

@@ -4,6 +4,7 @@ aviation levers, and the simulated conversion chain with its waterfall attributi
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import NamedTuple
 
 
 @dataclass
@@ -20,6 +21,28 @@ class MarketSeasonParams:
     baseline_weekly_guests: float
     historical_weeks: int
     is_cold_start: bool = False
+
+    def arrivals_from(self, p2p: float, multiplier: float) -> float:
+        """Hotel arrivals carried by `p2p` passengers: converted by `multiplier` when there are
+        any; none on a served route that carries none; a never-served market keeps its
+        non-aviation arrivals."""
+        if p2p > 0:
+            return p2p * multiplier
+        return 0.0 if self.baseline_weekly_seats > 0 else self.baseline_weekly_arrivals
+
+
+class Chain(NamedTuple):
+    """One state of the conversion chain: seats -> pax -> P2P -> arrivals -> guests."""
+
+    seats: float
+    lf: float
+    pax: float
+    p2p_share: float
+    p2p: float
+    multiplier: float
+    arrivals: float
+    los: float
+    guests: float
 
 
 @dataclass

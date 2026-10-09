@@ -30,7 +30,9 @@ from tourism_twin.domain.archetypes import (
     get_cold_start_prior,
     get_market_archetype,
 )
+from tourism_twin.domain.markets import DOMESTIC
 from tourism_twin.domain.scenario import (
+    Chain,
     MarketSeasonParams,
     ScenarioLever,
     SimulationResult,
@@ -158,25 +160,16 @@ class StructuralEngine:
     def planning_guests(self, market: str, season: str, seats: float) -> float:
         """Weekly hotel guests predicted from scheduled seats and the calibrated seasonal priors.
 
-        The same conversion chain simulate() applies to its baseline, evaluated at an arbitrary
-        seat count: realized load factor and P2P share are never used, which is what makes it
-        valid before flights operate. Served routes with no seats produce no aviation arrivals;
-        unserved markets keep their calibrated non-aviation arrivals; DOMESTIC ignores seats.
+        The conversion chain simulate() applies to its baseline, evaluated at an arbitrary seat
+        count: realized load factor and P2P share are never used, which is what makes it valid
+        before flights operate. DOMESTIC ignores seats.
         """
         market_norm = market.upper().strip()
         p = self.get_or_create_params(market_norm, season)
-        is_domestic = (market_norm == "DOMESTIC") or (p.archetype == MarketArchetype.DOMESTIC_STAYCATION.value)
-        if is_domestic:
+        if _is_domestic(market_norm, p):
             return p.baseline_weekly_arrivals * p.baseline_los
-
         p2p = seats * p.baseline_load_factor * p.baseline_p2p_share
-        if p2p > 0:
-            arrivals = p2p * p.effective_response_multiplier
-        elif p.baseline_weekly_seats > 0:
-            arrivals = 0.0
-        else:
-            arrivals = p.baseline_weekly_arrivals
-        return arrivals * p.baseline_los
+        return p.arrivals_from(p2p, p.effective_response_multiplier) * p.baseline_los
 
     def planning_guests_for(self, frame: pd.DataFrame) -> np.ndarray:
         """planning_guests for every row of a frame with market, season and seats columns."""
@@ -191,156 +184,89 @@ class StructuralEngine:
         season: str,
         lever: Optional[ScenarioLever] = None,
     ) -> SimulationResult:
-        """Simulate the forward conversion chain under a specific scenario lever."""
+        """Simulate the forward conversion chain under a scenario lever, with its waterfall."""
         market_norm = market.upper().strip()
         p = self.get_or_create_params(market_norm, season)
-        if lever is None:
-            lever = ScenarioLever(market=market_norm)
+        lever = lever or ScenarioLever(market=market_norm)
+        domestic = _is_domestic(market_norm, p)
+        base = _baseline_chain(p, domestic)
+        sim = _domestic_scenario(base, lever) if domestic else _international_scenario(p, base, lever)
+        waterfall = _waterfall(base, sim, domestic)
 
-        is_domestic = (market_norm == "DOMESTIC") or (p.archetype == MarketArchetype.DOMESTIC_STAYCATION.value)
-
-        # Baseline chain
-        base_seats = 0.0 if is_domestic else p.baseline_weekly_seats
-        base_lf = 0.0 if is_domestic else p.baseline_load_factor
-        base_pax = base_seats * base_lf
-        base_p2p_share = 0.0 if is_domestic else p.baseline_p2p_share
-        base_p2p = base_pax * base_p2p_share
-        base_mult = p.effective_response_multiplier
-        base_arrivals = base_p2p * base_mult if (base_p2p > 0 and not is_domestic) else p.baseline_weekly_arrivals
-        base_los = p.baseline_los
-        base_guests = base_arrivals * base_los
-
-        if is_domestic:
-            # Domestic staycation domain: no aviation counterpart; flight levers are strictly inactive
-            sim_seats = 0.0
-            sim_lf = 0.0
-            sim_pax = 0.0
-            sim_p2p_share = 0.0
-            sim_p2p = 0.0
-            if lever.delta_multiplier_pct != 0.0:
-                sim_mult = base_mult * (1.0 + lever.delta_multiplier_pct)
-                sim_arrivals = max(0.0, base_arrivals * (1.0 + lever.delta_multiplier_pct))
-            else:
-                sim_mult = base_mult
-                sim_arrivals = base_arrivals
-            if lever.delta_los != 0.0:
-                sim_los = max(1.0, base_los + lever.delta_los)
-            else:
-                sim_los = base_los
-            sim_guests = sim_arrivals * sim_los
-
-            # Waterfall attribution for domestic: purely marketing multiplier and length of stay
-            waterfall_seats = 0.0
-            waterfall_lf = 0.0
-            waterfall_p2p = 0.0
-            waterfall_mult = (sim_arrivals - base_arrivals) * base_los
-            waterfall_los = sim_arrivals * (sim_los - base_los)
-        else:
-            # International aviation conversion chain
-            added_freq_seats = lever.delta_frequency * lever.aircraft_gauge
-            sim_seats = max(0.0, (base_seats + added_freq_seats) * (1.0 + lever.delta_seats_pct))
-
-            # Preserve baseline invariants when deltas are zero; otherwise clip to valid range
-            if lever.delta_load_factor != 0.0:
-                sim_lf = float(np.clip(base_lf + lever.delta_load_factor, 0.05, 1.0))
-            else:
-                sim_lf = base_lf
-            sim_pax = sim_seats * sim_lf
-
-            if lever.delta_p2p_share != 0.0:
-                sim_p2p_share = float(np.clip(base_p2p_share + lever.delta_p2p_share, 0.01, 1.0))
-            else:
-                sim_p2p_share = base_p2p_share
-            sim_p2p = sim_pax * sim_p2p_share
-
-            if lever.delta_multiplier_pct != 0.0:
-                sim_mult = max(0.01, base_mult * (1.0 + lever.delta_multiplier_pct))
-            else:
-                sim_mult = base_mult
-
-            # Route discontinuation / scaling logic:
-            # If the market is an active aviation route (base_seats > 0):
-            # Closing the route (sim_seats == 0) yields sim_p2p = 0 and sim_arrivals = 0.0,
-            # accurately producing full demand loss rather than restoring baseline arrivals.
-            # If the market is unserved / cold-start (base_seats == 0):
-            # It only generates aviation arrivals if new capacity is added (sim_p2p > 0),
-            # otherwise retaining any existing unserved baseline arrivals.
-            if base_seats > 0:
-                sim_arrivals = sim_p2p * sim_mult
-            else:
-                sim_arrivals = sim_p2p * sim_mult if sim_p2p > 0 else base_arrivals
-
-            if lever.delta_los != 0.0:
-                sim_los = max(1.0, base_los + lever.delta_los)
-            else:
-                sim_los = base_los
-            sim_guests = sim_arrivals * sim_los
-
-            # Exact Waterfall Attribution Decomposition
-            # Step 1: Seat Capacity Effect
-            delta_s = sim_seats - base_seats
-            waterfall_seats = delta_s * base_lf * base_p2p_share * base_mult * base_los
-
-            # Step 2: Load Factor Effect
-            delta_lf = sim_lf - base_lf
-            waterfall_lf = sim_seats * delta_lf * base_p2p_share * base_mult * base_los
-
-            # Step 3: P2P Share Mix Effect
-            delta_p2p_s = sim_p2p_share - base_p2p_share
-            waterfall_p2p = sim_pax * delta_p2p_s * base_mult * base_los
-
-            # Step 4: Multiplier Effect (Marketing/Conversion Shift)
-            delta_mult = sim_mult - base_mult
-            waterfall_mult = sim_p2p * delta_mult * base_los
-
-            # Step 5: Stay Duration Effect
-            delta_l = sim_los - base_los
-            waterfall_los = sim_arrivals * delta_l
-
-        # FIX (P0-C): Runtime guard — waterfall components must exactly reconcile to delta_guests.
-        # Tolerance of 1e-9 catches the latent defect where base_seats==0 but base_arrivals>0
-        # (12 unserved nationalities) would produce a 100% attribution error.
-        waterfall_total = waterfall_seats + waterfall_lf + waterfall_p2p + waterfall_mult + waterfall_los
-        delta_guests_expected = sim_guests - base_guests
-        waterfall_discrepancy = abs(waterfall_total - delta_guests_expected)
-        if waterfall_discrepancy > 1e-9:
+        discrepancy = abs(sum(waterfall) - (sim.guests - base.guests))
+        if discrepancy > 1e-9:
             raise ArithmeticError(
-                f"Waterfall attribution discrepancy {waterfall_discrepancy:.3e} > 1e-9 "
-                f"for market={market_norm!r}, season={season!r}. "
-                f"waterfall_total={waterfall_total:.6f}, delta_guests={delta_guests_expected:.6f}. "
-                "This indicates a structural bug in the decomposition logic."
+                f"Waterfall attribution discrepancy {discrepancy:.3e} > 1e-9 for market={market_norm!r}, "
+                f"season={season!r}: the decomposition does not reconcile to delta_guests."
             )
-
         return SimulationResult(
             market=market_norm,
             season=season,
             is_cold_start=p.is_cold_start,
-            base_seats=base_seats,
-            base_pax=base_pax,
-            base_p2p=base_p2p,
-            base_arrivals=base_arrivals,
-            base_guests=base_guests,
-            base_lf=base_lf,
-            base_p2p_share=base_p2p_share,
-            base_multiplier=base_mult,
-            base_los=base_los,
-            sim_seats=sim_seats,
-            sim_pax=sim_pax,
-            sim_p2p=sim_p2p,
-            sim_arrivals=sim_arrivals,
-            sim_guests=sim_guests,
-            sim_lf=sim_lf,
-            sim_p2p_share=sim_p2p_share,
-            sim_multiplier=sim_mult,
-            sim_los=sim_los,
-            delta_seats=sim_seats - base_seats,
-            delta_pax=sim_pax - base_pax,
-            delta_p2p=sim_p2p - base_p2p,
-            delta_arrivals=sim_arrivals - base_arrivals,
-            delta_guests=sim_guests - base_guests,
-            waterfall_seats=waterfall_seats,
-            waterfall_lf=waterfall_lf,
-            waterfall_p2p=waterfall_p2p,
-            waterfall_multiplier=waterfall_mult,
-            waterfall_los=waterfall_los,
+            base_seats=base.seats, base_pax=base.pax, base_p2p=base.p2p, base_arrivals=base.arrivals,
+            base_guests=base.guests, base_lf=base.lf, base_p2p_share=base.p2p_share,
+            base_multiplier=base.multiplier, base_los=base.los,
+            sim_seats=sim.seats, sim_pax=sim.pax, sim_p2p=sim.p2p, sim_arrivals=sim.arrivals,
+            sim_guests=sim.guests, sim_lf=sim.lf, sim_p2p_share=sim.p2p_share,
+            sim_multiplier=sim.multiplier, sim_los=sim.los,
+            delta_seats=sim.seats - base.seats, delta_pax=sim.pax - base.pax, delta_p2p=sim.p2p - base.p2p,
+            delta_arrivals=sim.arrivals - base.arrivals, delta_guests=sim.guests - base.guests,
+            waterfall_seats=waterfall[0], waterfall_lf=waterfall[1], waterfall_p2p=waterfall[2],
+            waterfall_multiplier=waterfall[3], waterfall_los=waterfall[4],
         )
+
+
+def _is_domestic(market: str, p: MarketSeasonParams) -> bool:
+    return market == DOMESTIC or p.archetype == MarketArchetype.DOMESTIC_STAYCATION.value
+
+
+def _baseline_chain(p: MarketSeasonParams, domestic: bool) -> Chain:
+    """The calibrated chain; DOMESTIC has no aviation stage and keeps its calibrated arrivals."""
+    seats, lf, share = (0.0, 0.0, 0.0) if domestic else (p.baseline_weekly_seats, p.baseline_load_factor, p.baseline_p2p_share)
+    pax = seats * lf
+    p2p = pax * share
+    multiplier = p.effective_response_multiplier
+    arrivals = p.baseline_weekly_arrivals if domestic else p.arrivals_from(p2p, multiplier)
+    return Chain(seats, lf, pax, share, p2p, multiplier, arrivals, p.baseline_los, arrivals * p.baseline_los)
+
+
+def _shifted_los(base: Chain, lever: ScenarioLever) -> float:
+    return max(1.0, base.los + lever.delta_los) if lever.delta_los != 0.0 else base.los
+
+
+def _domestic_scenario(base: Chain, lever: ScenarioLever) -> Chain:
+    """Flight levers are inactive; only the response multiplier and the stay move."""
+    if lever.delta_multiplier_pct != 0.0:
+        multiplier = base.multiplier * (1.0 + lever.delta_multiplier_pct)
+        arrivals = max(0.0, base.arrivals * (1.0 + lever.delta_multiplier_pct))
+    else:
+        multiplier, arrivals = base.multiplier, base.arrivals
+    los = _shifted_los(base, lever)
+    return Chain(0.0, 0.0, 0.0, 0.0, 0.0, multiplier, arrivals, los, arrivals * los)
+
+
+def _international_scenario(p: MarketSeasonParams, base: Chain, lever: ScenarioLever) -> Chain:
+    """Each lever shifts its stage; a zero delta keeps the baseline value exactly. Closing a served
+    route removes its arrivals; an unserved market gains aviation arrivals only from new capacity."""
+    seats = max(0.0, (base.seats + lever.delta_frequency * lever.aircraft_gauge) * (1.0 + lever.delta_seats_pct))
+    lf = float(np.clip(base.lf + lever.delta_load_factor, 0.05, 1.0)) if lever.delta_load_factor != 0.0 else base.lf
+    pax = seats * lf
+    share = float(np.clip(base.p2p_share + lever.delta_p2p_share, 0.01, 1.0)) if lever.delta_p2p_share != 0.0 else base.p2p_share
+    p2p = pax * share
+    multiplier = max(0.01, base.multiplier * (1.0 + lever.delta_multiplier_pct)) if lever.delta_multiplier_pct != 0.0 else base.multiplier
+    arrivals = p.arrivals_from(p2p, multiplier)
+    los = _shifted_los(base, lever)
+    return Chain(seats, lf, pax, share, p2p, multiplier, arrivals, los, arrivals * los)
+
+
+def _waterfall(base: Chain, sim: Chain, domestic: bool) -> tuple:
+    """Sequential attribution of the guest change to seats, load factor, P2P share, multiplier and
+    stay; each step changes one stage with the earlier stages at their scenario values."""
+    seats = (sim.seats - base.seats) * base.lf * base.p2p_share * base.multiplier * base.los
+    lf = sim.seats * (sim.lf - base.lf) * base.p2p_share * base.multiplier * base.los
+    p2p = sim.pax * (sim.p2p_share - base.p2p_share) * base.multiplier * base.los
+    if domestic:  # arrivals do not come from P2P, so the multiplier step is the whole arrivals change
+        multiplier = (sim.arrivals - base.arrivals) * base.los
+    else:
+        multiplier = sim.p2p * (sim.multiplier - base.multiplier) * base.los
+    return seats, lf, p2p, multiplier, sim.arrivals * (sim.los - base.los)

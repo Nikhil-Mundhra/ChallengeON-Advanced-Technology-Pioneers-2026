@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import PoissonRegressor
 
+from tourism_twin.domain.markets import DOMESTIC
 from tourism_twin.models.backtest import HoldoutSplit, RollingOrigin
 
 TARGET = "same_day_guests"
@@ -90,7 +91,7 @@ def same_day_backtest(panel: pd.DataFrame, splitter: HoldoutSplit | RollingOrigi
         if train.empty or test.empty:
             continue
         test = test[test["market"].isin(set(train["market"]))]
-        segment = np.where(test["market"] == "DOMESTIC", "domestic", "international")
+        segment = np.where(test["market"] == DOMESTIC, "domestic", "international")
         for name, model in (("poisson_glm", SameDayPoisson()), ("naive_mean", SameDayNaive())):
             pred = model.fit(train).predict(test)
             for seg in ("domestic", "international"):

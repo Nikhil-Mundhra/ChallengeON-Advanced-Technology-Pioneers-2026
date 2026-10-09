@@ -10,9 +10,8 @@ from typing import Callable, Dict, Iterable, List, Union
 import numpy as np
 import pandas as pd
 
+from tourism_twin.domain.markets import DOMESTIC
 from tourism_twin.models.protocol import Model
-
-DOMESTIC = "DOMESTIC"
 
 
 @dataclass(frozen=True)

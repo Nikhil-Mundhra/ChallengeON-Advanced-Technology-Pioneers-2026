@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import Dict, List
 
+DOMESTIC = "DOMESTIC"  # the domestic (UAE-resident) market, modeled apart from every source market
+
 # Empirical Top-15 International Markets ranked strictly by verified training guest volume
 # Rank 14 is PHILIPPINES (417,156 guests); Rank 18 is ARMENIA (370,463 guests)
 TOP_15_INTERNATIONAL_MARKETS = [

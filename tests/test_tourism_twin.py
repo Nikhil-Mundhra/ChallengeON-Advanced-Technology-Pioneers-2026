@@ -770,6 +770,20 @@ def test_waterfall_reconciles_exactly_for_every_market_and_season(twin, lever_na
                     assert getattr(result, part) == pytest.approx(0.0, abs=1e-5), (market, season, part)
 
 
+def test_a_served_route_that_converts_nobody_brings_no_aviation_arrivals():
+    from tourism_twin.domain.scenario import MarketSeasonParams
+    from tourism_twin.models.structural import StructuralEngine
+
+    params = dict(market="M", season="Winter_Peak", archetype="Long-Haul Leisure", baseline_weekly_seats=1000.0,
+                  baseline_load_factor=0.8, baseline_p2p_share=0.0, effective_response_multiplier=0.5,
+                  baseline_los=3.0, baseline_weekly_arrivals=200.0, baseline_weekly_guests=600.0, historical_weeks=10)
+    engine = StructuralEngine({"M": {"Winter_Peak": params}})
+    assert engine.planning_guests("M", "Winter_Peak", 1000.0) == 0.0
+    assert engine.simulate("M", "Winter_Peak").base_arrivals == 0.0  # same rule as planning
+    unserved = MarketSeasonParams(**{**params, "baseline_weekly_seats": 0.0})
+    assert unserved.arrivals_from(0.0, 0.5) == 200.0  # a never-served market keeps its non-aviation arrivals
+
+
 def test_scenario_residual_follows_the_scenario_season():
     from tourism_twin.domain.scenario import SimulationResult
     from tourism_twin.models.residual import ResidualMLEngine
