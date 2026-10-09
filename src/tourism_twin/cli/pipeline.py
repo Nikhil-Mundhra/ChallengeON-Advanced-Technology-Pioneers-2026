@@ -182,14 +182,12 @@ def predict(args: argparse.Namespace) -> None:
         raise SystemExit("Predictions failed validation:\n  " + "\n  ".join(problems))
     out = SETTINGS.predictions_dir
     out.mkdir(parents=True, exist_ok=True)
-    paths = {
-        "domestic": out / "domestic_test_guests.csv",
-        "international": out / "international_test_guests.csv",
-        "intervals": out / "test_guests_intervals.csv",
-    }
+    paths = {"domestic": out / "domestic_test_guests.csv", "international": out / "international_test_guests.csv"}
     predictions.domestic.to_csv(paths["domestic"], index=False)
     predictions.international.to_csv(paths["international"], index=False)
-    predictions.intervals.to_csv(paths["intervals"], index=False)
+    if len(predictions.intervals):
+        paths["intervals"] = out / "test_guests_intervals.csv"
+        predictions.intervals.to_csv(paths["intervals"], index=False)
     panel = build_daily_panel()
     plot = plot_test_predictions(panel[panel["dataset_split"] == "train"], predictions.market_daily, out / "test_predictions.png")
     for name, path in {**paths, "plot": plot}.items():

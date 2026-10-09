@@ -9,6 +9,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from tourism_twin.reporting.palette import BLUE, MUTED, NAVY  # noqa: E402
@@ -19,7 +20,7 @@ def plot_test_predictions(train: pd.DataFrame, market_daily: pd.DataFrame, out_p
     columns = 4
     rows = -(-len(markets) // columns)
     fig, axes = plt.subplots(rows, columns, figsize=(4.2 * columns, 2.4 * rows), sharex=True)
-    start = market_daily["date"].min() - pd.Timedelta(days=history_days)
+    start = market_daily["date"].min() - np.timedelta64(history_days, "D")
     for ax, market in zip(axes.flat, markets):
         actual = train[(train["market"] == market) & (train["date"] >= start)]
         forecast = market_daily[market_daily["market"] == market]

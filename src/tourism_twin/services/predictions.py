@@ -15,6 +15,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 from tourism_twin.data.daily_panel import build_daily_panel, build_nationality_rows
 from tourism_twin.data.ingest import read_raw_workbook
@@ -25,7 +26,7 @@ from tourism_twin.models.specs import MODEL_SPECS
 
 DOMESTIC_TEST_FILE = "data domestic_test.xlsx"
 INTERNATIONAL_TEST_FILE = "data international_test.xlsx"
-NOISE_ORIGINS = RollingOrigin("2024-07-01", "2025-02-01", horizon_months=6)
+NOISE_ORIGINS = RollingOrigin("2024-07-01", "2025-02-01", horizon_months=7)  # test horizon is 7 months
 
 
 @dataclass
@@ -52,15 +53,20 @@ def predict_test_split(
         market = market.join(noise.intervals(market, coverage))
     else:
         market = market.assign(lower=np.nan, upper=np.nan)
+    market = market.drop(columns=["horizon_days"])
 
     rows = build_nationality_rows(repository)
-    rows = rows[rows["dataset_split"] == "test"].copy()
-    totals = rows.groupby(["market", "date"])["new_arrivals_filled"].transform("sum")
-    counts = rows.groupby(["market", "date"])["new_arrivals_filled"].transform("size")
-    rows["share"] = np.where(totals > 0, rows["new_arrivals_filled"] / totals.where(totals > 0, 1.0), 1.0 / counts)
-    rows = rows.merge(market[["market", "date", "pred", "lower", "upper"]], on=["market", "date"], how="left")
-    for column in ("pred", "lower", "upper"):
-        rows[column] = rows[column] * rows["share"]
+    rows["share"] = split_shares(rows)
+    split_variance = split_error_variance(rows[rows["dataset_split"] == "train"])
+    rows = rows[rows["dataset_split"] == "test"].merge(market, on=["market", "date"], how="left")
+    if with_intervals:
+        # Market log sd from its bounds, plus the split's own error for pooled markets.
+        z = norm.ppf(0.5 + coverage / 2)
+        market_sd = np.log(rows["upper"] / rows["pred"]) / z
+        sd = np.sqrt(market_sd ** 2 + rows["market"].map(split_variance).fillna(0.0))
+        nationality_pred = rows["pred"] * rows["share"]
+        rows["lower"], rows["upper"] = nationality_pred * np.exp(-z * sd), nationality_pred * np.exp(z * sd)
+    rows["pred"] = rows["pred"] * rows["share"]
 
     domestic = _attach(read_raw_workbook(DOMESTIC_TEST_FILE), rows[rows["residence_group"] == "Domestic"], ["Date"])
     international = _attach(read_raw_workbook(INTERNATIONAL_TEST_FILE), rows[rows["residence_group"] == "International"], ["Date", "Nationality"])
@@ -70,8 +76,44 @@ def predict_test_split(
         domestic[["Date", "Residence (groups)"]].assign(
             Nationality=pd.NA, Guests_p10=domestic["_lower"], Guests_p50=domestic["Guests"], Guests_p90=domestic["_upper"]),
     ], ignore_index=True)[["Date", "Nationality", "Residence (groups)", "Guests_p10", "Guests_p50", "Guests_p90"]]
+    if not with_intervals:
+        intervals = intervals.iloc[0:0]
     return TestPredictions(domestic.drop(columns=["_lower", "_upper"]), international.drop(columns=["_lower", "_upper"]),
-                           intervals, market.drop(columns=["horizon_days"]))
+                           intervals, market)
+
+
+SHARE_WINDOW_DAYS = 7
+SPLIT_ERROR_DAYS = 365
+
+
+def split_shares(rows: pd.DataFrame) -> pd.Series:
+    """Each nationality's share of its market on a day: trailing SHARE_WINDOW_DAYS new arrivals
+    times the nationality's training guests / arrivals ratio (guests are a stock of recent
+    arrivals, and stay length differs by nationality), normalised within (market, date). Shares
+    cover every nationality-day, including those absent from the test file."""
+    rows = rows.sort_values(["nationality", "date"])
+    trailing = rows.groupby(["residence_group", "nationality"], dropna=False)["new_arrivals_filled"].transform(
+        lambda s: s.rolling(SHARE_WINDOW_DAYS, min_periods=1).sum())
+    train = rows[(rows["dataset_split"] == "train") & rows["guests"].notna()]
+    by_nationality = train.groupby("nationality")[["guests", "new_arrivals_filled"]].sum()
+    by_market = train.groupby("market")[["guests", "new_arrivals_filled"]].sum()
+    ratio = rows["nationality"].map(by_nationality["guests"] / by_nationality["new_arrivals_filled"])
+    ratio = ratio.fillna(rows["market"].map(by_market["guests"] / by_market["new_arrivals_filled"])).fillna(1.0)
+    weight = trailing * ratio
+    totals = weight.groupby([rows["market"], rows["date"]]).transform("sum")
+    counts = weight.groupby([rows["market"], rows["date"]]).transform("size")
+    return (weight / totals).where(totals > 0, 1.0 / counts).reindex(rows.index)
+
+
+def split_error_variance(train_rows: pd.DataFrame) -> pd.Series:
+    """Per market, the variance of log(actual / split) when the market's actual guests are split by
+    split_shares over the last SPLIT_ERROR_DAYS training days; 0 for single-nationality markets."""
+    rows = train_rows[train_rows["date"] > train_rows["date"].max() - np.timedelta64(SPLIT_ERROR_DAYS, "D")]
+    rows = rows[rows["guests"] > 0]
+    market_guests = rows.groupby(["market", "date"])["guests"].transform("sum")
+    errors = np.log(rows["guests"] / (market_guests * rows["share"]))
+    return errors.groupby(rows["market"]).apply(lambda e: float(np.mean(e ** 2)) if len(e) else 0.0)
+
 
 
 def _attach(raw: pd.DataFrame, rows: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
@@ -84,19 +126,27 @@ def _attach(raw: pd.DataFrame, rows: pd.DataFrame, keys: list[str]) -> pd.DataFr
 def validate_predictions(predictions: TestPredictions) -> list[str]:
     """Problems that would make a submission invalid; empty when the outputs are usable."""
     problems = []
+    keys_by_part = []
     for name, frame, filename, keys in (
         ("domestic", predictions.domestic, DOMESTIC_TEST_FILE, ["Date"]),
         ("international", predictions.international, INTERNATIONAL_TEST_FILE, ["Date", "Nationality"]),
     ):
         raw = read_raw_workbook(filename)
-        if len(frame) != len(raw) or not frame[keys].reset_index(drop=True).equals(raw[keys]):
-            problems.append(f"{name}: rows or keys differ from {filename}")
-        guests = frame["Guests"]
-        if guests.isna().any():
-            problems.append(f"{name}: {int(guests.isna().sum())} missing Guests")
-        if (guests < 0).any():
-            problems.append(f"{name}: {int((guests < 0).sum())} negative Guests")
-    bounds = predictions.intervals[["Guests_p10", "Guests_p50", "Guests_p90"]]
-    if bounds.notna().all().all() and not ((bounds["Guests_p10"] <= bounds["Guests_p50"]) & (bounds["Guests_p50"] <= bounds["Guests_p90"])).all():
-        problems.append("intervals: p10 <= p50 <= p90 violated")
+        if list(frame.columns) != [*raw.columns, "Guests"] or not frame.drop(columns="Guests").reset_index(drop=True).equals(raw):
+            problems.append(f"{name}: columns or source values differ from {filename}")
+        guests = frame["Guests"].to_numpy(dtype=float)
+        if not np.isfinite(guests).all():
+            problems.append(f"{name}: {int((~np.isfinite(guests)).sum())} missing or infinite Guests")
+        if (guests <= 0).any():
+            problems.append(f"{name}: {int((guests <= 0).sum())} Guests <= 0")
+        keys_by_part.append(raw.reindex(columns=["Date", "Nationality"]))
+    intervals = predictions.intervals
+    if len(intervals):
+        expected = pd.concat(keys_by_part[::-1], ignore_index=True)
+        if not intervals[["Date", "Nationality"]].reset_index(drop=True).equals(expected):
+            problems.append("intervals: rows or keys differ from the test workbooks")
+        bounds = intervals[["Guests_p10", "Guests_p50", "Guests_p90"]].to_numpy(dtype=float)
+        ordered = np.isfinite(bounds).all(axis=1) & (bounds[:, 0] <= bounds[:, 1]) & (bounds[:, 1] <= bounds[:, 2])
+        if not ordered.all():
+            problems.append(f"intervals: {int((~ordered).sum())} rows not finite with p10 <= p50 <= p90")
     return problems

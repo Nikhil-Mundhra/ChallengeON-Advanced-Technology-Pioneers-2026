@@ -629,14 +629,17 @@ def test_prediction_validator_accepts_mirrored_files_and_flags_bad_ones():
         pytest.skip("raw test workbooks are supplied locally, not committed")
     domestic = read_raw_workbook(DOMESTIC_TEST_FILE).assign(Guests=100.0)
     international = read_raw_workbook(INTERNATIONAL_TEST_FILE).assign(Guests=10.0)
-    intervals = pd.DataFrame({"Guests_p10": [9.0], "Guests_p50": [10.0], "Guests_p90": [11.0]})
+    keys = pd.concat([international[["Date", "Nationality"]], domestic[["Date"]].assign(Nationality=np.nan)], ignore_index=True)
+    intervals = keys.assign(Guests_p10=9.0, Guests_p50=10.0, Guests_p90=11.0)
     good = TestPredictions(domestic, international, intervals, pd.DataFrame())
     assert validate_predictions(good) == []
-    bad = TestPredictions(domestic.iloc[1:], international.assign(Guests=international["Guests"].where(international.index != 5)),
-                          intervals.assign(Guests_p10=12.0), pd.DataFrame())
+    bad = TestPredictions(domestic.assign(Guests=np.inf), international.assign(Guests=0.0, **{"New Arrivals": -5.0}),
+                          intervals.assign(Guests_p10=12.0).iloc[1:], pd.DataFrame())
     problems = validate_predictions(bad)
+    assert any("missing or infinite" in p for p in problems)
+    assert any("Guests <= 0" in p for p in problems)
+    assert any("source values differ" in p for p in problems)
     assert any("rows or keys differ" in p for p in problems)
-    assert any("missing Guests" in p for p in problems)
     assert any("p10 <= p50 <= p90" in p for p in problems)
 
 
