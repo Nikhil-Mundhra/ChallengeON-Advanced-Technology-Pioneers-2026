@@ -5,7 +5,8 @@
                  predict only; rows on or before card.train_end are refused (no leakage)
                  metrics per segment (domestic / international, never pooled) at three grains:
                  day, ISO week total, calendar month total; error by horizon; direction of
-                 consecutive period totals; interval coverage when intervals are given
+                 consecutive period totals; interval coverage when intervals are given;
+                 optionally per entity (market or nationality) via group_column
 
 Training lives in the fitters and the back-test harness (models/backtest.py refits per fold);
 this module only measures a fixed model, so the score is the score of exactly what was saved.
@@ -37,14 +38,14 @@ class ModelCard:
     train_start: str
     train_end: str          # last training date (inclusive)
     rows: int
-    markets: Tuple[str, ...]
+    markets: Tuple[str, ...]  # entities the model was trained on (markets, or nationalities)
     fitted_at: str
 
 
-def card_for(spec: str, train: pd.DataFrame, date_column: str = "date") -> ModelCard:
+def card_for(spec: str, train: pd.DataFrame, date_column: str = "date", entity_column: str = "market") -> ModelCard:
     dates = pd.to_datetime(train[date_column])
     return ModelCard(spec=spec, train_start=str(dates.min().date()), train_end=str(dates.max().date()),
-                     rows=int(len(train)), markets=tuple(sorted(train["market"].astype(str).unique())),
+                     rows=int(len(train)), markets=tuple(sorted(train[entity_column].astype(str).unique())),
                      fitted_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
 
 
@@ -81,6 +82,7 @@ class Scorecard:
     by_horizon: pd.DataFrame  # segment, horizon bucket, n, wmape
     direction: pd.DataFrame   # segment, grain, n, hit_rate (sign of change between consecutive totals)
     coverage: pd.DataFrame    # segment, n, coverage (empty without intervals)
+    by_group: pd.DataFrame = None  # group, n, metrics on daily values per entity (when group_column is given)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -90,6 +92,7 @@ class Scorecard:
             "by_horizon": self.by_horizon.round(6).to_dict("records"),
             "direction": self.direction.round(6).to_dict("records"),
             "coverage": self.coverage.round(6).to_dict("records"),
+            "by_group": [] if self.by_group is None else self.by_group.round(6).to_dict("records"),
         }
 
 
@@ -115,9 +118,12 @@ def evaluate_fitted(
     date_column: str = "date",
     intervals: Optional[pd.DataFrame] = None,
     allow_overlap: bool = False,
+    group_column: Optional[str] = None,
 ) -> Scorecard:
     """Score a fitted model on `panel` rows with an observed target. `intervals` (optional) is
-    indexed like `panel` with columns lower and upper."""
+    indexed like `panel` with columns lower and upper. `group_column` (e.g. "nationality") adds a
+    per-entity table of daily metrics; segments come from `market` when present, else
+    every row counts as international (nationality-grain panels)."""
     rows = panel[panel[target].notna()]
     dates = pd.to_datetime(rows[date_column])
     if card is not None and not allow_overlap:
@@ -132,7 +138,9 @@ def evaluate_fitted(
         raise ValueError(f"Model returned {int(pred.isna().sum())} missing predictions")
     start = pd.Timestamp(card.train_end) + np.timedelta64(1, "D") if card is not None else dates.min()
     scored = pd.DataFrame({
-        "market": rows["market"].to_numpy(), "segment": segment_of(rows["market"]), "date": dates.to_numpy(),
+        "market": rows["market"].to_numpy() if "market" in rows else np.full(len(rows), "INTERNATIONAL"),
+        "segment": segment_of(rows["market"]) if "market" in rows else np.full(len(rows), "international"),
+        "date": dates.to_numpy(),
         "horizon_days": (dates - start).dt.days.to_numpy(), "actual": rows[target].to_numpy(dtype=float),
         "pred": pred.to_numpy(dtype=float),
     }, index=rows.index)
@@ -161,4 +169,10 @@ def evaluate_fitted(
         inside = (covered["actual"] >= covered["lower"]) & (covered["actual"] <= covered["upper"])
         coverage = inside.groupby(covered["segment"]).agg(["size", "mean"]).rename(columns={"size": "n", "mean": "coverage"}).reset_index()
 
-    return Scorecard(card, scored, pd.DataFrame(metrics), horizon, pd.DataFrame(direction), coverage)
+    by_group = None
+    if group_column is not None:
+        scored[group_column] = rows[group_column].to_numpy()
+        by_group = pd.DataFrame([{group_column: key, "n": len(part), **error_metrics(part["actual"], part["pred"])}
+                                 for key, part in scored.groupby(group_column)])
+
+    return Scorecard(card, scored, pd.DataFrame(metrics), horizon, pd.DataFrame(direction), coverage, by_group)

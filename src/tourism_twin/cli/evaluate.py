@@ -5,13 +5,16 @@ from __future__ import annotations
 import argparse
 import json
 
+POOLED_SPEC = "pooled_nationalities"
+
 
 def register(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "evaluate-model",
         help="Fit a spec up to a date (or load a saved model) and score it on a later window",
     )
-    parser.add_argument("--spec", default="twin_daily", help="Daily spec name (nowcast/specs.py DAILY_SPECS)")
+    parser.add_argument("--spec", default="twin_daily",
+                        help="Daily spec name (nowcast/specs.py DAILY_SPECS), or pooled_nationalities (#16, nationality grain)")
     parser.add_argument("--model", help="Path of a saved model (.pkl from a previous run); skips fitting")
     parser.add_argument("--start", help="First evaluated date (YYYY-MM-DD)")
     parser.add_argument("--end", help="Last evaluated date (YYYY-MM-DD)")
@@ -29,7 +32,7 @@ def run(args: argparse.Namespace) -> None:
     from tourism_twin.data.daily_panel import build_daily_panel
     from tourism_twin.models.backtest import FROZEN_TEST
     from tourism_twin.models.evaluate import card_for, evaluate_fitted, load_model, save_model
-    from tourism_twin.nowcast.specs import DAILY_SPECS
+    from tourism_twin.nowcast.specs import DAILY_SPECS, POOLED_NATIONALITIES
 
     frozen_start, frozen_end = FROZEN_TEST.start, FROZEN_TEST.end
     if args.frozen_test:
@@ -42,22 +45,31 @@ def run(args: argparse.Namespace) -> None:
             raise SystemExit(f"Window overlaps the frozen test {frozen_start.date()}..{frozen_end.date()}; "
                              "pass --frozen-test to score it (once, after every choice is final)")
 
-    panel = build_daily_panel()
+    pooled = args.spec == POOLED_SPEC or (args.model and "pooled" in str(args.model))
+    if pooled:
+        from tourism_twin.nowcast.pooling import POOLED_MARKET_NATIONALITIES, nationality_panel
+        panel, entity = nationality_panel(), "nationality"
+        factory = POOLED_NATIONALITIES.build
+    else:
+        panel, entity = build_daily_panel(), "market"
+        factory = DAILY_SPECS.get(args.spec)
     dates = pd.to_datetime(panel["date"])
     if args.model:
         model, card = load_model(args.model)
         model_path = args.model
     else:
-        if args.spec not in DAILY_SPECS:
-            raise SystemExit(f"Unknown spec {args.spec!r}; choose from {sorted(DAILY_SPECS)}")
+        if factory is None:
+            raise SystemExit(f"Unknown spec {args.spec!r}; choose from {sorted(DAILY_SPECS) + [POOLED_SPEC]}")
         train_end = start - pd.Timedelta(days=args.gap_days + 1)
         train = panel[(dates <= train_end) & panel["guests"].notna()]
-        model = DAILY_SPECS[args.spec]().fit(train)
-        card = card_for(args.spec, train)
+        model = factory().fit(train)
+        card = card_for(args.spec, train, entity_column=entity)
         model_path = save_model(model, card, SETTINGS.output_dir / "models" / f"{args.spec}_{card.train_end}.pkl")
 
     window = panel[(dates >= start) & (dates <= end)]
-    scorecard = evaluate_fitted(model, window, card)
+    if pooled:  # the pooled model serves the nationalities of the pooled markets
+        window = window[window["nationality"].isin(POOLED_MARKET_NATIONALITIES)]
+    scorecard = evaluate_fitted(model, window, card, group_column=entity if pooled else None)
 
     out = SETTINGS.output_dir / "evaluations" / f"{card.spec}_{start.date()}_{end.date()}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -69,4 +81,7 @@ def run(args: argparse.Namespace) -> None:
     print(table[["segment", "grain", "n", "wmape", "bias", "rmse", "mse"]].round(2).to_string(index=False))
     if not scorecard.direction.empty:
         print(scorecard.direction.round(3).to_string(index=False))
+    if scorecard.by_group is not None:
+        worst = scorecard.by_group.assign(wmape=lambda g: g["wmape"] * 100).sort_values("wmape", ascending=False)
+        print(worst[[entity, "n", "wmape", "rmse"]].head(10).round(2).to_string(index=False))
     print(f"Saved {out}")
