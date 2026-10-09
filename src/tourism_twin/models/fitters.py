@@ -2,7 +2,8 @@
 
 JointLinear: all components linear; their designs are stacked and solved in one least squares.
 Backfitting: block coordinate descent. Each block is refitted on y minus every other block's
-contribution until the largest contribution change is below `tol`. With joint_linear=True the
+contribution until the largest contribution change is below `tol`; components marked
+final_stage are then fitted once on the remaining residual. With joint_linear=True the
 linear components form one jointly-solved block, so only non-linear components cycle.
 """
 
@@ -58,19 +59,26 @@ class Backfitting:
         self.joint_linear = joint_linear
 
     def _blocks(self, components: Sequence[Component]) -> List[List[Component]]:
+        """Blocks in fitting order; the block holding the level owner goes first, so the other
+        terms are never fitted against a zero level (they would absorb it and diverge)."""
         if not self.joint_linear:
-            return [[c] for c in components]
-        linear = [c for c in components if isinstance(c, LinearComponent)]
-        others = [[c] for c in components if not isinstance(c, LinearComponent)]
-        return ([linear] if linear else []) + others
+            blocks = [[c] for c in components]
+        else:
+            linear = [c for c in components if isinstance(c, LinearComponent)]
+            blocks = ([linear] if linear else []) + [[c] for c in components if not isinstance(c, LinearComponent)]
+        return sorted(blocks, key=lambda block: not any(c.owns_level for c in block))
 
     def fit(self, components: Sequence[Component], panel: pd.DataFrame, y: pd.Series) -> FitReport:
-        contributions: Dict[str, pd.Series] = {c.name: pd.Series(0.0, index=panel.index) for c in components}
+        """Cycle the blocks until converged, then fit final-stage components (e.g. a GBM) once on
+        what the others leave unexplained."""
+        cycling = [c for c in components if not getattr(c, "final_stage", False)]
+        final = [c for c in components if getattr(c, "final_stage", False)]
+        contributions: Dict[str, pd.Series] = {c.name: pd.Series(0.0, index=panel.index) for c in cycling}
         max_change = np.inf
         converged, iterations = False, self.max_iter
         for iteration in range(1, self.max_iter + 1):
             max_change = 0.0
-            for block in self._blocks(components):
+            for block in self._blocks(cycling):
                 names = {c.name for c in block}
                 offset = sum((s for n, s in contributions.items() if n not in names), pd.Series(0.0, index=panel.index))
                 if self.joint_linear and all(isinstance(c, LinearComponent) for c in block):
@@ -86,5 +94,9 @@ class Backfitting:
             if max_change < self.tol:
                 converged, iterations = True, iteration
                 break
+        offset = sum(contributions.values(), pd.Series(0.0, index=panel.index))
+        for component in final:
+            component.fit(panel, offset, y)
+            offset = offset + component.contribution(panel)
         rank, columns, unidentified = _linear_diagnostics(components, panel)
         return FitReport(iterations, converged, max_change, rank, columns, unidentified)

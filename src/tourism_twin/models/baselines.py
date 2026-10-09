@@ -87,3 +87,52 @@ class LegacyHybrid:
                                          panel["is_holiday_week"], panel["is_major_event_week"])
         ])
         return pd.Series(np.maximum(0.0, planning + residual), index=panel.index)
+
+
+class SeasonalNaive:
+    """Daily: the same market's value `period` days earlier (364 keeps the weekday), stepping back
+    whole periods until the source date lies in the training data."""
+
+    def __init__(self, period: int = 364, date_column: str = "date", max_periods: int = 4) -> None:
+        self.period, self.date_column, self.max_periods = period, date_column, max_periods
+
+    def fit(self, panel: pd.DataFrame) -> "SeasonalNaive":
+        dates = pd.to_datetime(panel[self.date_column])
+        self.history_ = pd.Series(panel["guests"].to_numpy(), index=pd.MultiIndex.from_arrays([panel["market"], dates]))
+        self.last_ = dates.groupby(panel["market"]).max().to_dict()
+        return self
+
+    def predict(self, panel: pd.DataFrame) -> pd.Series:
+        dates = pd.to_datetime(panel[self.date_column])
+        last = panel["market"].map(self.last_)
+        out = pd.Series(np.nan, index=panel.index, dtype=float)
+        for k in range(1, self.max_periods + 1):
+            source = dates - pd.to_timedelta(self.period * k, unit="D")
+            todo = out.isna() & (source <= last)
+            if not todo.any():
+                break
+            keys = pd.MultiIndex.from_arrays([panel.loc[todo, "market"], source[todo]])
+            out.loc[todo] = self.history_.reindex(keys).to_numpy()
+        return out
+
+
+class MarketRouter:
+    """Routes DOMESTIC rows to one model and every other market to another."""
+
+    def __init__(self, domestic, international) -> None:
+        self.factories = {True: domestic, False: international}
+
+    def fit(self, panel: pd.DataFrame) -> "MarketRouter":
+        is_domestic = panel["market"] == "DOMESTIC"
+        self.models_ = {flag: self.factories[flag]().fit(panel[is_domestic == flag])
+                        for flag in (True, False) if (is_domestic == flag).any()}
+        return self
+
+    def predict(self, panel: pd.DataFrame) -> pd.Series:
+        is_domestic = panel["market"] == "DOMESTIC"
+        out = pd.Series(np.nan, index=panel.index, dtype=float)
+        for flag, model in self.models_.items():
+            rows = panel[is_domestic == flag]
+            if len(rows):
+                out.loc[rows.index] = model.predict(rows).to_numpy()
+        return out

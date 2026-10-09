@@ -35,6 +35,7 @@ class AdditiveLogModel:
         anchor: str = "date",
         feature_params: Optional[Dict[str, Any]] = None,
         exclude_flag: Optional[str] = None,
+        include_flag: Optional[str] = None,
         bias_correction: str = "none",
     ) -> None:
         names = [c.name for c in components]
@@ -55,6 +56,7 @@ class AdditiveLogModel:
         self.anchor = anchor
         self.feature_params = {"anchor": anchor, **(feature_params or {})}
         self.exclude_flag = exclude_flag
+        self.include_flag = include_flag
         self.bias_correction = bias_correction
         self.fitted_: Dict[Hashable, Tuple[List[Component], FitReport]] = {}
         self.smearing_: Dict[Hashable, float] = {}
@@ -63,8 +65,9 @@ class AdditiveLogModel:
         if not panel.index.is_unique:
             raise ValueError("Panel index must be unique (reset_index after concatenating frames)")
         needed = {r for c in self.components for r in c.requires if r not in panel.columns}
-        if self.exclude_flag and self.exclude_flag not in panel.columns:
-            needed.add(self.exclude_flag)
+        for flag in (self.exclude_flag, self.include_flag):
+            if flag and flag not in panel.columns:
+                needed.add(flag)
         registered = [name for name in needed if name in PANEL_FEATURES]
         missing = needed - set(registered)
         if missing:
@@ -83,6 +86,8 @@ class AdditiveLogModel:
         train = panel[panel[self.target].notna()]
         if self.exclude_flag:
             train = train[train[self.exclude_flag] != 1]
+        if self.include_flag:
+            train = train[train[self.include_flag].astype(bool)]
         non_positive = int((train[self.target] <= 0).sum())
         if non_positive:
             raise ValueError(f"{non_positive} training rows have {self.target} <= 0; the log target needs positive values")

@@ -13,7 +13,10 @@ from tourism_twin.data.panel import build_weekly_panel
 from tourism_twin.features import PANEL_FEATURES, FeatureRegistry, FeatureSpec, Kind
 from tourism_twin.domain.events import DEFAULT_KERNEL_EVENTS, load_event_calendar
 from tourism_twin.features.events import offset_column
-from tourism_twin.models.components import EventKernel, LinearRegressors, LinearTrend
+from tourism_twin.models.baselines import SeasonalNaive
+from tourism_twin.models.components import (
+    AnnualFourier, ArrivalsConvolution, DayOfWeek, EventKernel, LinearRegressors, LinearTrend, LocalLevel, ResidualGBM,
+)
 from tourism_twin.models.backtest import RollingOrigin, backtest
 from tourism_twin.models.composite import AdditiveLogModel
 from tourism_twin.models.evaluation import evaluate
@@ -372,6 +375,85 @@ def test_event_offsets_on_the_daily_panel(daily_panel: pd.DataFrame):
     ramadan = offsets[offset_column("ramadan")]
     assert ramadan.loc["2026-02-18"] == 0 and ramadan.loc["2026-02-13"] == -5 and np.isnan(ramadan.loc["2026-02-12"])
     assert offsets.loc["2025-12-02", offset_column("national_day")] == 0
+
+
+def _daily(log_y: np.ndarray, start: str = "2023-01-01", **columns) -> pd.DataFrame:
+    dates = pd.date_range(start, periods=len(log_y), freq="D")
+    return pd.DataFrame({"market": "M", "date": dates, "guests": np.exp(log_y), **columns})
+
+
+def test_annual_fourier_recovers_a_known_sine():
+    days = pd.date_range("2022-01-01", periods=1095, freq="D").dayofyear.to_numpy()
+    frame = _daily(8.0 + 0.3 * np.sin(2 * np.pi * days / 365.25))
+    fitted = AdditiveLogModel([LinearTrend(), AnnualFourier(4)], fitter=JointLinear()).fit(frame).explain()["M"]["season"]
+    assert fitted["amplitude_log_by_harmonic"][1] == pytest.approx(0.3, abs=1e-3)
+    assert fitted["amplitude_log_by_harmonic"][2] == pytest.approx(0.0, abs=1e-3)
+
+
+def test_day_of_week_recovers_known_weekday_effects():
+    dates = pd.date_range("2023-01-02", periods=728, freq="D")
+    effect = np.select([dates.dayofweek == 4, dates.dayofweek == 5], [0.2, 0.3], 0.0)
+    fitted = AdditiveLogModel([LinearTrend(), DayOfWeek()], fitter=JointLinear()).fit(_daily(7.0 + effect, "2023-01-02")).explain()["M"]["weekday"]
+    assert fitted["effect_log_vs_monday"]["Fri"] == pytest.approx(0.2, abs=1e-9)
+    assert fitted["effect_log_vs_monday"]["Sat"] == pytest.approx(0.3, abs=1e-9)
+    assert fitted["effect_log_vs_monday"]["Tue"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_local_level_tracks_a_slow_level_and_extrapolates_its_slope():
+    t = np.arange(900)
+    level = 8.0 + 0.4 * np.sin(2 * np.pi * t / 700) + 0.0004 * t
+    frame = _daily(level + np.random.default_rng(3).normal(0, 0.03, len(t)))
+    model = AdditiveLogModel([LocalLevel(smoothing=1e4)], fitter=Backfitting()).fit(frame.iloc[:800])
+    fitted = model.decompose(frame.iloc[:800])["level"]
+    assert np.abs(fitted - level[:800]).mean() < 0.02
+    ahead = model.decompose(frame.iloc[800:830])["level"].to_numpy()
+    np.testing.assert_allclose(np.diff(ahead), model.explain()["M"]["level"]["slope_log_per_day"], atol=1e-12)
+
+
+def test_arrivals_convolution_recovers_a_known_survival_kernel():
+    rng = np.random.default_rng(5)
+    n, max_lag = 900, 21
+    arrivals = 1000 * np.exp(0.3 * np.sin(2 * np.pi * np.arange(n) / 365.25) + rng.normal(0, 0.15, n))
+    true_w = np.exp(-np.arange(max_lag + 1) / 3.0)
+    lags = np.column_stack([np.r_[np.full(k, np.nan), arrivals[:n - k]] for k in range(max_lag + 1)])
+    guests = 500.0 + np.nan_to_num(lags) @ true_w
+    frame = _daily(np.log(guests), new_arrivals_filled=arrivals)
+    frame = PANEL_FEATURES.apply(frame, ["arrival_lags"], max_lag=max_lag)
+    model = AdditiveLogModel([ArrivalsConvolution(max_lag=max_lag)], fitter=Backfitting(), include_flag="lag_complete").fit(frame)
+    fitted = model.explain()["M"]["arrivals"]
+    np.testing.assert_allclose(fitted["survival_w"], true_w, atol=0.01)
+    assert fitted["implied_mean_stay_days"] == pytest.approx(true_w.sum(), rel=0.01)
+    assert all(a >= b - 1e-12 for a, b in zip(fitted["survival_w"], fitted["survival_w"][1:])) and fitted["w0"] <= 1 + 1e-9
+
+
+def test_residual_gbm_picks_up_a_structure_the_other_parts_miss():
+    rng = np.random.default_rng(7)
+    flag = (rng.random(800) > 0.5).astype(float)
+    frame = _daily(7.0 + 0.25 * flag + rng.normal(0, 0.01, 800), signal=flag)
+    model = AdditiveLogModel([LinearTrend(), ResidualGBM(["signal"])], fitter=Backfitting()).fit(frame)
+    gbm = model.decompose(frame)["gbm"]
+    assert gbm[flag == 1].mean() - gbm[flag == 0].mean() == pytest.approx(0.25, abs=0.02)
+
+
+def test_season_and_event_kernels_are_identifiable():
+    dates = pd.date_range("2022-01-01", periods=1095, freq="D")
+    calendar = _calendar("fest", ["2022-06-01", "2023-05-20", "2024-05-08"], -1, 2)
+    season = 0.3 * np.sin(2 * np.pi * dates.dayofyear.to_numpy() / 365.25)
+    offsets = {a + np.timedelta64(k, "D"): e for a in calendar["anchor_date"] for k, e in zip(range(-1, 3), (0.2, 0.5, 0.4, 0.1))}
+    event = np.array([offsets.get(d, 0.0) for d in dates])
+    frame = _daily(8.0 + season + event + np.random.default_rng(9).normal(0, 0.01, len(dates)), "2022-01-01")
+    model = AdditiveLogModel([LinearTrend(), AnnualFourier(4), EventKernel(["fest"], calendar=calendar)], fitter=Backfitting()).fit(frame)
+    parts = model.decompose(frame)
+    assert (parts["events"] - event).abs().max() < 0.03
+    assert (parts["season"] - (season - season.mean())).abs().max() < 0.03
+
+
+def test_seasonal_naive_uses_the_same_weekday_a_year_earlier():
+    frame = _daily(np.log(np.arange(1, 801, dtype=float)))
+    model = SeasonalNaive().fit(frame.iloc[:400])
+    pred = model.predict(frame.iloc[400:800])
+    np.testing.assert_allclose(pred.iloc[:364], frame["guests"].iloc[36:400].to_numpy())
+    np.testing.assert_allclose(pred.iloc[364:], frame["guests"].iloc[36:72].to_numpy())
 
 
 # --- back-test harness ---------------------------------------------------------------------
