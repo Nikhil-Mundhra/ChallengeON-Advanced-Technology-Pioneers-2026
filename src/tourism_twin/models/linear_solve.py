@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List, Optional, Sequence
 
 import numpy as np
+from scipy.linalg import lstsq as scipy_lstsq
 import pandas as pd
 
 if TYPE_CHECKING:
@@ -33,6 +34,20 @@ def row_scale(weights: Optional[np.ndarray], n: int) -> Optional[np.ndarray]:
     if w.shape != (n,) or not np.isfinite(w).all() or (w <= 0).any():
         raise ValueError(f"weights must be {n} finite positive values")
     return np.sqrt(w / w.mean())
+
+
+def least_squares(system: np.ndarray, rhs: np.ndarray) -> np.ndarray:
+    """Minimum-norm least squares (numpy, LAPACK gelsd). On some LAPACK builds (Apple Accelerate)
+    gelsd fails to converge on well-conditioned systems: a pooled nationality fit with condition
+    number 160 raised "SVD did not converge", and scipy's gelsd returned |x| ~ 1e-314. The
+    fallback is QR with column pivoting (gelsy), whose result is checked to be finite."""
+    try:
+        return np.linalg.lstsq(system, rhs, rcond=None)[0]
+    except np.linalg.LinAlgError:
+        coef = scipy_lstsq(system, rhs, lapack_driver="gelsy")[0]
+        if not np.isfinite(coef).all():
+            raise
+        return coef
 
 
 def solve_linear_block(components: Sequence["LinearComponent"], panel: pd.DataFrame, target: pd.Series,
@@ -63,7 +78,7 @@ def solve_linear_block(components: Sequence["LinearComponent"], panel: pd.DataFr
     if penalty_blocks:
         system = np.vstack([system, *penalty_blocks])
         system_rhs = np.concatenate([system_rhs, np.zeros(sum(b.shape[0] for b in penalty_blocks))])
-    coef, *_ = np.linalg.lstsq(system, system_rhs, rcond=None)
+    coef = least_squares(system, system_rhs)
 
     unidentified: List[str] = []
     start = 0

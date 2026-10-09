@@ -159,3 +159,18 @@ def test_weighted_kernel_follows_the_favoured_regime():
     unweighted, favour_late = kernel_sum(None), kernel_sum(ByColumn("regime", {"late": 50.0}))
     assert early.sum() < unweighted < late.sum()
     assert abs(favour_late - late.sum()) < abs(unweighted - late.sum()) / 3
+
+
+def test_least_squares_falls_back_when_lapack_gelsd_fails(monkeypatch):
+    # Apple Accelerate's gelsd raised "SVD did not converge" on a well-conditioned pooled fit.
+    import tourism_twin.models.linear_solve as linear_solve
+
+    rng = np.random.default_rng(6)
+    system, rhs = rng.normal(size=(300, 12)), rng.normal(size=300)
+    expected = np.linalg.lstsq(system, rhs, rcond=None)[0]
+
+    def failing(*args, **kwargs):
+        raise np.linalg.LinAlgError("SVD did not converge in Linear Least Squares")
+
+    monkeypatch.setattr(linear_solve.np.linalg, "lstsq", failing)
+    np.testing.assert_allclose(linear_solve.least_squares(system, rhs), expected, rtol=1e-8)
