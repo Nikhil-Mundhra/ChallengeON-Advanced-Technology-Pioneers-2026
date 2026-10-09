@@ -187,10 +187,10 @@ flow_t   = c_t + Σ_{k=0..21} w_k · NewArrivals_{t−k}
 | `ArrivalsConvolution(K=21)` | Contribution log(flow_t). w_k = share of arrivals still staying after k nights: w = U d with d ≥ 0 (non-increasing), Σd ≤ 1 (w₀ ≤ 1). c_t ≥ 0 is a base stock, piecewise linear between knots about 365 days apart with a first-difference penalty, flat beyond the training days. Bounded least squares, then SLSQP when Σd > 1, then projection onto Σd ≤ 1 if the solver stops short. Owns the level | ✓ | ✓ |
 | `CentredSlope` | Log-linear slope in years since the first training day, centred on the training rows | ✓ | — |
 | `AnnualFourier(4)` | 4 sine/cosine pairs of day of year, centred | ✓ | ✓ |
-| `DayOfWeek` | One effect per weekday (Monday reference), centred | per season | ✓ |
+| `DayOfWeek` | One effect per weekday (Monday reference), centred | ✓ | ✓ |
 | `EventKernel` | One coefficient per window day per event type from `domain/events.csv`; second-difference smoothing for windows of 6+ days, weight scaled by occurrences; zero outside the windows | — | ✓ |
 
-- **Fitting** (`models/fitters.py`): `Backfitting`, kernel first (it owns the level). The kernel is fitted on the original scale to exp(y − other contributions); the linear components are one jointly solved block on y − log flow. Stop when the largest contribution change is < 1e-3 or after 20 passes. `domestic_time` has only linear components and uses `JointLinear` (one least squares).
+- **Fitting** (`models/fitters.py`): `Backfitting`, kernel first (it owns the level). Every block minimises the same log-scale objective Σ(y − Σ contributions)²: the kernel starts from a least-squares solve on the original scale and is refined on the log objective under its constraints, keeping the result only if it does not raise the objective; the linear components are one jointly solved block on y − log flow. The objective therefore never increases, and fits converge (largest contribution change < 1e-6; cap 200 passes, not reached in the back-test). `FitReport.objective` records it per pass. `domestic_time` has only linear components and uses `JointLinear` (one least squares).
 - **Training rows**: `lag_complete` rows with guests; rows flagged `is_one_off_period` (the `international_shock_2022` window, international markets only) are excluded.
 - **Inputs**: `arrivals_lag_0..21` from `new_arrivals_filled` (suppressed or absent nationality-day arrivals interpolated). Lags run across the train/test boundary, so the first test days use the last training days' arrivals.
 - **Router**: `MarketRouter` serves `DOMESTIC` with `domestic_nowcast` and the other 20 markets with `intl_nowcast`.
@@ -290,36 +290,36 @@ Findings:
 | --- | :---: | :---: |
 | `naive_364` | 20.4% | 26.6% |
 | `arrivals_ratio` | 15.9% | 19.2% |
-| **`twin_daily`** (shipped) | **6.7%** | **9.4%** |
-| `twin_daily_gbm` | 6.7% | 9.3% |
+| **`twin_daily`** (shipped) | **6.5%** | **9.4%** |
+| `twin_daily_gbm` | 6.5% | 9.1% |
 
-The residual GBM changes WMAPE by less than 0.3 pp on both segments and is not shipped.
+The residual GBM lowers international WMAPE by 0.33 pp and domestic by 0 (domestic has no GBM), so it fails the both-segments rule and is not shipped.
 
 **Interval coverage** of the 80% interval, `twin_daily`, each fold's bounds from a noise model fitted on other folds only:
 
 | Folds used to fit | All | Domestic | International |
 | --- | :---: | :---: | :---: |
-| All other origins | 81.4% | 81.6% | 81.4% |
-| Origins more than 3 months away | 79.6% | 76.2% | 79.8% |
+| All other origins | 81.5% | 82.5% | 81.4% |
+| Origins more than 3 months away | 79.2% | 75.6% | 79.4% |
 
-International coverage is 80–82% at every horizon. Domestic coverage falls from 90% (h ≤ 13 days) to 71% (h > 120 days).
+International coverage is 79–83% at every horizon. Domestic coverage falls from 91% (h ≤ 13 days) to 74% (h > 120 days).
 
 **Direction** (week-to-week on the 8 origins of `twin predict`'s interval back-test, 1,154 distinct market-weeks, each from its earliest origin). The model sees observed new arrivals, so this is nowcast skill:
 
 | Predictor | Accuracy |
 | --- | :---: |
-| Model | 86.0% |
+| Model | 87.2% |
 | Direction of new arrivals | 83.4% |
 | Same direction as last year | 63.1% |
 | Market's majority training direction | 53.6% |
 
-Stated `direction_prob` vs share right: 0.55 → 59%, 0.65 → 78%, 0.75 → 82%, 0.85 → 90%, 0.98 → 99%. Weekly 80% bands cover 78.0% of back-test weeks. The noise model is fitted on the same folds, so both figures are in-sample for the error model.
+Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 81%, 0.85 → 91%, 0.98 → 99%. Weekly 80% bands cover 77.5% of back-test weeks. The noise model is fitted on the same folds, so both figures are in-sample for the error model.
 
 **Same-day guests** (`same_day_backtest`, 8 origins 2024-07..2025-02, 6-month horizon, mean Poisson deviance, lower is better, suppressed values as 0): domestic 11.8 vs 15.3 for the market mean; international 4.87 vs 5.61.
 
-**Time-varying survival curve** (not shipped): per-regime curves 8.72% overall WMAPE vs 8.39% for one shared curve × calendar; recency weighting destabilised domestic. `twin_daily` uses one curve per market.
+**Time-varying survival curve** (not shipped): per-regime curves 8.72% overall WMAPE vs 8.39% for one shared curve × calendar (both measured with the earlier raw-scale kernel fit; the shipped fit now scores 8.31%); recency weighting destabilised domestic. `twin_daily` uses one curve per market.
 
-**Fit diagnostics.** 57 of 168 kernel fits (21 markets × 8 origins) stop at the 20-pass backfitting cap; `BacktestResult.diagnostics` counts them.
+**Fit diagnostics.** All 168 fits (21 markets × 8 origins) converge; `BacktestResult.diagnostics` counts non-converged fits. Domestic results are identical for caps of 20, 50, 200 and 1,000 passes (13 rolling origins 2024-02..2025-02, daily WAPE 5.97%).
 
 ## 10. Tests
 
@@ -335,7 +335,6 @@ Stated `direction_prob` vs share right: 0.55 → 59%, 0.65 → 78%, 0.75 → 82%
 | Stay factor $L$ is a stock-to-flow ratio, not a measured length of stay | LOS lever is an approximation | The nowcast's survival curve is not used by the simulator |
 | Nowcast implied stay Σw understates the guests ÷ new arrivals ratio where the base stock c_t carries part of the stock | `implied_mean_stay_days` is not a measured stay | `base_stock_share` exported; stay fields withheld above 25% (7 of 21 markets) |
 | Domestic nowcast interval coverage falls with horizon (90% at h ≤ 13 days, 71% at h > 120) | Late test-period domestic bounds are too narrow | Reported; no horizon-specific correction |
-| 57 of 168 back-test kernel fits stop at the 20-pass cap | Kernel weights still move between passes in those fits | Counted in `BacktestResult.diagnostics`; on the UK 2024-07 fold, out-of-sample error is 5.0% from 5 to 100 passes |
 | Nationality split of pooled markets is a modelled share | Extra error per nationality (split WMAPE 14.0%) | Split variance added to nationality intervals |
 | Structural-only accuracy does not beat the seasonal prior | Structural chain is for scenario attribution more than for point forecasting | Hybrid reported alongside |
 | Cold-start markets use archetype defaults | Weak estimates for new origins | Flagged `is_cold_start` in results |

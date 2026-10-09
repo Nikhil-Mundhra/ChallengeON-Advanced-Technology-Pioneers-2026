@@ -78,7 +78,7 @@ cli/        the `twin` command
 
 - Read `docs/model_design.md` (§3 form, §4 evidence, §5 structure, §5.7 rules) before changing any model. When a measured result changes a modeling rule, update the rule here and its evidence in `docs/model_design.md` in the same change.
 - No general neural networks (MLP/CNN/RNN): ~1,300 daily rows; MLPs lost to the seasonal naive. The arrivals "convolution" is one constrained linear kernel.
-- No interaction or power terms by default (weekday × season, seasonal kernels, `flow^α`): none passed the gate (`docs/model_design.md` §4.2). Exception under review: `domestic_nowcast` uses `DayOfWeek(by_season=True)`; its comparison depends on the backfitting cap until issue #13 is fixed.
+- No interaction or power terms by default (weekday × season, seasonal kernels, `flow^α`): none passed the gate (`docs/model_design.md` §4.2).
 - Add a model part as: one module in `models/components/` (`Component` protocol or `LinearComponent`), its export in `components/__init__.py`, a synthetic test in `tests/test_tourism_twin.py` that recovers a known truth, and a spec entry in `nowcast/specs.py` (weekly: `planning/specs.py`). Edit nothing else; never hard-wire a model into `training.py` or `evaluation.py`.
 - Compose components only via `AdditiveLogModel` (`models/composite.py`); exactly one component per model sets `owns_level=True` (it raises otherwise).
 - Mark residual learners `final_stage = True` (fitted once, after the rest converge).

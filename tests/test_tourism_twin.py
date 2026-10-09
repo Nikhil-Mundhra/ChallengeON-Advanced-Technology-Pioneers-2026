@@ -440,6 +440,24 @@ def _conv_frame(true_w: np.ndarray, base: float, noise: float, n: int = 900, see
     return PANEL_FEATURES.apply(_daily(np.log(guests), new_arrivals_filled=arrivals), ["arrival_lags"], max_lag=max_lag)
 
 
+def test_backfitting_with_the_arrivals_kernel_never_increases_the_objective():
+    # Every block, the kernel included, must minimise the same log-scale objective; a kernel fitted
+    # on the raw scale made the objective cycle and the domestic fit depend on the pass cap (#13).
+    rng = np.random.default_rng(11)
+    n, true_w = 900, 1.4 * np.exp(-np.arange(8) / 2.5)  # w0 > 1: the constraint binds
+    arrivals = 1000 * np.exp(0.4 * np.sin(2 * np.pi * np.arange(n) / 365.25) + rng.normal(0, 0.2, n))
+    lags = np.column_stack([np.r_[np.full(k, np.nan), arrivals[:n - k]] for k in range(len(true_w))])
+    dates = pd.date_range("2022-01-01", periods=n, freq="D")
+    calendar = 0.4 * (np.cos(2 * np.pi * dates.dayofyear / 365.25) + (dates.dayofweek >= 4))  # strong multipliers
+    guests = (200.0 + np.nan_to_num(lags) @ true_w) * np.exp(calendar + rng.normal(0, 0.05, n))
+    frame = PANEL_FEATURES.apply(_daily(np.log(guests), new_arrivals_filled=arrivals), ["arrival_lags"], max_lag=7)
+    components = [ArrivalsConvolution(max_lag=7, base_smoothing=0.0), AnnualFourier(2), DayOfWeek()]  # no penalties: objective = SSE
+    model = AdditiveLogModel(components, fitter=Backfitting(max_iter=40, tol=0.0), include_flag="lag_complete").fit(frame)
+    objective = model.fitted_["M"][1].objective
+    assert len(objective) == 40
+    assert all(later <= earlier * (1 + 1e-10) for earlier, later in zip(objective, objective[1:]))
+
+
 def test_arrivals_convolution_enforces_w0_at_most_one_when_it_binds():
     true_w = 1.3 * np.exp(-np.arange(8) / 2.0)  # data generated with w0 = 1.3: an unconstrained fit lands above 1
     frame = _conv_frame(true_w, base=0.0, noise=0.02)

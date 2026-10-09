@@ -26,7 +26,7 @@ In the nowcast, arrivals carry most of the level and the event shocks (§4.3). I
 | Model | Inputs | Output | Use | Status |
 | --- | --- | --- | --- | --- |
 | International Guests nowcast | Daily new arrivals (lags 0..K), date | Daily guests per market; pooled markets split to nationalities by arrival share | Competition forecast of withheld `Guests` | Implemented: `intl_nowcast` in `nowcast/specs.py` (spec `twin_daily`), `twin predict` |
-| Domestic Guests | Domestic new arrivals (nowcast) or date only (time-only) | Daily guests | Competition forecast; planning baseline | Implemented: `domestic_nowcast` (spec `twin_daily`) and time-only `domestic_time` in `nowcast/specs.py`; planning keeps `StructuralEngine.planning_guests`. Fit unstable, see §6 (#13) |
+| Domestic Guests | Domestic new arrivals (nowcast) or date only (time-only) | Daily guests | Competition forecast; planning baseline | Implemented: `domestic_nowcast` (spec `twin_daily`) and time-only `domestic_time` in `nowcast/specs.py`; planning keeps `StructuralEngine.planning_guests` |
 | Same-day guests | Day of week, holiday week, log new arrivals | Daily same-day guests | Competition field | Implemented: Poisson GLM per market (`nowcast/same_day.py`). Analysis: GBM with Poisson loss 19.4% vs 23.8% naive. Suppressed values, see §6 (#14) |
 | Planning (structural) | Seats, levers, seasonal priors | Weekly guests per market × season, waterfall | Simulator, scenario attribution | Implemented (`planning/structural.py`, `planning/residual.py`) |
 | Direction (derived) | Guests history, calendar | Up/down over +7 days | Briefing | Analysis finding: logistic + spline, 74% accuracy, Brier 0.18 vs 43% majority class (`model_baselines.py`) |
@@ -330,7 +330,7 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 
 | Gap | Where | Status |
 | --- | --- | --- |
-| Domestic nowcast does not converge | `domestic_nowcast`: results change with the backfitting cap; run to convergence the plain-weekday variant collapses to zero predictions. Daily totals, WAPE reference / rolling-13 / Aug–Jan: shipped (cap 20) 6.34 / 11.39 / 3.57; same spec converged 4.70 / 5.25 / 4.33 | Open, issue #13 |
+| Domestic nowcast did not converge | The kernel was fitted on the raw scale while every other block minimised log-scale SSE, so the shared objective rose on 33 of 119 block steps and cycled. The kernel is now refined on the log objective and kept only if it does not raise it. Domestic daily WAPE, 13 rolling origins: weekday × season 5.90, plain weekday 5.97 at caps 20 / 50 / 200 / 1,000 (was 11.39 / 13.83, collapsing to zero at cap 1,000); plain weekday ships (difference under 0.3 pp) | Fixed, issue #13 |
 | Same-day suppressed values | `nowcast/same_day.py` treats `*` as zero (earlier: dropped). `*` hides small, not necessarily zero, counts: zero biases down, dropping biased up. Needs a censored treatment | Open, issue #14 |
 | Weekly simulator uses legacy holiday flags | `is_holiday_week` / `is_major_event_week` lump Eid al-Fitr, Eid al-Adha, National Day and New Year; kept on purpose so shipped weekly results do not move. Daily models use `events.csv` | By design |
 | Weekly simulator intervals | Conformal margins from the training window (holdout coverage 65.2% vs 80% nominal); daily predictions use `NoiseModel` | Open for the weekly path |

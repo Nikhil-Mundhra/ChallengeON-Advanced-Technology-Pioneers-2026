@@ -49,6 +49,7 @@ class ArrivalsConvolution:
         self.floored_rows_ = 0
         self.solver_success_ = True
         self.projected_ = False
+        self.params_: np.ndarray | None = None
 
     def _base(self, dates: pd.Series) -> np.ndarray:
         """Hat-function basis for c_t over the knots (clamped beyond the first and last knot)."""
@@ -97,16 +98,52 @@ class ArrivalsConvolution:
             )
             start_params = result.x
             self.solver_success_ = bool(result.success)
-        d, self.c_ = np.clip(start_params[:k], 0, None), np.clip(start_params[k:], 0, None)
-        if d.sum() > 1.0:  # SLSQP can stop short of feasibility; project onto sum(d) <= 1 (w0 <= 1)
-            d = d / d.sum()
-            self.projected_ = True
+        params = self._log_refine(design, penalty / max(float(np.mean(target)), 1e-12), (y - offset).to_numpy(),
+                                  self._feasible(start_params, k), k)
+        d, self.c_ = params[:k], params[k:]
+        self.params_ = params
         self.w_ = np.cumsum(d[::-1])[::-1]  # w_k = sum_{j>=k} d_j
         flow = self._flow(panel)
         base = self._base(dates) @ self.c_
         self.base_share_ = float(base.sum() / flow.sum()) if flow.sum() > 0 else 0.0
         self.floor_ = max(1e-6, 0.01 * float(np.mean(flow[flow > 0])) if (flow > 0).any() else 1e-6)
         return self
+
+    def _feasible(self, params: np.ndarray, k: int) -> np.ndarray:
+        """Clip to d >= 0, c >= 0 and scale d onto sum(d) <= 1 (SLSQP can stop short of feasibility)."""
+        params = np.clip(params, 0, None)
+        if params[:k].sum() > 1.0:
+            params[:k] = params[:k] / params[:k].sum()
+            self.projected_ = True
+        return params
+
+    def _log_refine(self, design: np.ndarray, penalty: np.ndarray, z: np.ndarray, start: np.ndarray, k: int) -> np.ndarray:
+        """Minimise the model's own objective, sum (z - log flow)^2 plus the base-stock penalty
+        (made unitless by the mean target), from the raw-scale solution. Every other component is
+        fitted on this log-scale objective, so backfitting only descends if this step does too:
+        the result is kept only if it is no worse than this fit's previous pass."""
+        floor = 1e-9 * max(float(np.exp(z).mean()), 1.0)
+
+        def objective(p: np.ndarray) -> float:
+            residual = z - np.log(np.maximum(design @ p, floor))
+            return float(residual @ residual + np.sum((penalty @ p) ** 2))
+
+        def gradient(p: np.ndarray) -> np.ndarray:
+            flow = design @ p
+            weight = np.where(flow > floor, (z - np.log(np.maximum(flow, floor))) / np.maximum(flow, floor), 0.0)
+            return -2 * design.T @ weight + 2 * penalty.T @ (penalty @ p)
+
+        candidates = [start]
+        if self.params_ is not None and len(self.params_) == len(start):
+            candidates.append(self.params_)  # this fit's previous pass
+        best = min(candidates, key=objective)
+        result = minimize(objective, best, jac=gradient, method="SLSQP", bounds=[(0, None)] * len(start),
+                          constraints=[{"type": "ineq", "fun": lambda p: 1.0 - p[:k].sum(),
+                                        "jac": lambda p: np.r_[-np.ones(k), np.zeros(len(p) - k)]}],
+                          options={"maxiter": 500, "ftol": 1e-12})
+        self.solver_success_ = self.solver_success_ and bool(result.success)
+        refined = self._feasible(result.x, k)
+        return refined if objective(refined) <= objective(best) else best
 
     def _flow(self, panel: pd.DataFrame) -> np.ndarray:
         dates = pd.to_datetime(panel[self.date_column])

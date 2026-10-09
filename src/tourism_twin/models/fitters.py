@@ -26,6 +26,7 @@ class FitReport:
     rank: int = 0
     columns: int = 0
     unidentified: List[str] = field(default_factory=list)
+    objective: List[float] = field(default_factory=list)  # log-scale SSE after each backfitting pass
 
     @property
     def rank_deficient(self) -> bool:
@@ -76,6 +77,7 @@ class Backfitting:
         contributions: Dict[str, pd.Series] = {c.name: pd.Series(0.0, index=panel.index) for c in cycling}
         max_change = np.inf
         converged, iterations = False, self.max_iter
+        objective: List[float] = []
         for iteration in range(1, self.max_iter + 1):
             max_change = 0.0
             for block in self._blocks(cycling):
@@ -91,6 +93,8 @@ class Backfitting:
                         raise ValueError(f"Component {component.name!r} produced non-finite contributions")
                     max_change = max(max_change, float((updated - contributions[component.name]).abs().max()))
                     contributions[component.name] = updated
+            total = sum(contributions.values(), pd.Series(0.0, index=panel.index))
+            objective.append(float(((y - total) ** 2).sum()))
             if max_change < self.tol:
                 converged, iterations = True, iteration
                 break
@@ -99,4 +103,4 @@ class Backfitting:
             component.fit(panel, offset, y)
             offset = offset + component.contribution(panel)
         rank, columns, unidentified = _linear_diagnostics(components, panel)
-        return FitReport(iterations, converged, max_change, rank, columns, unidentified)
+        return FitReport(iterations, converged, max_change, rank, columns, unidentified, objective)
