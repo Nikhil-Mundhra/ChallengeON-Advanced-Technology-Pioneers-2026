@@ -112,6 +112,7 @@ def evaluate(args: argparse.Namespace) -> None:
     path = save_evaluation(payload)
     print(f"\nSaved structured evaluation metrics to: {path}")
 
+
 def _metric_row(label: str, m: dict, width: int = 45) -> str:
     return f"{label:<{width}} {m['wmape']:>9.2%} {m['bias']:>+9.2%} {m['mae']:>12,.1f} {m['rmse']:>14,.1f}"
 

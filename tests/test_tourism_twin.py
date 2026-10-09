@@ -20,7 +20,7 @@ from tourism_twin.models.components import (
 from tourism_twin.models.backtest import RollingOrigin, backtest
 from tourism_twin.models.composite import AdditiveLogModel
 from tourism_twin.models.evaluation import evaluate
-from tourism_twin.models.noise import NoiseModel, leave_one_origin_out_coverage
+from tourism_twin.models.noise import NoiseModel, held_out_coverage
 from tourism_twin.models.fitters import Backfitting, JointLinear
 from tourism_twin.features.lags import DEFAULT_MAX_LAG, lag_column
 from tourism_twin.domain.archetypes import MarketArchetype, get_market_archetype
@@ -565,18 +565,19 @@ def test_oracle_diagnostics_are_not_ranked_with_forecast_models():
     assert "realized_chain" in DIAGNOSTIC_SPECS and "realized_chain" not in MODEL_SPECS
 
 
-def _ar1_backtest(phi: float, sigma: float, folds: int = 40, horizon: int = 120, seed: int = 11) -> pd.DataFrame:
+def _ar1_backtest(phi: float, sigma: float, folds: int = 40, horizon: int = 120, seed: int = 11, scale: dict | None = None) -> pd.DataFrame:
     """Back-test-shaped predictions whose log errors follow an AR(1) along the horizon."""
     rng = np.random.default_rng(seed)
     frames = []
     for f in range(folds):
+        s = sigma * (scale or {}).get(f, 1.0)
         error = np.zeros(horizon)
         for h in range(horizon):
-            error[h] = (phi * error[h - 1] if h else 0.0) + rng.normal(0, sigma)
-        origin = pd.Timestamp("2024-01-01") + pd.DateOffset(days=7 * f)
-        frames.append(pd.DataFrame({"fold": f"origin_{f}", "market": "UNITED KINGDOM", "horizon_days": np.arange(horizon),
-                                    "date": origin + pd.to_timedelta(np.arange(horizon), unit="D"), "pred": 1000.0,
-                                    "actual": 1000.0 * np.exp(error)}))
+            error[h] = (phi * error[h - 1] if h else 0.0) + rng.normal(0, s)
+        origin = pd.Timestamp("2021-01-01") + pd.DateOffset(months=f)
+        frames.append(pd.DataFrame({"fold": f"origin_{f:02d}", "origin": origin, "market": "UNITED KINGDOM",
+                                    "horizon_days": np.arange(horizon), "date": origin + pd.to_timedelta(np.arange(horizon), unit="D"),
+                                    "pred": 1000.0, "actual": 1000.0 * np.exp(error)}))
     return pd.concat(frames, ignore_index=True)
 
 
@@ -584,16 +585,28 @@ def test_noise_model_recovers_ar1_errors_and_widens_with_the_horizon():
     model = NoiseModel().fit(_ar1_backtest(phi=0.8, sigma=0.05))
     assert model.phi_["UNITED KINGDOM"] == pytest.approx(0.8, abs=0.03)
     assert model.sigma_eta_["UNITED KINGDOM"] == pytest.approx(0.05, abs=0.003)
-    frame = pd.DataFrame({"market": "UNITED KINGDOM", "horizon_days": [0, 5, 60], "date": pd.Timestamp("2024-03-01"), "pred": 1000.0})
+    assert model.v0_["UNITED KINGDOM"] == pytest.approx(0.05 ** 2, rel=0.3)  # e_0 = eta_0
+    frame = pd.DataFrame({"market": "UNITED KINGDOM", "horizon_days": [0, 5, 60], "pred": 1000.0})
     width = (model.intervals(frame)["upper"] / frame["pred"]).to_numpy()
     assert width[0] < width[1] < width[2] and width[2] == pytest.approx(width[1], rel=0.1)
     with pytest.raises(ValueError, match="no errors for markets"):
         model.intervals(frame.assign(market="ATLANTIS"))
+    with pytest.raises(ValueError, match="non-positive or non-finite"):
+        NoiseModel().fit(_ar1_backtest(0.8, 0.05).assign(actual=0.0))
 
 
-def test_held_out_interval_coverage_is_close_to_nominal():
-    coverage = leave_one_origin_out_coverage(_ar1_backtest(phi=0.8, sigma=0.05), coverage=0.8)
+def test_noise_variance_matches_the_closed_form():
+    model = NoiseModel(phi_={"M": 0.9}, sigma_eta_={"M": 0.1}, v0_={"M": 0.04})
+    variance = model.variance(pd.Series(["M"] * 3), pd.Series([0, 1, 2]))
+    expected = [0.04 * 0.9 ** (2 * h) + 0.01 * (1 - 0.9 ** (2 * h)) / (1 - 0.81) for h in (0, 1, 2)]
+    np.testing.assert_allclose(variance, expected, rtol=1e-12)
+
+
+def test_held_out_coverage_is_close_to_nominal_and_ignores_the_held_out_fold():
+    coverage = held_out_coverage(_ar1_backtest(phi=0.8, sigma=0.05), coverage=0.8, exclude_months=3)
     assert np.average(coverage["covered"], weights=coverage["n"]) == pytest.approx(0.8, abs=0.04)
+    noisy = held_out_coverage(_ar1_backtest(phi=0.8, sigma=0.05, scale={20: 5.0}), coverage=0.8)
+    assert noisy.set_index("fold").loc["origin_20", "covered"] < 0.5  # its own large errors did not widen its bounds
 
 
 def test_models_package_has_no_row_loops():
