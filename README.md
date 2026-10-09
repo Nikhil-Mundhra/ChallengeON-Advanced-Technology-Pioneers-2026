@@ -34,6 +34,7 @@ The raw competition workbooks are not in the repository. Place the organizer-pro
 | 6 | `twin report solution` (`make report`) | `output/pdf/challengeon_solution_report.pdf` |
 | 7 | `pytest tests/ -v` (`make test`) | — |
 | — | `twin predict [--spec S] [--no-intervals]` | `output/predictions/`: test-split Guests CSVs, P10/P50/P90 CSV, `market_outputs.json`, `test_predictions.png` |
+| — | `twin ablate-blocks` | `output/nowcast_block_ablation.json`: WAPE of each block combination on 13 rolling origins |
 
 `twin predict` builds the daily panel in memory from `guest_daily.parquet`; it does not need `daily_market_panel.parquet`.
 

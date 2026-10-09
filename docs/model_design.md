@@ -79,7 +79,17 @@ The components form four blocks. Blocks are parallel terms of one log-additive m
 | Holiday | `EventKernel` (from `domain/events.csv`) | Dated windows: Ramadan, Eids, National Day, Christmas–New Year, … |
 | Flight | `LinearRegressors` on flight features (transfer share, P2P share, premium share, …) | Proposed. In the nowcast it can only add what changes guests per arrival; expect small gains |
 
-Measured contribution of the blocks (daily totals, reference folds, WAPE domestic / international; §4.5–4.6): seasonal naive 16.3 / 18.6; time only 11.6 / 11.7; flow only 8.1 / 6.1; flow + time + holiday (per-series spec) ≈ 4.7 / 4.9.
+Measured contribution of the blocks (`twin ablate-blocks`: 13 monthly origins 2024-02-01..2025-02-01, 6-month horizon, WAPE % of daily segment totals, mean over folds; all fits converge):
+
+| Blocks (spec) | Domestic | International |
+| --- | :---: | :---: |
+| Seasonal naive (`naive_364`) | 18.80 | 19.28 |
+| Time (`time_only`: local level + season + weekday + events) | 9.23 | 9.62 |
+| Flow (`flow_only`: arrivals kernel) | 8.92 | 5.06 |
+| Flow + time (`flow_time`) | 5.97 | 4.19 |
+| Flow + time + holiday (`twin_daily`; domestic has no holiday block) | 5.97 | 4.12 |
+
+Flow carries most of the accuracy; time adds 2.95 pp (domestic) and 0.87 pp (international) on top of it. The holiday block adds 0.07 pp on international daily totals over all folds, below the 0.3 pp gate; events are judged only on folds containing their windows.
 
 ### 3.2 Training one part independently
 
