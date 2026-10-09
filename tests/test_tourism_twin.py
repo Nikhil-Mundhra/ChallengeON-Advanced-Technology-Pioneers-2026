@@ -211,6 +211,10 @@ def test_composite_rejects_inputs_that_would_give_silent_nonsense():
         model.fit(pd.concat([frame, frame]))
     with pytest.raises(ValueError, match="own the level"):  # two level owners would split the level arbitrarily
         AdditiveLogModel([LinearTrend(), LinearTrend(name="trend2")])
+    with pytest.raises(ValueError, match="unique"):  # contributions are keyed by name
+        AdditiveLogModel([LinearTrend(), LinearRegressors(["sin"], name="trend")])
+    with pytest.raises(TypeError, match="Use Backfitting"):  # a joint least squares cannot fit a non-linear part
+        AdditiveLogModel([LinearTrend(), ResidualGBM(["sin"])], fitter=JointLinear()).fit(frame)
 
 
 def test_fit_report_flags_overlapping_and_unidentified_columns():
@@ -222,10 +226,10 @@ def test_fit_report_flags_overlapping_and_unidentified_columns():
 
 
 def test_trend_origin_is_shared_across_markets_and_smearing_corrects_the_mean():
-    early, late = _synthetic(market="A", noise=0.2), _synthetic(market="B", noise=0.2, seed=1).iloc[200:]
+    early, late = _synthetic(market="A", noise=0.5), _synthetic(market="B", noise=0.5, seed=1).iloc[200:]
     model = AdditiveLogModel(_components(), fitter=JointLinear(), bias_correction="smearing").fit(pd.concat([early, late], ignore_index=True))
     assert model.explain()["A"]["trend"]["origin"] == model.explain()["B"]["trend"]["origin"] == "2023-01-01"
-    assert model.smearing_["A"] == pytest.approx(np.exp(0.2 ** 2 / 2), rel=0.02)
+    assert model.smearing_["A"] == pytest.approx(np.exp(0.5 ** 2 / 2), rel=0.03)  # 1.13; no correction would be 1.0
 
 
 def _calendar(event: str, anchors, start: int, end: int, kind: str = "solar") -> pd.DataFrame:
@@ -487,7 +491,11 @@ def test_seasonal_naive_uses_the_same_weekday_a_year_earlier():
 # --- back-test harness ---------------------------------------------------------------------
 
 def test_benchmarks_through_the_harness_reproduce_the_committed_evaluation():
+    from tourism_twin.nowcast.specs import DAILY_SPECS
+    from tourism_twin.planning.specs import DIAGNOSTIC_SPECS, WEEKLY_SPECS
+
     assert evaluate() == json.loads(SETTINGS.evaluation_results_path.read_text())
+    assert not set(DIAGNOSTIC_SPECS) & (set(WEEKLY_SPECS) | set(DAILY_SPECS))  # oracle diagnostics are never ranked
 
 
 class _LastTrainDate:
@@ -545,6 +553,8 @@ def test_harness_rejects_misindexed_or_missing_predictions_and_reports_skipped_f
     with pytest.warns(UserWarning, match="Skipped folds"):
         result = backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2022-11-01", "2023-02-01", 1))
     assert result.skipped == ["origin_2022-11-01", "origin_2022-12-01", "origin_2023-01-01"]
+    with pytest.raises(ValueError, match="No fold"):
+        backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2030-01-01", "2030-01-01", 1))
 
 
 def _ar1_backtest(phi: float, sigma: float, folds: int = 40, horizon: int = 120, seed: int = 11, scale: dict | None = None) -> pd.DataFrame:
@@ -671,15 +681,14 @@ def test_test_days_missing_from_the_file_get_below_threshold_arrivals():
     rows = pd.DataFrame({
         "residence_group": "International", "nationality": "X", "date": dates,
         "dataset_split": ["train"] * 4 + ["test"] * 4,
-        "new_arrivals": [4.0, 8.0, 50.0, 60.0, 70.0, np.nan, np.nan, 90.0],
-        "is_source_present": [True, True, True, True, True, False, True, True],  # test day 6 absent, day 7 '*'
+        "new_arrivals": [4.0, np.nan, 50.0, 4.0, np.nan, np.nan, 11.0, 90.0],
+        "is_source_present": [True, False, True, True, False, True, True, True],  # absent: train day 1, test day 4; '*': test day 5
         "same_day_guests": 1.0,
     })
-    filled = _fill_suppressed_arrivals(rows).set_index("date")
-    assert filled.loc[dates[5], "new_arrivals_filled"] == pytest.approx(6.0)  # mean of 4 and 8: train days below 10
-    assert filled.loc[dates[5], "arrivals_below_threshold"] and not filled.loc[dates[6], "arrivals_below_threshold"]
-    assert filled.loc[dates[6], "new_arrivals_filled"] == pytest.approx(70 + 2 * (90 - 70) / 3)  # "*" is still interpolated between published days
-    assert PUBLICATION_MIN == 10
+    filled = _fill_suppressed_arrivals(rows)["new_arrivals_filled"].to_numpy()
+    assert filled[1] == pytest.approx(27.0)  # a training absence keeps the interpolation (back-test unchanged)
+    assert filled[4] == pytest.approx(4.0)  # a test absence gets the mean of train days below 10
+    assert filled[5] == PUBLICATION_MIN  # a published test row had >= 10 arrivals: interpolated 8.67 is clipped
 
 
 def test_weekly_outputs_keep_full_weeks_and_give_a_direction_probability():
@@ -846,3 +855,17 @@ def test_scenario_residual_is_the_mean_fit_over_the_season_training_weeks():
     zeros = {name: 0.0 for name in SimulationResult.__dataclass_fields__ if name not in ("market", "season", "is_cold_start")}
     result = SimulationResult(market="M", season="Summer_Trough", is_cold_start=False, **zeros)
     assert engine.predict_hybrid(result)["residual_correction"] == pytest.approx(engine.season_residual("M", "Summer_Trough"))
+
+
+def test_api_rejects_an_invalid_season_and_serves_a_scenario():
+    from app.server import DigitalTwinHandler
+
+    class Recorder:
+        def send_json(self, data, status=200):
+            self.response, self.status = data, status
+
+    handler = Recorder()
+    DigitalTwinHandler.handle_simulate(handler, {"market": ["UNITED KINGDOM"], "season": ["InvalidSeason"]})
+    assert handler.status == 400
+    DigitalTwinHandler.handle_simulate(handler, {"market": ["UNITED KINGDOM"], "season": ["Winter_Peak"], "delta_freq": [2]})
+    assert handler.status == 200 and handler.response["hybrid"]["is_monotonic"]

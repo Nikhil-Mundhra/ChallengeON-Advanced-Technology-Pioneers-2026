@@ -13,7 +13,10 @@ Missing-value policy (per nationality-day, before aggregating to markets):
 - Test-split row absent from the test file: the file keeps only rows with New Arrivals >= 10
   (train keeps rows with Guests >= 10), so absence means fewer than 10 arrivals. Such rows get the
   nationality's mean training arrivals on days below 10 (overall mean if it has none, about 5)
-  instead of an interpolation across the gap; flagged arrivals_below_threshold.
+  instead of an interpolation across the gap; flagged arrivals_below_threshold. The fill is biased
+  upward: train keeps only rows with Guests >= 10, so its small-arrival days are the larger ones.
+  A row present in the test file is clipped at 10 arrivals even when interpolated. Training-split
+  absences (Guests < 10) keep the interpolation, so the back-test is unchanged.
 - same_day_guests suppressed: left missing in the observed sum; counted.
 """
 
@@ -74,6 +77,9 @@ def _fill_suppressed_arrivals(rows: pd.DataFrame) -> pd.DataFrame:
     rows["absent_record"] = ~present
     rows["arrivals_below_threshold"] = ~present & (rows["dataset_split"] == "test")
     rows.loc[rows["arrivals_below_threshold"], "new_arrivals_filled"] = _below_threshold_arrivals(rows).loc[rows["arrivals_below_threshold"]]
+    # A row present in the test file had at least PUBLICATION_MIN arrivals, even if interpolated.
+    published_test = present & (rows["dataset_split"] == "test")
+    rows.loc[published_test, "new_arrivals_filled"] = rows.loc[published_test, "new_arrivals_filled"].clip(lower=PUBLICATION_MIN)
     rows["same_day_suppressed"] = present & rows["same_day_guests"].isna()
     return rows
 

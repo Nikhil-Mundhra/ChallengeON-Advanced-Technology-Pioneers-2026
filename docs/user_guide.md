@@ -227,7 +227,7 @@ Results are in the [README](../README.md#32-weekly-planning-model-forward-holdou
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-76 tests: 52 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`; all pass on a fresh clone. The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required. The prediction-validator test needs the raw test workbooks; `twin predict` itself is not run by the tests.
+77 tests: 53 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`; all pass on a fresh clone. The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required. The prediction-validator test needs the raw test workbooks; `twin predict` itself is not run by the tests.
 
 Product checks in `tests/test_tourism_twin.py`, by section:
 
@@ -242,7 +242,7 @@ Product checks in `tests/test_tourism_twin.py`, by section:
 | Noise model | AR(1) recovery and its closed-form variance; a fold's own errors never set its own bounds |
 | Architecture | `nowcast` and `planning` never import each other; packages import only lower layers (any import form); no row loops in model packages |
 | Competition predictions | The validator accepts mirrored files and flags bad ones (including Guests below max(New Arrivals, 10)); absent test days get below-threshold arrivals; full weeks with an AR(1)-based direction probability; the direction back-test scores each week once against its baselines; stay fields withheld when the base stock dominates; the same-day GLM recovers a weekday effect and reads `*` as 0 |
-| Simulator | Waterfall = lift within 1e-9 for every calibrated market + `SWEDEN`, season and 6 lever sets, and relatively for 1e7-guest scenarios; route closure, domestic decoupling, added capacity never lowers demand, cold-start priors and tornado, deterministic Monte Carlo; planning and simulation share one arrivals rule; the scenario residual is the season's mean fit |
+| Simulator and API | The API rejects an invalid season and serves a scenario; waterfall = lift within 1e-9 for every calibrated market + `SWEDEN`, season and 6 lever sets, and relatively for 1e7-guest scenarios; route closure, domestic decoupling, added capacity never lowers demand, cold-start priors (SWEDEN, PAKISTAN) and tornado, deterministic Monte Carlo; planning and simulation share one arrivals rule; the scenario residual is the season's mean fit |
 
 ---
 

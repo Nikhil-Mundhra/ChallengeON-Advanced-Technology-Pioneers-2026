@@ -48,7 +48,7 @@ twin report database                                # schema & database PDF (nee
 
 Every command is also available as `python -m tourism_twin <command>`; `twin <command> --help` lists options.
 
-**Tests:** 76 tests (52 in `tests/test_tourism_twin.py`, 24 in `tests/test_audit_agent.py`); all pass on a fresh clone.
+**Tests:** 77 tests (53 in `tests/test_tourism_twin.py`, 24 in `tests/test_audit_agent.py`); all pass on a fresh clone.
 
 ### Configuration
 

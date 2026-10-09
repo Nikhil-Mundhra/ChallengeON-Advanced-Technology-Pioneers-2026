@@ -324,7 +324,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 81%
 
 ## 10. Tests
 
-76 tests: 52 in `tests/test_tourism_twin.py` (lake, feature registry, panels and their reconciliation, synthetic recovery for every model component, event registry, back-test harness leakage and parity with `evaluation_results.json`, noise model, architecture layering, prediction validator and outputs, same-day GLM, scenario invariants) and 24 in `tests/test_audit_agent.py`; all pass on a fresh clone. Details: [user guide §10](user_guide.md#10-tests).
+77 tests: 53 in `tests/test_tourism_twin.py` (lake, feature registry, panels and their reconciliation, synthetic recovery for every model component, event registry, back-test harness leakage and parity with `evaluation_results.json`, noise model, architecture layering, prediction validator and outputs, same-day GLM, scenario invariants) and 24 in `tests/test_audit_agent.py`; all pass on a fresh clone. Details: [user guide §10](user_guide.md#10-tests).
 
 ## 11. Limitations
 
