@@ -80,6 +80,9 @@ cli/        the `twin` command
 - Compose components only via `AdditiveLogModel` (`models/composite.py`); exactly one component per model sets `owns_level=True` (it raises otherwise).
 - Mark residual learners `final_stage = True` (fitted once, after the rest converge).
 - Add an ablation as a new spec entry, not a code branch.
+- Blocks (flow, time, holiday, flight) are parallel terms of one log-additive model, fitted jointly; never chain them (`docs/model_design.md` §3.1).
+- Refitting only some components against frozen others is for experiments only; ship a fully refitted model (§3.2).
+- Domestic and international differ only by spec: route with `MarketRouter`, never subclass a model per series. Evaluate each series separately; a total-guests interval comes from back-test errors of the summed series, not from adding intervals (§3.3).
 - The competition task is a nowcast: test-split `New Arrivals` are inputs; never use a feature derived from `Guests`.
 - Fit components jointly (`models/fitters.py`); centre periodic contributions; the one level owner and event terms (zero outside their windows) are not centred.
 - Nowcast specs are per series (`docs/model_design.md` §4.6): the arrivals kernel owns the level; DOMESTIC adds a centred slope and no events; INTERNATIONAL has events and no slope.
