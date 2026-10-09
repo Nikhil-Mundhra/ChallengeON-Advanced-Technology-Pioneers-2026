@@ -5,7 +5,7 @@ Markets that pool several nationalities are split by each nationality's share of
 new arrivals that day (new_arrivals_filled; shares are taken over all nationality-days, including
 those absent from the test file, because the market model's arrivals include them). Prediction
 intervals come from a NoiseModel fitted on the spec's rolling-origin back-test; the horizon is
-counted from the first test day. Outputs mirror the test workbooks row for row with a Guests column.
+counted from the first test day. Floors, workbook files and validation: nowcast/submission.py.
 """
 
 from __future__ import annotations
@@ -15,18 +15,15 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from scipy.stats import norm
 
-from tourism_twin.data.daily_panel import PUBLICATION_MIN, build_daily_panel, build_nationality_rows
-from tourism_twin.data.ingest import read_raw_workbook
+from tourism_twin.data.daily_panel import build_daily_panel, build_nationality_rows
 from tourism_twin.data.repository import LakeRepository
 from tourism_twin.models.backtest import RollingOrigin, backtest
 from tourism_twin.models.noise import NoiseModel
-from tourism_twin.nowcast.disaggregation import split_error_variance, split_shares
+from tourism_twin.nowcast.disaggregation import split_market_predictions, split_shares
 from tourism_twin.nowcast.specs import DAILY_SPECS
+from tourism_twin.nowcast.submission import apply_guest_floor, build_submission
 
-DOMESTIC_TEST_FILE = "data domestic_test.xlsx"
-INTERNATIONAL_TEST_FILE = "data international_test.xlsx"
 NOISE_ORIGINS = RollingOrigin("2024-07-01", "2025-02-01", horizon_months=7)  # test horizon is 7 months
 TOTAL = "TOTAL"  # domestic + international guests, with its own error series in the noise model
 
@@ -41,6 +38,7 @@ class TestPredictions:
     backtest_predictions: pd.DataFrame = None  # the interval back-test's predictions (None without intervals)
     noise: Optional[NoiseModel] = None         # fitted on backtest_predictions plus their TOTAL series
     total: pd.DataFrame = None    # date, pred, lower, upper: daily total guests over all markets
+    test_panel: pd.DataFrame = None  # the daily test panel the model predicted (for decompositions)
 
 
 def predict_test_split(
@@ -66,38 +64,13 @@ def predict_test_split(
     else:
         market = market.assign(lower=np.nan, upper=np.nan)
         total = total.assign(lower=np.nan, upper=np.nan)
-    market, total = market.drop(columns=["horizon_days"]), total.drop(columns=["horizon_days", "market"])
+    total = total.drop(columns=["horizon_days", "market"])
 
     rows = build_nationality_rows(repository)
     rows["share"] = split_shares(rows)
-    split_variance = split_error_variance(rows[rows["dataset_split"] == "train"])
-    rows = rows[rows["dataset_split"] == "test"].merge(market, on=["market", "date"], how="left")
-    if with_intervals:
-        # Market log sd from its bounds, plus the split's own error for pooled markets.
-        z = norm.ppf(0.5 + coverage / 2)
-        market_sd = np.log(rows["upper"] / rows["pred"]) / z
-        sd = np.sqrt(market_sd ** 2 + rows["market"].map(split_variance).fillna(0.0))
-        nationality_pred = rows["pred"] * rows["share"]
-        rows["lower"], rows["upper"] = nationality_pred * np.exp(-z * sd), nationality_pred * np.exp(z * sd)
-    rows["pred"] = rows["pred"] * rows["share"]
-    # Every published row has Guests >= New Arrivals (0 exceptions in training) and >= 10.
-    floor = guest_floor(rows["new_arrivals"])
-    rows["pred"] = np.maximum(rows["pred"], floor)
-    if with_intervals:
-        rows["lower"], rows["upper"] = np.maximum(rows["lower"], floor), np.maximum(rows["upper"], rows["pred"])
-
-    domestic = _attach(read_raw_workbook(DOMESTIC_TEST_FILE), rows[rows["residence_group"] == "Domestic"], ["Date"])
-    international = _attach(read_raw_workbook(INTERNATIONAL_TEST_FILE), rows[rows["residence_group"] == "International"], ["Date", "Nationality"])
-    intervals = pd.concat([
-        international[["Date", "Nationality", "Residence (groups)"]].assign(
-            Guests_p10=international["_lower"], Guests_p50=international["Guests"], Guests_p90=international["_upper"]),
-        domestic[["Date", "Residence (groups)"]].assign(
-            Nationality=pd.NA, Guests_p10=domestic["_lower"], Guests_p50=domestic["Guests"], Guests_p90=domestic["_upper"]),
-    ], ignore_index=True)[["Date", "Nationality", "Residence (groups)", "Guests_p10", "Guests_p50", "Guests_p90"]]
-    if not with_intervals:
-        intervals = intervals.iloc[0:0]
-    return TestPredictions(domestic.drop(columns=["_lower", "_upper"]), international.drop(columns=["_lower", "_upper"]),
-                           intervals, market, model, backtest_predictions, noise, total)
+    rows = apply_guest_floor(split_market_predictions(rows, market, coverage, with_intervals))
+    domestic, international, intervals = build_submission(rows, with_intervals)
+    return TestPredictions(domestic, international, intervals, market, model, backtest_predictions, noise, total, test)
 
 
 def total_series(predictions: pd.DataFrame) -> pd.DataFrame:
@@ -105,45 +78,3 @@ def total_series(predictions: pd.DataFrame) -> pd.DataFrame:
     keys = [c for c in ("fold", "origin", "model", "date", "horizon_days") if c in predictions.columns]
     values = [c for c in ("pred", "actual") if c in predictions.columns]
     return predictions.groupby(keys, as_index=False)[values].sum().assign(market=TOTAL)
-
-
-def guest_floor(new_arrivals: pd.Series) -> pd.Series:
-    """Lowest admissible Guests for a published row: its New Arrivals, and at least PUBLICATION_MIN."""
-    return np.maximum(pd.to_numeric(new_arrivals, errors="coerce").fillna(PUBLICATION_MIN), PUBLICATION_MIN)
-
-
-def _attach(raw: pd.DataFrame, rows: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
-    """The raw test workbook with Guests (and interval bounds) joined on its own keys, in its order."""
-    values = rows.rename(columns={"date": "Date", "nationality": "Nationality"})[[*keys, "pred", "lower", "upper"]]
-    out = raw.merge(values, on=keys, how="left", validate="one_to_one")
-    return out.rename(columns={"pred": "Guests", "lower": "_lower", "upper": "_upper"})
-
-
-def validate_predictions(predictions: TestPredictions) -> list[str]:
-    """Problems that would make a submission invalid; empty when the outputs are usable."""
-    problems = []
-    keys_by_part = []
-    for name, frame, filename, keys in (
-        ("domestic", predictions.domestic, DOMESTIC_TEST_FILE, ["Date"]),
-        ("international", predictions.international, INTERNATIONAL_TEST_FILE, ["Date", "Nationality"]),
-    ):
-        raw = read_raw_workbook(filename)
-        if list(frame.columns) != [*raw.columns, "Guests"] or not frame.drop(columns="Guests").reset_index(drop=True).equals(raw):
-            problems.append(f"{name}: columns or source values differ from {filename}")
-        guests = frame["Guests"].to_numpy(dtype=float)
-        if not np.isfinite(guests).all():
-            problems.append(f"{name}: {int((~np.isfinite(guests)).sum())} missing or infinite Guests")
-        below = guests < guest_floor(frame["New Arrivals"]).to_numpy(dtype=float)
-        if below.any():
-            problems.append(f"{name}: {int(below.sum())} Guests below max(New Arrivals, {PUBLICATION_MIN})")
-        keys_by_part.append(raw.reindex(columns=["Date", "Nationality"]))
-    intervals = predictions.intervals
-    if len(intervals):
-        expected = pd.concat(keys_by_part[::-1], ignore_index=True)
-        if not intervals[["Date", "Nationality"]].reset_index(drop=True).equals(expected):
-            problems.append("intervals: rows or keys differ from the test workbooks")
-        bounds = intervals[["Guests_p10", "Guests_p50", "Guests_p90"]].to_numpy(dtype=float)
-        ordered = np.isfinite(bounds).all(axis=1) & (bounds[:, 0] <= bounds[:, 1]) & (bounds[:, 1] <= bounds[:, 2])
-        if not ordered.all():
-            problems.append(f"intervals: {int((~ordered).sum())} rows not finite with p10 <= p50 <= p90")
-    return problems

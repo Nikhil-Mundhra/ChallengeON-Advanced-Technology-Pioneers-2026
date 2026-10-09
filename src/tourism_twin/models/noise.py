@@ -78,14 +78,19 @@ class NoiseModel:
         var_earlier = np.interp(earlier, h[np.argsort(h)], var[np.argsort(h)])
         return self.phi_[market] ** np.abs(np.subtract.outer(h, h)) * var_earlier
 
+    def weighted_sd(self, market: str, horizon: np.ndarray, weights: np.ndarray) -> float:
+        """s.d. of sum_i weights_i * e_i under the AR(1) covariance (e.g. a range's prediction-weighted
+        mean log error, or the difference of two weeks' mean log errors with signed weights)."""
+        weights = np.asarray(weights, dtype=float)
+        return float(np.sqrt(max(weights @ self.covariance(market, horizon) @ weights, 0.0)))
+
     def range_interval(self, market: str, horizon: np.ndarray, pred: np.ndarray, coverage: float = 0.8) -> tuple:
         """Bounds of the central `coverage` interval for the SUM of `pred` over a set of days (e.g.
         a week or a 14-day range): the sum's log error is the prediction-weighted mean of the daily
         log errors, with their AR(1) covariance (summing daily bounds would assume perfect
         correlation)."""
         pred = np.asarray(pred, dtype=float)
-        weights = pred / pred.sum()
-        sd = float(np.sqrt(weights @ self.covariance(market, horizon) @ weights))
+        sd = self.weighted_sd(market, horizon, pred / pred.sum())
         z = norm.ppf(0.5 + coverage / 2)
         return pred.sum() * np.exp(-z * sd), pred.sum() * np.exp(z * sd)
 

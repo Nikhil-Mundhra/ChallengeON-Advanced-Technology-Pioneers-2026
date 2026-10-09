@@ -43,12 +43,11 @@ markets.<MARKET>:
   weeks[]:
     week_start               Monday; only full Monday–Sunday test weeks
     forecast                 sum of daily predicted guests (guest-nights)
-    p10, p90                 forecast × exp(∓z · s.d. of the week's log error); daily errors AR(1) with the market's φ
+    p10, p90                 NoiseModel.range_interval over the week: AR(1) covariance of the daily log errors
     direction                "increase" / "decrease" to the next week; null for the last week
     direction_prob           probability of that direction from the s.d. of the two weeks' log-error difference
     yoy_change               forecast ÷ actual guests of the week 364 days earlier − 1 (null if not in training)
-    trend_vs_training_pct    domestic only: fitted slope relative to the training mean, extrapolated
-    top_drivers[]            up to 3 season / event effects ≥ 0.5% by |mean log contribution|: {component, effect_pct}
+    top_drivers[]            model blocks other than the flow, ≥ 0.5%, by |mean log contribution|: {block, effect_pct}
 direction_backtest:
   weeks_scored               distinct market-weeks, each from the earliest origin that forecasts it
   accuracy.{model, arrivals_direction, same_direction_as_last_year, majority_direction}
@@ -56,7 +55,7 @@ direction_backtest:
   weekly_band_coverage       share of back-test weeks inside p10–p90
 ```
 
-Season effects are relative to the training average, event effects to a day outside every event window; weekday effects average about 0 over a week and are not listed. The model sees each test week's observed new arrivals, so direction accuracy is a nowcast skill; `arrivals_direction` is the sign of the change in new arrivals. The noise model is fitted on the same back-test folds, so `direction_prob_reliability` and `weekly_band_coverage` are in-sample for the error model. `assumptions` states these in the file.
+Blocks: `time` (season, weekday, and for domestic the slope held at its last training value) is relative to the training average; `holiday` (events) to a day outside every event window. The model sees each test week's observed new arrivals, so direction accuracy is a nowcast skill; `arrivals_direction` is the sign of the change in new arrivals. The noise model is fitted on the same back-test folds, so `direction_prob_reliability` and `weekly_band_coverage` are in-sample for the error model. `assumptions` states these in the file.
 
 Stay fields are withheld for 7 of 21 markets (DOMESTIC, CHINA, EGYPT, INDIA, PHILIPPINES, OTHER_ASIA_PACIFIC, UNITED STATES OF AMERICA), whose base stock carries more than 25% of the training stock.
 

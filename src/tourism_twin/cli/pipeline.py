@@ -189,7 +189,8 @@ def predict(args: argparse.Namespace) -> None:
     from tourism_twin.data.daily_panel import build_daily_panel
     from tourism_twin.reporting.predictions_plot import plot_test_predictions
     from tourism_twin.nowcast.outputs import build_outputs
-    from tourism_twin.nowcast.predict import predict_test_split, validate_predictions
+    from tourism_twin.nowcast.predict import predict_test_split
+    from tourism_twin.nowcast.submission import validate_predictions
 
     predictions = predict_test_split(spec=args.spec, with_intervals=args.intervals)
     problems = validate_predictions(predictions)

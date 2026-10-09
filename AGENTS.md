@@ -55,8 +55,9 @@ features/   registry + ratios, flags, calendar, lags (imports domain only)
 data/       ingest, validation, lake_writer, manifest, lake, repository, imputation, panel, daily_panel
 models/     shared model kernel, no use case: protocol, components/ (base + one module per component),
             fitters, composite, backtest, noise
-nowcast/    daily competition model: specs, routing, baselines, predict, disaggregation, outputs,
-            same_day
+nowcast/    daily competition model: specs, routing, baselines, predict (orchestration),
+            disaggregation, submission (floor, workbook files, validation), weekly, outputs,
+            evaluation, same_day
 planning/   weekly scenario model: structural, residual, calendar_features, conformal, uncertainty,
             sensitivity, simulator, briefing, training, evaluation, specs, baselines
 reporting/  charts, predictions_plot, solution_report, database_report/, palette, pdf_palette

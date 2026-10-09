@@ -674,9 +674,9 @@ def test_packages_import_only_lower_layers():
 # --- competition predictions --------------------------------------------------------------
 
 def test_prediction_validator_accepts_mirrored_files_and_flags_bad_ones():
-    from tourism_twin.nowcast.predict import (
-        DOMESTIC_TEST_FILE, INTERNATIONAL_TEST_FILE, TestPredictions, guest_floor, read_raw_workbook, validate_predictions,
-    )
+    from tourism_twin.data.ingest import read_raw_workbook
+    from tourism_twin.nowcast.predict import TestPredictions
+    from tourism_twin.nowcast.submission import DOMESTIC_TEST_FILE, INTERNATIONAL_TEST_FILE, guest_floor, validate_predictions
 
     if not (SETTINGS.source_dir / INTERNATIONAL_TEST_FILE).exists():
         pytest.skip("raw test workbooks are supplied locally, not committed")
@@ -716,31 +716,29 @@ def test_test_days_missing_from_the_file_get_below_threshold_arrivals():
 
 
 def test_weekly_outputs_keep_full_weeks_and_give_a_direction_probability():
-    from tourism_twin.nowcast.outputs import weekly_forecast
     from tourism_twin.nowcast.predict import total_series
+    from tourism_twin.nowcast.weekly import weekly_forecast
 
     dates = pd.date_range("2025-08-04", periods=17, freq="D")  # two full Monday weeks + 3 days
     pred = np.where(dates < "2025-08-11", 100.0, 120.0)
-    daily = pd.DataFrame({"market": "M", "date": dates, "pred": pred, "lower": pred * 0.9, "upper": pred * 1.1})
-    weekly = weekly_forecast(daily, {"M": 0.9})
-    total = total_series(pd.concat([daily, daily.assign(market="N", pred=daily["pred"] * 2)]))
-    assert (total["market"] == "TOTAL").all() and total["pred"].tolist() == (daily["pred"] * 3).tolist()
+    daily = pd.DataFrame({"market": "M", "date": dates, "horizon_days": np.arange(17), "pred": pred})
+    persistent = NoiseModel(phi_={"M": 0.99}, sigma_eta_={"M": 0.01}, v0_={"M": 0.01})
+    weekly = weekly_forecast(daily, persistent)
     assert list(weekly["week_start"].dt.strftime("%Y-%m-%d")) == ["2025-08-04", "2025-08-11"]
     assert weekly["forecast"].tolist() == [700.0, 840.0]
-    assert weekly["direction"].iloc[0] == "increase" and weekly["direction_prob"].iloc[0] > 0.9
-    assert weekly["direction"].iloc[1] is None
-    # Fully persistent errors keep the daily band; independent errors narrow it by sqrt(7).
-    same = weekly_forecast(daily, {"M": 1.0})
-    assert same["p90"].iloc[0] == pytest.approx(770.0)
-    independent = weekly_forecast(daily, {"M": 0.0})
-    assert np.log(independent["p90"].iloc[0] / 700) == pytest.approx(np.log(1.1) / np.sqrt(7))
-    # Persistent errors cancel in the week-to-week difference, so the direction is surer.
-    assert same["direction_prob"].iloc[0] > independent["direction_prob"].iloc[0]
+    assert weekly["direction"].iloc[0] == "increase" and weekly["direction"].iloc[1] is None
+    assert (weekly["p10"].iloc[0], weekly["p90"].iloc[0]) == persistent.range_interval("M", np.arange(7.0), pred[:7])
+    # Persistent errors cancel in the week-to-week difference, so the direction is surer than with
+    # independent errors of the same daily size.
+    independent = NoiseModel(phi_={"M": 0.0}, sigma_eta_={"M": 0.1}, v0_={"M": 0.01})
+    assert weekly["direction_prob"].iloc[0] > weekly_forecast(daily, independent)["direction_prob"].iloc[0]
+    total = total_series(pd.concat([daily, daily.assign(market="N", pred=daily["pred"] * 2)]))
+    assert (total["market"] == "TOTAL").all() and total["pred"].tolist() == (daily["pred"] * 3).tolist()
 
 
 def test_direction_backtest_scores_each_week_once_against_its_baselines():
     from tourism_twin.models.noise import NoiseModel
-    from tourism_twin.nowcast.outputs import direction_backtest
+    from tourism_twin.nowcast.evaluation import direction_backtest
 
     dates = pd.date_range("2023-01-02", "2024-03-31", freq="D")  # starts on a Monday
     week = (dates - dates[0]).days // 7

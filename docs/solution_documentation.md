@@ -213,18 +213,17 @@ bounds = pred × exp(± z · sqrt(var(h))),   z = Φ⁻¹(0.9) for 80%
 
 A pooled market's prediction is split across its nationalities by share = (trailing 7-day new arrivals × the nationality's training guests ÷ new arrivals ratio), normalised per market and day. Splitting actual market guests over the last training year this way gives a nationality WMAPE of 14.0%, against 24.0% for shares of same-day arrivals. Nationality bounds add the split's log-error variance (s.d. 0.18–0.25 per pooled market, last 365 training days) to the market's.
 
-### 7.8 Derived outputs (`nowcast/outputs.py`)
+### 7.8 Derived outputs (`nowcast/outputs.py`, `nowcast/weekly.py`)
 
 `market_outputs.json`, computed from the fitted model and its intervals only:
 
 | Output | Definition |
 | --- | --- |
 | Weekly forecast | Sum of daily predictions over a full Monday–Sunday week |
-| p10, p90 | Forecast × exp(∓z · s.d.); the week's log error is the forecast-weighted mean of daily log errors with cov(eᵢ, eⱼ) = sdᵢ · sdⱼ · φ^\|i−j\| (AR(1), per-market φ from the noise model) |
+| p10, p90 | `NoiseModel.range_interval` over the week's days (AR(1) covariance of the daily log errors, §7.6) |
 | Direction, probability | Sign of the log change to the next week; probability from the s.d. of the difference of the two weeks' log errors under the same covariance |
 | Year-on-year change | Forecast ÷ actual guests of the week 364 days earlier − 1 |
-| Top drivers | Up to 3 season and event effects ≥ 0.5% by mean log contribution in the week, as % effects |
-| Trend vs training | Domestic slope contribution relative to the training mean, extrapolated |
+| Top drivers | Model blocks other than the flow (time, holiday, flight, residual) with |mean log contribution| ≥ 0.5% in the week, as % effects |
 | Implied mean stay, short-stay share | Σ w_k and 1 − w₂ / w₀; withheld when the base stock carries more than 25% of the training stock (7 of 21 markets) |
 
 

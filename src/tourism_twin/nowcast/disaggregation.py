@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 SHARE_WINDOW_DAYS = 7
 SPLIT_ERROR_DAYS = 365
@@ -37,3 +38,17 @@ def split_error_variance(train_rows: pd.DataFrame) -> pd.Series:
     market_guests = rows.groupby(["market", "date"])["guests"].transform("sum")
     errors = np.log(rows["guests"] / (market_guests * rows["share"]))
     return errors.groupby(rows["market"]).apply(lambda e: float(np.mean(e ** 2)) if len(e) else 0.0)
+
+
+def split_market_predictions(rows: pd.DataFrame, market: pd.DataFrame, coverage: float, with_intervals: bool) -> pd.DataFrame:
+    """Test nationality rows with pred (and bounds): the market prediction times each row's share.
+    A nationality's log s.d. adds the split's own error variance to the market's."""
+    split_variance = split_error_variance(rows[rows["dataset_split"] == "train"])
+    rows = rows[rows["dataset_split"] == "test"].merge(market, on=["market", "date"], how="left")
+    nationality_pred = rows["pred"] * rows["share"]
+    if with_intervals:
+        z = norm.ppf(0.5 + coverage / 2)
+        market_sd = np.log(rows["upper"] / rows["pred"]) / z
+        sd = np.sqrt(market_sd ** 2 + rows["market"].map(split_variance).fillna(0.0))
+        rows["lower"], rows["upper"] = nationality_pred * np.exp(-z * sd), nationality_pred * np.exp(z * sd)
+    return rows.assign(pred=nationality_pred)
