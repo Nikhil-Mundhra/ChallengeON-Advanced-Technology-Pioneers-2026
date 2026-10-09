@@ -5,7 +5,7 @@
 w_k are the kernel weights linking past arrivals to today's guest stock: w_k >= 0,
 non-increasing, w_0 <= 1. They are a fitting device, not measured stay lengths, and sum(w) is
 not reported as a length of stay (pooled markets mix nationalities). It is one constrained linear filter,
-not a neural network. c_t >= 0 is a slowly varying base stock (long stays, residents), piecewise
+not a neural network. c_t >= 0 is a slowly varying base stock (guests not explained by recent arrivals), piecewise
 linear between knots spread evenly from the first to the last training day (about one per
 `knot_days`); a first-difference penalty keeps it from jumping at the ends, and it is flat
 beyond the training days. Faster-moving seasonality belongs to the season component.

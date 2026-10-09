@@ -35,7 +35,7 @@ class ArchetypeProfile:
 ARCHETYPE_PROFILES: Dict[MarketArchetype, ArchetypeProfile] = {
     MarketArchetype.DIRECT_LEISURE: ArchetypeProfile(
         archetype=MarketArchetype.DIRECT_LEISURE,
-        description="High hotel capture rate, extended vacation stays, strong winter demand.",
+        description="High hotel capture rate, strong winter demand.",
         typical_los_range=(4.5, 5.2),
         typical_multiplier_range=(0.85, 1.50),
         seasonality_profile="Winter peak (Nov-Apr), summer trough (Jul-Aug).",
@@ -48,7 +48,7 @@ ARCHETYPE_PROFILES: Dict[MarketArchetype, ArchetypeProfile] = {
     ),
     MarketArchetype.RESIDENT_VFR: ArchetypeProfile(
         archetype=MarketArchetype.RESIDENT_VFR,
-        description="High volume P2P traffic, substantial resident/diaspora stays with family, lower hotel conversion.",
+        description="High volume P2P traffic, many visitors staying with family or friends, lower hotel conversion.",
         typical_los_range=(3.0, 5.0),
         typical_multiplier_range=(0.10, 0.20),
         seasonality_profile="Steady year-round with Diwali/holiday travel spikes.",
@@ -61,7 +61,7 @@ ARCHETYPE_PROFILES: Dict[MarketArchetype, ArchetypeProfile] = {
     ),
     MarketArchetype.REGIONAL_GCC: ArchetypeProfile(
         archetype=MarketArchetype.REGIONAL_GCC,
-        description="Short-haul neighbor markets, shorter stays, strong weekend and summer indoor break demand.",
+        description="Short-haul neighbor markets, strong weekend and summer indoor break demand.",
         typical_los_range=(1.6, 3.3),
         typical_multiplier_range=(0.30, 0.70),
         seasonality_profile="High summer holiday, Eid breaks, and weekend elasticity.",

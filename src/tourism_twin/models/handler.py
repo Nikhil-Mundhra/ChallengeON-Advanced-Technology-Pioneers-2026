@@ -84,6 +84,29 @@ class Flagged(RowRule):
         return frame[self.flag].astype(bool)
 
 
+@dataclass(frozen=True)
+class OnOrAfter(RowRule):
+    """Keep only rows dated on or after `start` (e.g. drop a one-off regime at the start of the data)."""
+
+    column: str
+    start: str
+
+    @property
+    def name(self) -> str:
+        return f"{self.column}>={self.start}"
+
+    @property
+    def requires(self) -> Tuple[str, ...]:
+        return (self.column,)
+
+    def keep(self, frame: pd.DataFrame) -> pd.Series:
+        return pd.to_datetime(frame[self.column]) >= pd.Timestamp(self.start)
+
+
+def on_or_after(column: str, start: str) -> RowRule:
+    return OnOrAfter(column, start)
+
+
 def target_present(target: str) -> RowRule:
     return TargetPresent(target)
 

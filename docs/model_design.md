@@ -85,8 +85,8 @@ Measured contribution of the blocks (`twin ablate-blocks`: 13 monthly origins 20
 | Seasonal naive (`naive_364`) | 18.80 | 19.28 |
 | Time (`time_only`: local level + season + weekday + events) | 9.23 | 9.62 |
 | Flow (`flow_only`: arrivals kernel) | 8.92 | 5.06 |
-| Flow + time (`flow_time`) | 5.97 (5.46 with the slope held flat) | 4.19 |
-| Flow + time + holiday (`twin_daily`; domestic has no holiday block) | 5.97 (5.46 flat slope) | 4.12 |
+| Flow + time (`flow_time`) | 5.97 (5.04 with the slope held flat and training from 2022-07) | 4.19 |
+| Flow + time + holiday (`twin_daily`; domestic has no holiday block) | 5.97 (5.04 shipped) | 4.12 |
 
 Flow carries most of the accuracy; time adds 2.95 pp (domestic) and 0.87 pp (international) on top of it. The holiday block adds 0.07 pp on international daily totals over all folds, below the 0.3 pp gate; events are judged only on folds containing their windows.
 
@@ -209,7 +209,7 @@ Holdout checks use simple stand-ins (fit 2023–24, score Jan–Jul 2025): read 
 | --- | --- | --- |
 | Wizz Air Abu Dhabi left AUH in Sep 2025 | Passengers 62.6k (Aug 2025) → 448 (Sep) → 0. Test-period arrivals vs a year earlier: Kazakhstan −49%, Romania −48%, Uzbekistan −47%, Armenia −45%, Azerbaijan −42% (≈ 8.5% of international guests, growing until Jul 2025) | A regime change inside the test period. Guests per arrival is carrier-independent (r −0.2 to +0.05), so the kernel transfers; terms not proportional to arrivals (constant base stock, trend, pooled-market scale) do not. `OTHER_EURASIA` loses 34% of arrivals |
 | Train and test keep rows by different rules | Train: rows only where Guests ≥ 10. Test: rows only where New Arrivals ≥ 10. Blank cells behave as 0 (no zeros in any file) | Finland, Norway, Denmark, Mexico, Azerbaijan lack 29–88 of 212 test days (1.2% of `OTHER_EUROPE` arrivals). Fill absent arrivals with the train mean for such days (≈ 5), not 0; floor predictions at 10 |
-| Morocco winter guest block | Guests above what arrivals explain: Nov 2023–Jan 2024 ≈ +145/day, Dec 2024–Feb 2025 ≈ +217/day (Jan 2025: 425 of the cluster's 1,453) | Expect it in Dec 2025–Feb 2026; needs a market-specific block term; measured: OTHER_AMERICAS_AFRICA daily WAPE 11.28 → 13.42 with a scoped `morocco_winter_stays` kernel (peaks a month apart in the two winters), not shipped |
+| Morocco winter guest block | Guests above what arrivals explain: Nov 2023–Jan 2024 ≈ +145/day, Dec 2024–Feb 2025 ≈ +217/day (Jan 2025: 425 of the cluster's 1,453) | Expect it in Dec 2025–Feb 2026; needs a market-specific block term; measured: OTHER_AMERICAS_AFRICA daily WAPE 11.28 → 13.42 with a scoped `morocco_winter_block` kernel (peaks a month apart in the two winters), not shipped |
 | Guests per arrival differs by market and drifts | 1.5 (Oman) to 5.5 (Russia); clusters mix extremes (`OTHER_MENA`: Qatar 2.1, Lebanon 4.4). 2023→2025: Egypt +33%, Philippines +43%, US −15%, Netherlands −19% | One shared kernel shape fits long-haul markets (≤ 1.8 pp cost) but not Oman (+8.4) or domestic (+4.3): two shape families, recency weighting |
 | Chinese New Year (added to `events.csv`, scope CHINA) | Arrivals ×3 but fewer guests per arrival (1.5–1.65 vs 2.2–2.4); kernel over-predicts 1–12%. CNY 2026 (17 Feb) is the largest surge in the data (×3.1) | Add CNY to the registry (China scope); measured: CHINA daily WAPE 16.47 → 16.78 with the event (the kernel already follows the surge), not in the default kernel |
 | Large constant base stock | 20–39% of guests for Egypt, Philippines, Lebanon, India, US, Canada | A constant does not follow arrival shifts (+20% or −49% in test): tie it to a 90-day arrivals mean |
@@ -398,5 +398,5 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Row-presence rules differ between train and test | Absent test days get the nationality's mean training arrivals below 10 (4.5–6.1; biased upward, train keeps only Guests ≥ 10); published test rows are clipped at 10 arrivals; predictions floored at max(New Arrivals, 10). Training absences (238 rows) keep interpolation | Implemented for test |
 | Missing events / blocks | Chinese New Year (China), Morocco winter block (§4.7) | Open |
 | Range totals not scored | Back-test scores days only; needs period totals (week, month, [A, B]), direction, % change error and range-interval coverage (§4.8) | Open |
-| Domestic training start | Train `DOMESTIC_NOWCAST` from 2022-07-01 (§4.9); not yet in `nowcast/specs.py` | Open |
+| Domestic training start | `DOMESTIC_NOWCAST` trains from 2022-07-01 (§4.9): published 8 origins domestic mean fold WAPE 4.85 vs 6.23 | Implemented |
 | Edge effect | Decompositions disagree on residual memory (last 1–2 days vs ~1–2 weeks); centred smoothers are unreliable near series ends | Analysis finding, unresolved |

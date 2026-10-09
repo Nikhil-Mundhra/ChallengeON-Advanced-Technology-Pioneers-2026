@@ -207,7 +207,7 @@ bounds = pred × exp(± z · sqrt(var(h))),   z = Φ⁻¹(0.9) for 80%
 
 `twin predict` fits it on 8 monthly origins (2024-07-01 to 2025-02-01) with a 7-month horizon, the length of the test period, and counts h from 2025-08-01. No month or bias factor.
 
-**Sums.** The interval of a sum over days (a week, any date range) uses the AR(1) covariance of the daily log errors, cov(eᵢ, eⱼ) = φ^|hᵢ−hⱼ| · var(min(hᵢ, hⱼ)), with the sum's log error the prediction-weighted mean of the daily ones (`NoiseModel.range_interval`). The daily total over all markets (`test_total_guests.csv`) has its own error series, `TOTAL`, fitted on the back-test predictions summed per fold and day, because errors are correlated across markets. Its 80% interval covers 80.9% of back-test days (leave one origin out) and 79.4% (±3 months excluded); adding the 21 markets' bounds instead covers 98.7%.
+**Sums.** The interval of a sum over days (a week, any date range) uses the AR(1) covariance of the daily log errors, cov(eᵢ, eⱼ) = φ^|hᵢ−hⱼ| · var(min(hᵢ, hⱼ)), with the sum's log error the prediction-weighted mean of the daily ones (`NoiseModel.range_interval`). The daily total over all markets (`test_total_guests.csv`) has its own error series, `TOTAL`, fitted on the back-test predictions summed per fold and day, because errors are correlated across markets. Its 80% interval covers 81.4% of back-test days (leave one origin out) and 79.5% (±3 months excluded); adding the 21 markets' bounds instead covers 98.7%.
 
 ### 7.7 Nationality split (`nowcast/disaggregation.py`)
 
@@ -289,8 +289,8 @@ Findings:
 | --- | :---: | :---: |
 | `naive_364` | 20.4% | 26.6% |
 | `arrivals_ratio` | 15.9% | 19.2% |
-| **`twin_daily`** (shipped) | **6.2%** | **9.4%** |
-| `twin_daily_gbm` | 6.2% | 9.1% |
+| **`twin_daily`** (shipped) | **4.9%** | **9.4%** |
+| `twin_daily_gbm` | 4.9% | 9.1% |
 
 The residual GBM lowers international WMAPE by 0.33 pp and domestic by 0 (domestic has no GBM), so it fails the both-segments rule and is not shipped.
 
@@ -298,10 +298,10 @@ The residual GBM lowers international WMAPE by 0.33 pp and domestic by 0 (domest
 
 | Folds used to fit | All | Domestic | International |
 | --- | :---: | :---: | :---: |
-| All other origins | 81.4% | 81.5% | 81.4% |
-| Origins more than 3 months away | 79.2% | 75.9% | 79.4% |
+| All other origins | 81.6% | 84.8% | 81.4% |
+| Origins more than 3 months away | 79.6% | 83.9% | 79.4% |
 
-International coverage is 79–83% at every horizon. Domestic coverage falls from 89% (h ≤ 13 days) to 74% (h > 120 days).
+International coverage is 79–83% at every horizon. Domestic coverage is 88% (h ≤ 13 days) and 80% (h > 120 days).
 
 **Direction** (week-to-week on the 8 origins of `twin predict`'s interval back-test, 1,154 distinct market-weeks, each from its earliest origin). The model sees observed new arrivals, so this is nowcast skill:
 
@@ -312,17 +312,21 @@ International coverage is 79–83% at every horizon. Domestic coverage falls fro
 | Same direction as last year | 63.1% |
 | Market's majority training direction | 53.6% |
 
-Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%, 0.85 → 91%, 0.98 → 99%. Weekly 80% bands cover 77.6% of back-test weeks. The noise model is fitted on the same folds, so both figures are in-sample for the error model.
+Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 77%, 0.75 → 82%, 0.85 → 91%, 0.98 → 99%. Weekly 80% bands cover 77.5% of back-test weeks. The noise model is fitted on the same folds, so both figures are in-sample for the error model.
 
 **Same-day guests** (`same_day_backtest`, 8 origins 2024-07..2025-02, 6-month horizon, mean Poisson deviance, lower is better, suppressed values as 0): domestic 11.8 vs 15.3 for the market mean; international 4.87 vs 5.61.
 
+**Domestic training start.** Domestic guests per arrival fell from 3.55 (2022Q1) to about 2.5 (2022Q4), a one-off post-COVID normalisation that the slope reads as trend when history is short. `DOMESTIC_NOWCAST` trains on rows from 2022-07-01 (`models/handler.OnOrAfter`). Domestic mean / worst fold WAPE, all history → from 2022-07: published 8 origins 6.23 / 7.81 → 4.85 / 5.46; 13 origins 5.46 / 7.81 → 5.04 / 5.61; 19 origins (2023-08..2025-02) 5.72 / 7.91 → 4.79 / 5.61.
+
+**Smeared (mean) vs median predictions** (8 origins; daily WMAPE, 14-day range-sum absolute error, bias; domestic / international): median 6.23 / 9.42, 5.16 / 8.35, +0.33% / −1.80%; smeared 6.22 / 9.36, 5.14 / 8.35, +0.54% / −1.31%. Under the 0.3 pp gate; predictions stay medians.
+
 **Block ablation** (`twin ablate-blocks`, 13 monthly origins 2024-02-01..2025-02-01, WAPE % of daily segment totals; domestic / international): seasonal naive 18.80 / 19.28; time only 9.23 / 9.62; flow only 8.92 / 5.06; flow + time 5.97 / 4.19; flow + time + holiday (`twin_daily`) 5.97 / 4.12 (domestic with the slope extrapolated linearly; held flat, 5.46).
 
-**Base stock tied to arrivals** (`twin_daily_base90`, not shipped): c_t = ρ × trailing 90-day mean arrivals; domestic 11.23% (linear slope), international 13.39%.
+**Base stock tied to arrivals** (`twin_daily_base90`, not shipped): c_t = ρ × trailing 90-day mean arrivals; domestic 11.23% (measured with the slope extrapolated linearly and all training history), international 13.39%.
 
 **Domestic slope beyond training** (13 origins 2024-02..2025-02, daily WAPE / bias): linear 5.97% / −2.61%; damped over 180 days 5.76% / −2.01%; over 90 days 5.66% / −1.63%; flat 5.46% / −0.36%; no slope 8.72% / +7.27%. `CentredSlope` holds the trend flat beyond the last training day by default.
 
-**Market-scoped events** (folds 2024-08..2025-01, which contain the windows; market daily WAPE without / with): Chinese New Year for CHINA 16.47% / 16.78%; Morocco winter guest block (`morocco_winter_stays`) for OTHER_AMERICAS_AFRICA 11.28% / 13.42%. Both are in `events.csv` with their market scope and neither is in the default event kernel.
+**Market-scoped events** (folds 2024-08..2025-01, which contain the windows; market daily WAPE without / with): Chinese New Year for CHINA 16.47% / 16.78%; Morocco winter guest block (`morocco_winter_block`) for OTHER_AMERICAS_AFRICA 11.28% / 13.42%. Both are in `events.csv` with their market scope and neither is in the default event kernel.
 
 **Time-varying kernel** (not shipped): per-regime curves 8.72% overall WMAPE vs 8.39% for one shared curve × calendar (both measured with the earlier raw-scale kernel fit; the shipped fit now scores 8.31%); recency weighting destabilised domestic. `twin_daily` uses one kernel per market.
 

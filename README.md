@@ -123,10 +123,10 @@ Model parts:
 | :--- | :---: | :---: |
 | `naive_364` (same weekday 364 days earlier) | 20.4% | 26.6% |
 | `arrivals_ratio` (arrivals × training guests / arrivals) | 15.9% | 19.2% |
-| **`twin_daily`** | **6.2%** | **9.4%** |
-| `twin_daily_gbm` (+ residual GBM; not shipped) | 6.2% | 9.1% |
+| **`twin_daily`** | **4.9%** | **9.4%** |
+| `twin_daily_gbm` (+ residual GBM; not shipped) | 4.9% | 9.1% |
 
-80% interval coverage of `twin_daily`: 81.4% with each origin's intervals fitted on the other origins; 79.2% when origins within ±3 months are also excluded. Week-to-week direction accuracy (1,154 market-weeks, a nowcast given observed arrivals): 87.2% vs 83.4% for the direction of new arrivals and 63.1% for last year's direction. Details: [solution documentation §9.3](docs/solution_documentation.md#93-daily-nowcast).
+80% interval coverage of `twin_daily`: 81.6% with each origin's intervals fitted on the other origins; 79.6% when origins within ±3 months are also excluded. Week-to-week direction accuracy (1,154 market-weeks, a nowcast given observed arrivals): 87.2% vs 83.4% for the direction of new arrivals and 63.1% for last year's direction. Details: [solution documentation §9.3](docs/solution_documentation.md#93-daily-nowcast).
 
 ### 3.2 Weekly planning model (forward holdout)
 
