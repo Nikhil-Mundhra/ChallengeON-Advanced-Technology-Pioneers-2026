@@ -40,7 +40,10 @@ def least_squares(system: np.ndarray, rhs: np.ndarray) -> np.ndarray:
     """Minimum-norm least squares (numpy, LAPACK gelsd). On some LAPACK builds (Apple Accelerate)
     gelsd fails to converge on well-conditioned systems: a pooled nationality fit with condition
     number 160 raised "SVD did not converge", and scipy's gelsd returned |x| ~ 1e-314. The
-    fallback is QR with column pivoting (gelsy), whose result is checked to be finite."""
+    fallback is QR with column pivoting (gelsy), whose result is checked to be finite. On a
+    rank-deficient system gelsy returns a basic solution, not gelsd's minimum-norm one, so the split
+    of an unidentified column (flat, unpenalised) can differ on that path; identified coefficients
+    and predictions do not."""
     try:
         return np.linalg.lstsq(system, rhs, rcond=None)[0]
     except np.linalg.LinAlgError:
