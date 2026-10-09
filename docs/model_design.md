@@ -265,7 +265,7 @@ Status on `main` (verify with `git ls-files src/tourism_twin/models`):
 | `NoiseModel` (`models/noise.py`), test-split predictions (`nowcast/predict.py`, `twin predict`), same-day model (`nowcast/same_day.py`) | Implemented |
 | Block grouping (`group` tag, `decompose_by_group`), time-only international spec (`INTL_TIME`) | Implemented |
 | Flight block | Component registered (`regressors`, block flight); no spec uses flight features (they add ~0 once arrivals are known, §4.7) |
-| Shared kernel / season shape with per-market scale (partial pooling) | Proposed |
+| Shared kernel / season shape with per-market scale (partial pooling) | Implemented for the 30 pooled-market nationalities (`POOLED_NATIONALITIES`, `nowcast/pooling.py`, #16) |
 
 ### 5.1 Layers: registry → handler → model
 
@@ -392,7 +392,7 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Weekly simulator uses legacy holiday flags | `is_holiday_week` / `is_major_event_week` lump Eid al-Fitr, Eid al-Adha, National Day and New Year; kept on purpose so shipped weekly results do not move. Daily models use `events.csv` | By design |
 | Weekly simulator intervals | Conformal margins from the training window (holdout coverage 65.2% vs 80% nominal); daily predictions use `NoiseModel` | Open for the weekly path |
 | Block grouping and per-block decomposition | §3.1 | Proposed |
-| Pooling across nationalities | Pooled markets are split by arrival share; per-nationality kernels (shared shape + per-market scale, §3.2) are untested | Proposed |
+| Pooling across nationalities | Pooled-market nationalities are predicted by one model per stay family (short: Saudi Arabia, Kuwait, Oman, Bahrain, Qatar; long: the rest) on each nationality's own arrivals, with a ridge-shrunk per-nationality scale. #11 validation: international nationality WAPE 12.24 vs 12.79 for the split, −0.55 pp [−0.79, −0.32], 7/7 folds; frozen test 11.16 vs 11.38, −0.22 pp [−0.45, +0.02]. Applied to all 45 nationalities it is worse (+3.6 pp): single-nationality markets keep their market model | Implemented (#16) |
 | Total-guests interval | §3.3: needs back-test errors of the summed series | Proposed |
 | Analysis outside the repository | `analysis/*.py` read the raw workbooks directly; figures in §4 are not reproducible from this repository | Analysis finding |
 | Test-period regime change | Wizz Air exit. Stress test (fit before 2025-02-01, the five nationalities' arrivals × 0.55, days 100–180): predicted guests / arrivals ratio KAZAKHSTAN 0.558 / 0.550, OTHER_EURASIA 0.663 / 0.660, OTHER_EUROPE 0.961 / 0.942. A base stock proportional to 90-day arrivals (`twin_daily_base90`) follows exactly but loses on the rolling back-test (domestic 11.23 vs 6.49, international 13.39 vs 9.42); the other intl terms are multipliers of the flow and scale with it | Checked; knot base kept |

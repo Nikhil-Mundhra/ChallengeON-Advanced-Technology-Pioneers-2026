@@ -45,6 +45,17 @@ DOMESTIC_TIME = ModelSpec(components=("local_level", SEASON, ("weekday", {"by_se
 INTL_TIME = ModelSpec(components=("local_level", SEASON, "weekday", "events"), fitter="joint_linear", rules=TIME_ROWS)
 FLOW_ONLY = ModelSpec(components=(KERNEL,), fitter=BACKFIT, rules=NOWCAST_ROWS)
 
+# Nationalities inside the pooled markets (issue #16): one fit per stay family on every
+# international nationality's own arrivals, sharing kernel, season, weekday and events, with a
+# per-nationality scale shrunk toward the family (GroupScale) and a base stock tied to the
+# nationality's 90-day arrivals. Validation (#11 protocol, 7 origins): international nationality
+# WAPE 12.24 vs 12.79 for the market model + arrival-share split, -0.55 pp [-0.79, -0.32], 7/7
+# folds; frozen test 11.16 vs 11.38, -0.22 pp [-0.45, +0.02].
+SHORT_STAY_FAMILY = ("SAUDI ARABIA", "KUWAIT", "OMAN", "BAHRAIN", "QATAR")
+POOLED_NATIONALITIES = ModelSpec(
+    components=(KERNEL_BASE90, ("group_scale", {"column": "nationality", "ridge": 100.0}), SEASON, "weekday", "events"),
+    fitter=BACKFIT, rules=NOWCAST_ROWS, options=(("group_by", "family"),))
+
 # Variants: one spec each, derived from the shipped ones.
 INTL_NOWCAST_GBM = INTL_NOWCAST.adding(GBM)
 INTL_NOWCAST_BASE90 = INTL_NOWCAST.replace_component("arrivals_kernel", KERNEL_BASE90)

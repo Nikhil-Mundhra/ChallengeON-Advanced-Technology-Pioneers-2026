@@ -21,6 +21,7 @@ from tourism_twin.data.repository import LakeRepository
 from tourism_twin.models.backtest import RollingOrigin, backtest
 from tourism_twin.models.noise import NoiseModel
 from tourism_twin.nowcast.disaggregation import split_market_predictions, split_shares
+from tourism_twin.nowcast.pooling import predict_pooled_nationalities
 from tourism_twin.nowcast.specs import DAILY_SPECS
 from tourism_twin.nowcast.submission import apply_guest_floor, build_submission
 
@@ -68,7 +69,14 @@ def predict_test_split(
 
     rows = build_nationality_rows(repository)
     rows["share"] = split_shares(rows)
-    rows = apply_guest_floor(split_market_predictions(rows, market, coverage, with_intervals))
+    rows = split_market_predictions(rows, market, coverage, with_intervals)
+    pooled = predict_pooled_nationalities(NOISE_ORIGINS, coverage, with_intervals, repository)
+    rows = rows.merge(pooled.rename(columns={"pred": "pooled_pred", "lower": "pooled_lower", "upper": "pooled_upper"}),
+                      on=["nationality", "date"], how="left")
+    use = rows["pooled_pred"].notna()
+    for column in ("pred", "lower", "upper"):
+        rows.loc[use, column] = rows.loc[use, f"pooled_{column}"]
+    rows = apply_guest_floor(rows.drop(columns=["pooled_pred", "pooled_lower", "pooled_upper"]))
     domestic, international, intervals = build_submission(rows, with_intervals)
     return TestPredictions(domestic, international, intervals, market, model, backtest_predictions, noise, total, test)
 

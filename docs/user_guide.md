@@ -18,7 +18,7 @@ Steps:
 
 1. Build the daily market panel in memory; fit the spec on every training day; predict each test market-day.
 2. With intervals: run the spec's rolling-origin back-test (8 monthly origins 2024-07-01 to 2025-02-01, 7-month horizon), fit the noise model on its errors, and add 80% bounds with the horizon counted from 2025-08-01.
-3. Split each pooled market (`OTHER_*` clusters) into nationalities: share = trailing 7-day new arrivals × the nationality's training guests ÷ new arrivals ratio, normalised within market and day. Nationality intervals add the split's own log-error variance (measured over the last 365 training days) to the market's.
+3. Predict the 30 nationalities of the pooled markets (`OTHER_*` clusters) directly with the pooled nationality model (one fit per stay family, shared shape, per-nationality scale; `nowcast/pooling.py`), with intervals from its own back-test errors per nationality. The arrival-share split (trailing 7-day new arrivals × the nationality's training guests ÷ new arrivals ratio) remains the fallback.
 4. Validate, then write. If validation fails, nothing is written and the command exits with the list of problems. Checks: rows, keys, column order and source values equal the test workbooks; every `Guests` finite and ≥ max(New Arrivals, 10) (the published rows keep Guests ≥ New Arrivals ≥ 10; predictions are floored there); interval rows and keys match; P10 ≤ P50 ≤ P90.
 
 | File | Rows | Columns |

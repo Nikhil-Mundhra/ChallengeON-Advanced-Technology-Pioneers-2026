@@ -209,7 +209,13 @@ bounds = pred × exp(± z · sqrt(var(h))),   z = Φ⁻¹(0.9) for 80%
 
 **Sums.** The interval of a sum over days (a week, any date range) uses the AR(1) covariance of the daily log errors, cov(eᵢ, eⱼ) = φ^|hᵢ−hⱼ| · var(min(hᵢ, hⱼ)), with the sum's log error the prediction-weighted mean of the daily ones (`NoiseModel.range_interval`). The daily total over all markets (`test_total_guests.csv`) has its own error series, `TOTAL`, fitted on the back-test predictions summed per fold and day, because errors are correlated across markets. Its 80% interval covers 81.4% of back-test days (leave one origin out) and 79.5% (±3 months excluded); adding the 21 markets' bounds instead covers 98.7%.
 
-### 7.7 Nationality split (`nowcast/disaggregation.py`)
+### 7.7 Nationality predictions (`nowcast/pooling.py`, `nowcast/disaggregation.py`)
+
+The 30 nationalities of the 6 pooled markets are predicted directly (`POOLED_NATIONALITIES`): one model per stay family (short: Saudi Arabia, Kuwait, Oman, Bahrain, Qatar; long: every other international nationality), fitted on all 45 nationalities' own arrivals, with a shared arrivals kernel, season, weekday and events, a base stock proportional to the nationality's 90-day arrivals, and a per-nationality scale shrunk toward the family by a ridge penalty (`GroupScale`, ridge 100). Their intervals come from that model's rolling-origin errors per nationality. The 15 single-nationality markets keep the market model.
+
+Evaluation under the protocol of issue #11 (choice on validation origins 2024-02..2024-08 with a 21-day gap; frozen test 2025-02..2025-07 scored once; moving-block bootstrap, 28-day blocks, 90% intervals), international nationality WAPE: validation 12.24% vs 12.79% for the market model + arrival-share split (−0.55 pp [−0.79, −0.32], same sign in 7/7 folds); frozen test 11.16% vs 11.38% (−0.22 pp [−0.45, +0.02]). On the pooled-market nationalities alone: validation −2.18 pp [−3.13, −1.27]; frozen test −0.89 pp [−1.89, +0.06].
+
+The arrival-share split below is the fallback when a nationality has no pooled prediction:
 
 A pooled market's prediction is split across its nationalities by share = (trailing 7-day new arrivals × the nationality's training guests ÷ new arrivals ratio), normalised per market and day. Splitting actual market guests over the last training year this way gives a nationality WMAPE of 14.0%, against 24.0% for shares of same-day arrivals. Nationality bounds add the split's log-error variance (s.d. 0.18–0.25 per pooled market, last 365 training days) to the market's.
 
