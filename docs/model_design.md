@@ -1,6 +1,6 @@
 # Abu Dhabi Tourism Digital Twin — Model Design
 
-Design of the guest models: what is in `src/`, what has been measured outside it, and what is proposed. Method and shipped results: [solution documentation](solution_documentation.md). Commands: [user guide](user_guide.md). Decisions and their evidence: [decision log](decisions.md).
+Design of the guest models: what is in `src/`, what has been measured outside it, and what is proposed. Method and shipped results: [solution documentation](solution_documentation.md). Commands: [user guide](user_guide.md).
 
 **Status legend** (every section is marked):
 
@@ -44,12 +44,12 @@ flow_t     = c_t + Σ_{k=0..K} w_k · Arrivals_{t−k}             arrivals kern
 m_t        = exp(   Fourier_H(day of year)                     annual season, H = 4
                   + day of week [× season]
                   + Σ_e Kernel_e(t − anchor_e) )               event kernels (Ramadan, Eids, National Day, ...)
-                  [+ slope_t]                                  DOMESTIC only (D19)
+                  [+ slope_t]                                  DOMESTIC only (§4.6)
                                                                periodic terms centred on the training window;
                                                                event terms are zero outside their windows
 ```
 
-**Trend in the nowcast is per series (decision D19, superseding D15).** The arrivals kernel owns the level in both series. DOMESTIC adds a centred log-slope to `m_t`: guests per arrival have fallen year on year (−3.9%/yr fitted), which a fixed kernel cannot follow. INTERNATIONAL has no trend: its fitted slope (+7.2%/yr) over-extrapolates and loses on the rolling back-test. Time-only specs (arrivals unknown: domestic forecast, planning) use a level component (`LinearTrend` or a local level) instead of the kernel. Evidence: §4.6.
+**Trend in the nowcast is per series.** The arrivals kernel owns the level in both series. DOMESTIC adds a centred log-slope to `m_t`: guests per arrival have fallen year on year (−3.9%/yr fitted), which a fixed kernel cannot follow. INTERNATIONAL has no trend: its fitted slope (+7.2%/yr) over-extrapolates and loses on the rolling back-test. Time-only specs (arrivals unknown: domestic forecast, planning) use a level component (`LinearTrend` or a local level) instead of the kernel. Evidence: §4.6.
 
 Kernel constraints:
 
@@ -149,7 +149,7 @@ An independent implementation built only from this document and AGENTS.md (panel
 
 - Baselines reproduce within 0.4 points; the joint model reproduces and slightly improves on §4.1.
 - This probe's joint spec included a centred slope for both series; on the test split the slope added +10.7% international / −6.1% domestic. The numbers in this table are therefore **with slope**; §4.6 separates the slope's effect.
-- Events failed the drop-one gate (+0.06 / +0.07 points) on the Feb–Jul folds, which contain Ramadan and both Eids but no National Day or Christmas–New Year. See D16 and §4.6.
+- Events failed the drop-one gate (+0.06 / +0.07 points) on the Feb–Jul folds, which contain Ramadan and both Eids but no National Day or Christmas–New Year. See §4.6.
 
 ### 4.6 Slope and events in the nowcast: clean A/B — *Analysis finding (unmerged branch)*
 
@@ -165,8 +165,8 @@ One implementation (second probe, §5.7 reference spec with box events), one com
 
 Rolling-13: monthly origins 2024-02-01 → 2025-02-01, 6-month horizon. Aug–Jan: test 2024-08-01 → 2025-01-31, the only fold containing National Day and Christmas–New Year.
 
-- **Slope:** DOMESTIC improves on every fold set (up to 2.5 points; fitted −3.9%/yr). INTERNATIONAL improves only on the two Feb–Jul reference folds and loses on rolling-13 and Aug–Jan (fitted +7.2%/yr). Decision D19.
-- **Events:** DOMESTIC is better without them everywhere it matters. INTERNATIONAL gains 0.35 on the event fold and is neutral on rolling-13. Decision D20. Box windows only; the smoothed `EventKernel` is untested in the nowcast.
+- **Slope:** DOMESTIC improves on every fold set (up to 2.5 points; fitted −3.9%/yr). INTERNATIONAL improves only on the two Feb–Jul reference folds and loses on rolling-13 and Aug–Jan (fitted +7.2%/yr). So: slope for DOMESTIC only.
+- **Events:** DOMESTIC is better without them everywhere it matters. INTERNATIONAL gains 0.35 on the event fold and is neutral on rolling-13. So: events for INTERNATIONAL only in the nowcast; time-only specs keep events. Box windows only; the smoothed `EventKernel` is untested in the nowcast.
 - The two Feb–Jul reference folds alone would have chosen the wrong international spec: check decisions on rolling origins and on folds containing the relevant windows.
 
 ## 5. Proposed code structure — *Partly implemented*
@@ -214,7 +214,7 @@ A spec is a named component list (`intl_nowcast`, `domestic_time`, `planning`, `
 
 ### 5.4 Back-test harness (#10, #11)
 
-`backtest(spec, panel, origins)` → per-fold metrics. Monthly rolling origins, ~6-month horizon, fit only on data before each origin, domestic and international reported separately (WAPE, MAE, bias). Any calibration (z-scores, conformal, alphas) uses the training fold only. Origins for the daily nowcast: monthly from 2024-02-01 to 2025-02-01 (13 folds). A component tied to dated windows (events) is judged only on folds whose test period contains those windows (D16); for Christmas–New Year and National Day this needs a fold such as test 2024-08-01 → 2025-01-31. Inside it, a time-ordered split: train fits parameters, validation chooses hyperparameters (K, smoothing λ, event thresholds, H), and one final test period is evaluated once after all choices are frozen. The four benchmarks in `models/evaluation.py` become four specs.
+`backtest(spec, panel, origins)` → per-fold metrics. Monthly rolling origins, ~6-month horizon, fit only on data before each origin, domestic and international reported separately (WAPE, MAE, bias). Any calibration (z-scores, conformal, alphas) uses the training fold only. Origins for the daily nowcast: monthly from 2024-02-01 to 2025-02-01 (13 folds). A component tied to dated windows (events) is judged only on folds whose test period contains those windows; for Christmas–New Year and National Day this needs a fold such as test 2024-08-01 → 2025-01-31. Inside it, a time-ordered split: train fits parameters, validation chooses hyperparameters (K, smoothing λ, event thresholds, H), and one final test period is evaluated once after all choices are frozen. The four benchmarks in `models/evaluation.py` become four specs.
 
 ### 5.5 Noise model
 
@@ -251,12 +251,12 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Centre periodic calendar terms on the training window after every calendar step; the kernel owns the level; event terms are zero outside their windows | Otherwise the overall scale drifts into the calendar intercept and the kernel collapses toward zero (*analysis*) |
 | Never fit a power α together with a free kernel | They trade off without limit and diverge; estimate α with the kernel fixed (*analysis*) |
 | Joint fit (backfitting to convergence), never one greedy pass | Greedy order changes the answer by up to 8.6 points (§4.1) |
-| No feature derived from `Guests` in the nowcast; lags of `New Arrivals` are allowed in both splits | Guests is the withheld target (D2) |
+| No feature derived from `Guests` in the nowcast; lags of `New Arrivals` are allowed in both splits | Guests is the withheld target (§1) |
 | Hyperparameters (K, H, λ, event windows, detector thresholds, ridge α) chosen on validation folds only; tuning CV is time-ordered (`TimeSeriesSplit`), never shuffled | Shuffled CV leaks the future; `models/residual.py` `RidgeCV` currently uses non-temporal CV |
 | Event-detector z-scores, conformal margins and noise σ computed from training-fold residuals only | Whole-series statistics leak the test period |
 | Report domestic and international separately, never only pooled | Pooled raw-scale metrics are dominated by domestic (MAE 17,485 vs 2,466) |
 | A new component ships with a synthetic-data test: it must recover a known kernel / bump / sine | A component that can't recover its own truth can't be trusted on real data |
-| Keep a component only if it passes the acceptance gate (decision D12) | Effective sample size is small (§4.4) |
+| Keep a component only if it lowers rolling-origin WAPE by ≥ 0.3 points on both domestic and international; among variants within 0.2 points of the best, keep the simplest | Effective sample size is small (§4.4) |
 
 **Reference evaluation** (reproduce this before changing anything; §4.1 and §4.5 are its results):
 
@@ -266,26 +266,27 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Arrivals input | `new_arrivals_filled` (the column the lags are built from) |
 | Training rows | date ≥ 2023-01-01, `lag_complete`, `guests` not null. 2022 guests unused |
 | Folds | test 2024-02-01 → 2024-07-31 (train before 2024-02-01) and test 2025-02-01 → 2025-07-31 (train before 2025-02-01). Report each fold and the mean |
-| Hyperparameters | Fixed, not tuned: K = 21, H = 4, ridge α = 1. Tuning (D11) applies to the production spec only, on validation folds (D18) |
+| Hyperparameters | Fixed, not tuned: K = 21, H = 4, ridge α = 1. Tuning applies to the production spec only, on validation folds; the reference stays fixed so results remain comparable over time |
 | Kernel | `flow = c + Σ_{k=0..21} w_k·A_{t−k}`, `w = triu(ones) @ d`, `d ≥ 0`, `w_0 ≤ 1`, `c ≥ 0`; fitted on Guests / m in raw scale, rows weighted by m (minimise Σ(G − m·flow)²); `w_0 ≤ 1` enforced exactly (bounded solve when it binds) |
 | Calendar (log) | Fourier on day of year / 365.25, H = 4; day of week one-hot (Monday = reference); event windows as 0/1 boxes: Ramadan (first day − 5 → day before Eid al-Fitr window), Eid al-Fitr and Eid al-Adha (−1 → +3), National Day (30 Nov → 4 Dec), Christmas–New Year (22 Dec → 7 Jan). These boxes are fixed for comparability and differ from the `domain/events.csv` windows used by `EventKernel`. Ridge α = 1 on the raw centred columns (scikit-learn `Ridge` convention); level owner and slope unpenalised. Periodic terms centred on the training rows; event boxes centred too in the reference (an implementation detail; `EventKernel` instead is zero outside its windows) |
-| Per-series terms | DOMESTIC: + centred log-slope (years since 2023-01-01), no events. INTERNATIONAL: events, no slope (D19, D20) |
+| Per-series terms | DOMESTIC: + centred log-slope (years since 2023-01-01), no events. INTERNATIONAL: events, no slope (§4.6) |
 | Fit | Backfitting: kernel on Guests / m, calendar on log(Guests / flow), until the largest change in any log contribution < 1e-6 |
 | Metric | WAPE = Σ\|actual − predicted\| / Σ actual, per series and fold |
 | Expected | Per-series spec above: DOMESTIC 4.72 reference / 4.65 rolling-13; INTERNATIONAL 4.92 reference / 5.11 rolling-13 (§4.6). Same spec for both series without slope, with events: 5.10 / 4.92. Baselines: naive 16.3 / 18.6, calendar only (with trend) ≈ 11.6, kernel only 8.1 / 6.1 |
-| Not inputs | Same-day guests (separate target, D17); anything derived from `Guests` |
+| Not inputs | Same-day guests (a separate target with its own model); anything derived from `Guests` |
 
 ### 5.8 Flight-side findings for feature work — *Analysis finding*
 
 | Finding | Consequence |
 | --- | --- |
-| `Total PAX = P2P + Transfer + Transit` on 100% of rows; transfer ≈ 50% of passengers | Use P2P as hotel-eligible passengers (D3) |
+| `Total PAX = P2P + Transfer + Transit` on 100% of rows; transfer ≈ 50% of passengers | Use P2P as hotel-eligible passengers; "transfer" means connecting at AUH |
 | Etihad: 73% of passengers transfer; low-cost carriers ≈ 0% | Transfer rate is an airline-mix feature, not a cabin feature |
-| Business vs economy transfer: 64% vs 49% pooled, 69% vs 74% within Etihad (reversal) | Cabin-class effects need an airline control (D4) |
+| Business vs economy transfer: 64% vs 49% pooled, 69% vs 74% within Etihad (reversal) | Cabin-class effects need an airline control; do not claim cabin class drives transfer rate |
 | Premium share vs transfer rate across Etihad routes: r = 0.44; spread narrows above ~9% premium share | Both track route type (long-haul hub feed vs regional); not causal |
 | First-class transfer share 3.6% (Etihad 6.5%) | Implausible for a hub carrier; treat first-class transfer columns as suspect |
 | Cabin columns exclude infants (gap to `Total P2P`: median 1, max 28) | Not a data error |
 | Load factor up to 108% in daily data | Bounded, saturating input (§5.7 encoding) |
+| 2022 flights are monthly (one row per route-month); disaggregating to days recovers little: a day-of-week profile explains 26% of within-month variance at market level and gives 27% MAPE at route level | Flight features use daily data from 2023-01-01 only; 2022 flights are not disaggregated |
 
 ## 6. Open items and known gaps
 

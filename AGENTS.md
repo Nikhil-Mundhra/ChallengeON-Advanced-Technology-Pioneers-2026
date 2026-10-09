@@ -2,7 +2,7 @@
 
 Rules for coding agents in this repository. If this file disagrees with the code, trust the code and fix this file.
 
-Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, web UI/JSON API, PDF reports. Competition output: daily guest nowcast from composable log-scale components (`twin predict`). Human docs: `README.md`, `docs/`; model design (implemented vs. measured vs. proposed): `docs/model_design.md`; decision log: `docs/decisions.md`.
+Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, web UI/JSON API, PDF reports. Competition output: daily guest nowcast from composable log-scale components (`twin predict`). Human docs: `README.md`, `docs/`; model design (implemented vs. measured vs. proposed): `docs/model_design.md`.
 
 ## Setup
 
@@ -73,23 +73,25 @@ cli/        the `twin` command
 
 ## Modeling (guest model)
 
-- Read `docs/model_design.md` (§3 form, §5 structure, §5.7 rules) and `docs/decisions.md` before changing any model. A decision changes only by a new entry in `docs/decisions.md`.
+- Read `docs/model_design.md` (§3 form, §4 evidence, §5 structure, §5.7 rules) before changing any model. When a measured result changes a modeling rule, update the rule here and its evidence in `docs/model_design.md` in the same change.
+- No general neural networks (MLP/CNN/RNN): ~1,300 daily rows; MLPs lost to the seasonal naive. The arrivals "convolution" is one constrained linear kernel.
+- No interaction or power terms by default (weekday × season, seasonal kernels, `flow^α`): none passed the gate (`docs/model_design.md` §4.2). Exception under review: `domestic_nowcast` uses `DayOfWeek(by_season=True)`; its comparison depends on the backfitting cap until issue #13 is fixed.
 - Add a model part as: one module in `models/components/` (`Component` protocol or `LinearComponent`), its export in `components/__init__.py`, a synthetic test in `tests/test_tourism_twin.py` that recovers a known truth, and a spec entry in `models/specs.py`. Edit nothing else; never hard-wire a model into `training.py` or `evaluation.py`.
 - Compose components only via `AdditiveLogModel` (`models/composite.py`); exactly one component per model sets `owns_level=True` (it raises otherwise).
 - Mark residual learners `final_stage = True` (fitted once, after the rest converge).
 - Add an ablation as a new spec entry, not a code branch.
 - The competition task is a nowcast: test-split `New Arrivals` are inputs; never use a feature derived from `Guests`.
 - Fit components jointly (`models/fitters.py`); centre periodic contributions; the one level owner and event terms (zero outside their windows) are not centred.
-- Nowcast specs are per series (decisions D19, D20): the arrivals kernel owns the level; DOMESTIC adds a centred slope and no events; INTERNATIONAL has events and no slope.
+- Nowcast specs are per series (`docs/model_design.md` §4.6): the arrivals kernel owns the level; DOMESTIC adds a centred slope and no events; INTERNATIONAL has events and no slope.
 - Before changing a nowcast model, reproduce the reference evaluation in `docs/model_design.md` §5.7 and compare with its expected values.
 - Compare models only through `models/backtest.backtest` with `RollingOrigin`/`HoldoutSplit`; pass `period_days=7` for weekly panels (else look-ahead leakage).
 - Never rank `DIAGNOSTIC_SPECS` with forecast specs; they read realized test-period data.
-- Judge event components only on back-test folds that contain their windows (decision D16). Decide specs on rolling origins, not on the two reference folds alone.
+- Judge event components only on back-test folds that contain their windows Decide specs on rolling origins, not on the two reference folds alone.
 - Arrivals kernel: non-negative, non-increasing (`w = triu(ones) @ d`, `d >= 0`), `w_0 <= 1`.
 - Encode categoricals one-hot, season as Fourier terms, continuous inputs in log, lunar holidays from explicit dates.
 - Tune hyperparameters on validation folds with time-ordered splits only, never on the reported folds; compute calibration statistics (z-scores, conformal margins, σ) from training folds only.
 - Fit interval models (`models/noise.NoiseModel`) on out-of-sample back-test errors only.
-- Report domestic and international separately. Ship a component only if it lowers rolling-origin WMAPE by ≥ 0.3 pp on both (decision D12); `ResidualGBM` failed, keep it out of `twin_daily`.
+- Report domestic and international separately. Ship a component only if it lowers rolling-origin WMAPE by ≥ 0.3 pp on both; among variants within 0.2 pp of the best, keep the simplest. `ResidualGBM` failed, keep it out of `twin_daily`.
 - Add event occurrences to `domain/events.csv` (with `scope`); `kind=one_off` rows are masked from training via `is_one_off_period`.
 - Never derive legacy `HOLIDAY_WEEKS` / `MAJOR_EVENT_WEEKS` from `events.csv`; that moves shipped weekly results.
 - No `.iterrows(` anywhere in `models/` (a test enforces it).

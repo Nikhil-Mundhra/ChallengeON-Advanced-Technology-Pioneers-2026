@@ -50,7 +50,7 @@ GBM_FEATURES = ("dow", "month", "iso_week", "is_holiday_week", lag_column(0), la
 
 
 def intl_nowcast(gbm: bool = False) -> AdditiveLogModel:
-    """International nowcast (docs/decisions.md D19, D20): arrivals kernel (owns the level) +
+    """International nowcast (docs/model_design.md §3, §4.6): arrivals kernel (owns the level) +
     season + weekday + events, no trend (+ residual GBM, gated).
 
     Backfitting is capped at 20 passes: the kernel's constrained solve moves between passes (up to
@@ -64,7 +64,7 @@ def intl_nowcast(gbm: bool = False) -> AdditiveLogModel:
 
 
 def domestic_nowcast() -> AdditiveLogModel:
-    """Domestic nowcast (D19, D20): arrivals kernel (owns the level) + centred log-slope + season +
+    """Domestic nowcast (docs/model_design.md §3, §4.6): arrivals kernel (owns the level) + centred log-slope + season +
     weekday by season; no event kernels."""
     components = [ArrivalsConvolution(max_lag=21), CentredSlope(), AnnualFourier(4), DayOfWeek(by_season=True)]
     return AdditiveLogModel(components, fitter=Backfitting(max_iter=20, tol=1e-3),

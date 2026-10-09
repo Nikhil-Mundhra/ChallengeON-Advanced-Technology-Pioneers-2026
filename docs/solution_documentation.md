@@ -344,7 +344,7 @@ Stated `direction_prob` vs share right: 0.55 → 59%, 0.65 → 78%, 0.75 → 82%
 | Planning model validated on a single forward split | One holdout period; no Autumn_Shoulder weeks | Season breakdown reported |
 | Observational data | No causal identification | Results described as planning estimates |
 
-Design evidence for the nowcast: [model design](model_design.md); decisions: [decision log](decisions.md).
+Design evidence for the nowcast: [model design](model_design.md).
 
 ## 12. Open questions for the organizers
 
