@@ -135,6 +135,17 @@ class MarketRouter:
                         for flag in (True, False) if (is_domestic == flag).any()}
         return self
 
+    def decompose(self, panel: pd.DataFrame) -> pd.DataFrame:
+        """Per-component log contributions from whichever model serves each row (NaN where a
+        component does not exist in that model)."""
+        is_domestic = panel["market"] == "DOMESTIC"
+        parts = [self.models_[flag].decompose(panel[is_domestic == flag])
+                 for flag in self.models_ if (is_domestic == flag).any()]
+        return pd.concat(parts).reindex(panel.index)
+
+    def explain(self) -> dict:
+        return {market: detail for model in self.models_.values() for market, detail in model.explain().items()}
+
     def diagnostics(self) -> dict:
         totals: dict = {}
         for model in self.models_.values():

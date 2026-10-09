@@ -643,6 +643,43 @@ def test_prediction_validator_accepts_mirrored_files_and_flags_bad_ones():
     assert any("p10 <= p50 <= p90" in p for p in problems)
 
 
+def test_weekly_outputs_keep_full_weeks_and_give_a_direction_probability():
+    from tourism_twin.services.outputs import weekly_forecast
+
+    dates = pd.date_range("2025-08-04", periods=17, freq="D")  # two full Monday weeks + 3 days
+    pred = np.where(dates < "2025-08-11", 100.0, 120.0)
+    daily = pd.DataFrame({"market": "M", "date": dates, "pred": pred, "lower": pred * 0.9, "upper": pred * 1.1})
+    weekly = weekly_forecast(daily)
+    assert list(weekly["week_start"].dt.strftime("%Y-%m-%d")) == ["2025-08-04", "2025-08-11"]
+    assert weekly["forecast"].tolist() == [700.0, 840.0]
+    assert weekly["direction"].iloc[0] == "increase" and weekly["direction_prob"].iloc[0] > 0.9
+    assert weekly["direction"].iloc[1] is None
+
+
+def test_narration_only_formats_the_outputs_document():
+    from tourism_twin.services.briefing import weekly_nowcast_summary
+
+    week = {"week_start": "2025-12-22", "forecast": 1000.0, "p10": 900.0, "p90": 1100.0, "direction": "decrease",
+            "direction_prob": 0.8, "yoy_change": 0.05, "top_drivers": [{"component": "events", "effect_pct": 40.0}]}
+    text = weekly_nowcast_summary("M", {"implied_mean_stay_days": 3.5, "short_stay_share": 0.4}, week)
+    for fragment in ("1,000", "900-1,100", "+5.0%", "decrease (probability 80%)", "events +40%", "3.5 nights", "40%"):
+        assert fragment in text
+
+
+def test_same_day_poisson_recovers_a_weekday_effect():
+    from tourism_twin.models.same_day import SameDayPoisson
+
+    rng = np.random.default_rng(13)
+    dates = pd.date_range("2023-01-02", periods=700, freq="D")
+    arrivals = rng.uniform(800, 1200, len(dates))
+    rate = np.exp(1.0 + 0.5 * (dates.dayofweek == 4) + 0.5 * np.log1p(arrivals))
+    frame = pd.DataFrame({"market": "M", "date": dates, "same_day_guests": rng.poisson(rate).astype(float),
+                          "n_same_day_suppressed": 0, "is_holiday_week": 0, "new_arrivals_filled": arrivals})
+    model = SameDayPoisson().fit(frame)
+    friday_coef = model.models_["M"].coef_[3]  # design columns: Tue..Sun, holiday, log arrivals
+    assert friday_coef == pytest.approx(0.5, abs=0.05)
+
+
 # --- simulator ------------------------------------------------------------------------------
 
 LEVER_GRID = {

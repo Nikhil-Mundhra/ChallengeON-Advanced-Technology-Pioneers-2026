@@ -174,6 +174,7 @@ def _print_evaluation(payload: dict) -> None:
 def predict(args: argparse.Namespace) -> None:
     from tourism_twin.data.daily_panel import build_daily_panel
     from tourism_twin.reporting.predictions_plot import plot_test_predictions
+    from tourism_twin.services.outputs import build_outputs
     from tourism_twin.services.predictions import predict_test_split, validate_predictions
 
     predictions = predict_test_split(spec=args.spec, with_intervals=args.intervals)
@@ -189,7 +190,14 @@ def predict(args: argparse.Namespace) -> None:
         paths["intervals"] = out / "test_guests_intervals.csv"
         predictions.intervals.to_csv(paths["intervals"], index=False)
     panel = build_daily_panel()
-    plot = plot_test_predictions(panel[panel["dataset_split"] == "train"], predictions.market_daily, out / "test_predictions.png")
+    train = panel[panel["dataset_split"] == "train"]
+    plot = plot_test_predictions(train, predictions.market_daily, out / "test_predictions.png")
+    document = build_outputs(predictions, train, spec=args.spec)
+    paths["outputs"] = out / "market_outputs.json"
+    paths["outputs"].write_text(json.dumps(document, indent=2), encoding="utf-8")
+    if "direction_backtest" in document:
+        accuracy = document["direction_backtest"]["accuracy"]
+        print("direction accuracy (back-test): " + ", ".join(f"{k} {v:.1%}" for k, v in accuracy.items()))
     for name, path in {**paths, "plot": plot}.items():
         print(f"{name:13} {path}")
     print(f"rows: domestic {len(predictions.domestic)}, international {len(predictions.international)}; validation passed")

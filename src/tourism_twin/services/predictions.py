@@ -35,6 +35,8 @@ class TestPredictions:
     international: pd.DataFrame   # international test workbook + Guests
     intervals: pd.DataFrame       # Date, Nationality, Residence (groups), Guests_p10, Guests_p50, Guests_p90
     market_daily: pd.DataFrame    # market, date, pred, lower, upper (before disaggregation)
+    model: object = None          # the fitted spec (for decomposition and explain())
+    backtest_predictions: pd.DataFrame = None  # the interval back-test's predictions (None without intervals)
 
 
 def predict_test_split(
@@ -48,8 +50,10 @@ def predict_test_split(
     model = MODEL_SPECS[spec]().fit(train)
     market = test[["market", "date"]].assign(pred=model.predict(test))
     market["horizon_days"] = (market["date"] - market["date"].min()).dt.days
+    backtest_predictions = None
     if with_intervals:
-        noise = NoiseModel().fit(backtest({spec: MODEL_SPECS[spec]}, panel, NOISE_ORIGINS).predictions)
+        backtest_predictions = backtest({spec: MODEL_SPECS[spec]}, panel, NOISE_ORIGINS).predictions
+        noise = NoiseModel().fit(backtest_predictions)
         market = market.join(noise.intervals(market, coverage))
     else:
         market = market.assign(lower=np.nan, upper=np.nan)
@@ -79,7 +83,7 @@ def predict_test_split(
     if not with_intervals:
         intervals = intervals.iloc[0:0]
     return TestPredictions(domestic.drop(columns=["_lower", "_upper"]), international.drop(columns=["_lower", "_upper"]),
-                           intervals, market)
+                           intervals, market, model, backtest_predictions)
 
 
 SHARE_WINDOW_DAYS = 7
