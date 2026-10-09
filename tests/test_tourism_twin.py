@@ -666,24 +666,46 @@ def test_packages_import_only_lower_layers():
 # --- competition predictions --------------------------------------------------------------
 
 def test_prediction_validator_accepts_mirrored_files_and_flags_bad_ones():
-    from tourism_twin.nowcast.predict import DOMESTIC_TEST_FILE, INTERNATIONAL_TEST_FILE, TestPredictions, read_raw_workbook, validate_predictions
+    from tourism_twin.nowcast.predict import (
+        DOMESTIC_TEST_FILE, INTERNATIONAL_TEST_FILE, TestPredictions, guest_floor, read_raw_workbook, validate_predictions,
+    )
 
     if not (SETTINGS.source_dir / INTERNATIONAL_TEST_FILE).exists():
         pytest.skip("raw test workbooks are supplied locally, not committed")
-    domestic = read_raw_workbook(DOMESTIC_TEST_FILE).assign(Guests=100.0)
-    international = read_raw_workbook(INTERNATIONAL_TEST_FILE).assign(Guests=10.0)
+    domestic = read_raw_workbook(DOMESTIC_TEST_FILE)
+    domestic = domestic.assign(Guests=guest_floor(domestic["New Arrivals"]).astype(float))
+    international = read_raw_workbook(INTERNATIONAL_TEST_FILE)
+    international = international.assign(Guests=guest_floor(international["New Arrivals"]).astype(float))
     keys = pd.concat([international[["Date", "Nationality"]], domestic[["Date"]].assign(Nationality=np.nan)], ignore_index=True)
     intervals = keys.assign(Guests_p10=9.0, Guests_p50=10.0, Guests_p90=11.0)
     good = TestPredictions(domestic, international, intervals, pd.DataFrame())
     assert validate_predictions(good) == []
-    bad = TestPredictions(domestic.assign(Guests=np.inf), international.assign(Guests=0.0, **{"New Arrivals": -5.0}),
+    bad = TestPredictions(domestic.assign(Guests=np.inf), international.assign(Guests=international["Guests"] - 1, **{"New Arrivals": -5.0}),
                           intervals.assign(Guests_p10=12.0).iloc[1:], pd.DataFrame())
     problems = validate_predictions(bad)
     assert any("missing or infinite" in p for p in problems)
-    assert any("Guests <= 0" in p for p in problems)
+    assert any("Guests below max(New Arrivals, 10)" in p for p in problems)
     assert any("source values differ" in p for p in problems)
     assert any("rows or keys differ" in p for p in problems)
     assert any("p10 <= p50 <= p90" in p for p in problems)
+
+
+def test_test_days_missing_from_the_file_get_below_threshold_arrivals():
+    from tourism_twin.data.daily_panel import PUBLICATION_MIN, _fill_suppressed_arrivals
+
+    dates = pd.date_range("2025-07-28", periods=8, freq="D")
+    rows = pd.DataFrame({
+        "residence_group": "International", "nationality": "X", "date": dates,
+        "dataset_split": ["train"] * 4 + ["test"] * 4,
+        "new_arrivals": [4.0, 8.0, 50.0, 60.0, 70.0, np.nan, np.nan, 90.0],
+        "is_source_present": [True, True, True, True, True, False, True, True],  # test day 6 absent, day 7 '*'
+        "same_day_guests": 1.0,
+    })
+    filled = _fill_suppressed_arrivals(rows).set_index("date")
+    assert filled.loc[dates[5], "new_arrivals_filled"] == pytest.approx(6.0)  # mean of 4 and 8: train days below 10
+    assert filled.loc[dates[5], "arrivals_below_threshold"] and not filled.loc[dates[6], "arrivals_below_threshold"]
+    assert filled.loc[dates[6], "new_arrivals_filled"] == pytest.approx(70 + 2 * (90 - 70) / 3)  # "*" is still interpolated between published days
+    assert PUBLICATION_MIN == 10
 
 
 def test_weekly_outputs_keep_full_weeks_and_give_a_direction_probability():

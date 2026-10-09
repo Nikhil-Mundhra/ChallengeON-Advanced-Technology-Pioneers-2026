@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-from tourism_twin.data.daily_panel import build_daily_panel, build_nationality_rows
+from tourism_twin.data.daily_panel import PUBLICATION_MIN, build_daily_panel, build_nationality_rows
 from tourism_twin.data.ingest import read_raw_workbook
 from tourism_twin.data.repository import LakeRepository
 from tourism_twin.models.backtest import RollingOrigin, backtest
@@ -73,6 +73,11 @@ def predict_test_split(
         nationality_pred = rows["pred"] * rows["share"]
         rows["lower"], rows["upper"] = nationality_pred * np.exp(-z * sd), nationality_pred * np.exp(z * sd)
     rows["pred"] = rows["pred"] * rows["share"]
+    # Every published row has Guests >= New Arrivals (0 exceptions in training) and >= 10.
+    floor = guest_floor(rows["new_arrivals"])
+    rows["pred"] = np.maximum(rows["pred"], floor)
+    if with_intervals:
+        rows["lower"], rows["upper"] = np.maximum(rows["lower"], floor), np.maximum(rows["upper"], rows["pred"])
 
     domestic = _attach(read_raw_workbook(DOMESTIC_TEST_FILE), rows[rows["residence_group"] == "Domestic"], ["Date"])
     international = _attach(read_raw_workbook(INTERNATIONAL_TEST_FILE), rows[rows["residence_group"] == "International"], ["Date", "Nationality"])
@@ -86,6 +91,11 @@ def predict_test_split(
         intervals = intervals.iloc[0:0]
     return TestPredictions(domestic.drop(columns=["_lower", "_upper"]), international.drop(columns=["_lower", "_upper"]),
                            intervals, market, model, backtest_predictions, noise)
+
+
+def guest_floor(new_arrivals: pd.Series) -> pd.Series:
+    """Lowest admissible Guests for a published row: its New Arrivals, and at least PUBLICATION_MIN."""
+    return np.maximum(pd.to_numeric(new_arrivals, errors="coerce").fillna(PUBLICATION_MIN), PUBLICATION_MIN)
 
 
 def _attach(raw: pd.DataFrame, rows: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
@@ -109,8 +119,9 @@ def validate_predictions(predictions: TestPredictions) -> list[str]:
         guests = frame["Guests"].to_numpy(dtype=float)
         if not np.isfinite(guests).all():
             problems.append(f"{name}: {int((~np.isfinite(guests)).sum())} missing or infinite Guests")
-        if (guests <= 0).any():
-            problems.append(f"{name}: {int((guests <= 0).sum())} Guests <= 0")
+        below = guests < guest_floor(frame["New Arrivals"]).to_numpy(dtype=float)
+        if below.any():
+            problems.append(f"{name}: {int(below.sum())} Guests below max(New Arrivals, {PUBLICATION_MIN})")
         keys_by_part.append(raw.reindex(columns=["Date", "Nationality"]))
     intervals = predictions.intervals
     if len(intervals):

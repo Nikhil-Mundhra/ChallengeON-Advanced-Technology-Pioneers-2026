@@ -89,7 +89,7 @@ Source workbooks are read from `01a - DCT Dataset/` (organizer-provided, not red
 | Panel | Command | Grain | Contract |
 | --- | --- | --- | --- |
 | `weekly_market_panel.parquet` | `twin build-panel` | Market × Monday–Sunday week × split; 3,507 rows, 39 columns, week starts 2022-12-26 to 2026-02-23 | Flights and guests matched by date and market before weekly aggregation; weeks crossing the train/test boundary are split, not merged; `is_complete_week`, `is_complete_guest_inputs` flags; `load_factor_raw` kept unclipped with `is_load_factor_outlier`, `load_factor` clipped to [0, 1] |
-| `daily_market_panel.parquet` (not committed) | `twin build-daily-panel [--max-lag K]` | Market × day, both splits; 31,920 rows (21 × 1,520) | Arrival lags `arrivals_lag_0..K` (default K = 21) built over the concatenated train + test series, so the first test days take lags from the last train days; `lag_complete` marks rows with a full lag window. Suppressed or absent nationality-day arrivals are linearly interpolated within each nationality's series into `new_arrivals_filled` (counts in `n_arrivals_interpolated`, `n_absent_records`); observed `new_arrivals` leaves them missing, so weekly sums of daily `guests` and `new_arrivals` equal the weekly panel exactly (tested) |
+| `daily_market_panel.parquet` (not committed) | `twin build-daily-panel [--max-lag K]` | Market × day, both splits; 31,920 rows (21 × 1,520) | Arrival lags `arrivals_lag_0..K` (default K = 21) built over the concatenated train + test series, so the first test days take lags from the last train days; `lag_complete` marks rows with a full lag window. A test-split nationality-day absent from the test file (the file keeps only rows with New Arrivals ≥ 10; 338 rows, mostly Finland, Norway, Denmark, Mexico, Azerbaijan) gets the nationality's mean training arrivals on days below 10 (4.5–6.1; 5.4 overall) and is counted in `n_arrivals_below_threshold`. Other suppressed or absent nationality-day arrivals are linearly interpolated within each nationality's series into `new_arrivals_filled` (counts in `n_arrivals_interpolated`, `n_absent_records`); observed `new_arrivals` leaves them missing, so weekly sums of daily `guests` and `new_arrivals` equal the weekly panel exactly (tested) |
 
 Markets: the top 15 nationalities by training guest volume, 5 regional clusters (`OTHER_EUROPE`, `OTHER_ASIA_PACIFIC`, `OTHER_MENA`, `OTHER_AMERICAS_AFRICA`, `OTHER_EURASIA`) and `DOMESTIC`. Both panels use the same SQL market mapping (`build_market_case`).
 
@@ -207,7 +207,7 @@ bounds = pred × exp(± z · sqrt(var(h))),   z = Φ⁻¹(0.9) for 80%
 
 `twin predict` fits it on 8 monthly origins (2024-07-01 to 2025-02-01) with a 7-month horizon, the length of the test period, and counts h from 2025-08-01. No month or bias factor.
 
-### 7.7 Nationality split (`nowcast/predict.py`)
+### 7.7 Nationality split (`nowcast/disaggregation.py`)
 
 A pooled market's prediction is split across its nationalities by share = (trailing 7-day new arrivals × the nationality's training guests ÷ new arrivals ratio), normalised per market and day. Splitting actual market guests over the last training year this way gives a nationality WMAPE of 14.0%, against 24.0% for shares of same-day arrivals. Nationality bounds add the split's log-error variance (s.d. 0.18–0.25 per pooled market, last 365 training days) to the market's.
 

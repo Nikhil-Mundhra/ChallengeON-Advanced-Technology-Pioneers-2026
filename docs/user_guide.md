@@ -19,7 +19,7 @@ Steps:
 1. Build the daily market panel in memory; fit the spec on every training day; predict each test market-day.
 2. With intervals: run the spec's rolling-origin back-test (8 monthly origins 2024-07-01 to 2025-02-01, 7-month horizon), fit the noise model on its errors, and add 80% bounds with the horizon counted from 2025-08-01.
 3. Split each pooled market (`OTHER_*` clusters) into nationalities: share = trailing 7-day new arrivals × the nationality's training guests ÷ new arrivals ratio, normalised within market and day. Nationality intervals add the split's own log-error variance (measured over the last 365 training days) to the market's.
-4. Validate, then write. If validation fails, nothing is written and the command exits with the list of problems. Checks: rows, keys, column order and source values equal the test workbooks; every `Guests` finite and > 0; interval rows and keys match; P10 ≤ P50 ≤ P90.
+4. Validate, then write. If validation fails, nothing is written and the command exits with the list of problems. Checks: rows, keys, column order and source values equal the test workbooks; every `Guests` finite and ≥ max(New Arrivals, 10) (the published rows keep Guests ≥ New Arrivals ≥ 10; predictions are floored there); interval rows and keys match; P10 ≤ P50 ≤ P90.
 
 | File | Rows | Columns |
 | :--- | :---: | :--- |
@@ -29,7 +29,7 @@ Steps:
 | `market_outputs.json` | — | Per-market weekly outputs (below) |
 | `test_predictions.png` | — | One panel per market: last 365 training days of actual guests, test predictions, 80% band |
 
-The CSVs are the test workbooks row for row with a `Guests` column appended. `Guests` is the model's median on the original scale (exp of the log prediction). The console prints the direction back-test accuracy, each written path and the row counts.
+The CSVs are the test workbooks row for row with a `Guests` column appended. `Guests` is the model's median on the original scale (exp of the log prediction), floored at max(New Arrivals, 10): every training row has Guests ≥ New Arrivals (59,668 rows, no exception) and Guests ≥ 10, and the test file keeps only rows with New Arrivals ≥ 10. The console prints the direction back-test accuracy, each written path and the row counts.
 
 ### 1.1 `market_outputs.json`
 

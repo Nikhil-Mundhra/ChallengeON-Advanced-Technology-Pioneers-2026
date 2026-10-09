@@ -10,6 +10,10 @@ Missing-value policy (per nationality-day, before aggregating to markets):
   features (new_arrivals_filled). Absent rows are not zero activity: Israel, a top-15 market, is
   absent for four days in Jan 2022. The observed sum (new_arrivals) still skips both, so weekly
   sums reconcile with the weekly panel. Both cases are counted per market-day.
+- Test-split row absent from the test file: the file keeps only rows with New Arrivals >= 10
+  (train keeps rows with Guests >= 10), so absence means fewer than 10 arrivals. Such rows get the
+  nationality's mean training arrivals on days below 10 (overall mean if it has none, about 5)
+  instead of an interpolation across the gap; flagged arrivals_below_threshold.
 - same_day_guests suppressed: left missing in the observed sum; counted.
 """
 
@@ -28,6 +32,8 @@ from tourism_twin.data.repository import LakeRepository
 from tourism_twin.domain.markets import TOP_15_INTERNATIONAL_MARKETS
 from tourism_twin.features import PANEL_FEATURES
 from tourism_twin.features.lags import DEFAULT_MAX_LAG
+
+PUBLICATION_MIN = 10  # test rows exist only where New Arrivals >= 10; train rows only where Guests >= 10
 
 # Derived columns of the daily panel, in output order (definitions live in tourism_twin.features).
 DAILY_FEATURES = [
@@ -65,8 +71,19 @@ def _fill_suppressed_arrivals(rows: pd.DataFrame) -> pd.DataFrame:
     series_key = rows["residence_group"] + "|" + rows["nationality"].fillna("")
     rows["new_arrivals_filled"] = interpolate_within_series(rows["new_arrivals"], series_key)
     rows["absent_record"] = ~present
+    rows["arrivals_below_threshold"] = ~present & (rows["dataset_split"] == "test")
+    rows.loc[rows["arrivals_below_threshold"], "new_arrivals_filled"] = _below_threshold_arrivals(rows).loc[rows["arrivals_below_threshold"]]
     rows["same_day_suppressed"] = present & rows["same_day_guests"].isna()
     return rows
+
+
+def _below_threshold_arrivals(rows: pd.DataFrame) -> pd.Series:
+    """Per row, the nationality's mean training arrivals on days below PUBLICATION_MIN (the overall
+    such mean for a nationality without any)."""
+    small = rows[(rows["dataset_split"] == "train") & (rows["new_arrivals"] < PUBLICATION_MIN)]
+    key = rows["residence_group"] + "|" + rows["nationality"].fillna("")
+    by_nationality = small["new_arrivals"].groupby(key.loc[small.index]).mean()
+    return key.map(by_nationality).fillna(small["new_arrivals"].mean())
 
 
 def build_nationality_rows(repository: Optional[LakeRepository] = None) -> pd.DataFrame:
@@ -93,6 +110,7 @@ def build_daily_panel(
             n_records=("date", "size"),
             n_absent_records=("absent_record", "sum"),
             n_arrivals_interpolated=("arrivals_interpolated", "sum"),
+            n_arrivals_below_threshold=("arrivals_below_threshold", "sum"),
             n_same_day_suppressed=("same_day_suppressed", "sum"),
         )
     )
