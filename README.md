@@ -88,7 +88,7 @@ src/tourism_twin/
 │   ├── composite.py, fitters.py, protocol.py   AdditiveLogModel; JointLinear, Backfitting; Model (fit/predict)
 │   └── backtest.py, noise.py                   harness (HoldoutSplit, RollingOrigin); interval model
 ├── nowcast/       daily competition model: specs (twin_daily), routing, baselines, predict (`twin predict`),
-│                  nationality disaggregation, outputs JSON, narration, same-day guests Poisson GLM
+│                  nationality disaggregation, outputs JSON, same-day guests Poisson GLM
 ├── planning/      weekly scenario model: structural chain, residual, conformal, Monte Carlo, tornado
 │                  sensitivity, simulator, briefing, training, weekly benchmark specs and evaluation
 ├── reporting/     scenario charts, test-prediction plot, solution PDF, schema & database PDF

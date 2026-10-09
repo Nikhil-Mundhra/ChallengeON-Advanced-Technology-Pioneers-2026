@@ -55,7 +55,7 @@ data/       ingest, validation, lake_writer, manifest, lake, repository, imputat
 models/     shared model kernel, no use case: protocol, components/ (base + one module per component),
             fitters, composite, backtest, noise
 nowcast/    daily competition model: specs, routing, baselines, predict, disaggregation, outputs,
-            narration, same_day
+            same_day
 planning/   weekly scenario model: structural, residual, calendar_features, conformal, uncertainty,
             sensitivity, simulator, briefing, training, evaluation, specs, baselines
 reporting/  charts, predictions_plot, solution_report, database_report/, palette, pdf_palette
@@ -111,7 +111,7 @@ cli/        the `twin` command
 - `make clean` removes only uncommitted generated files (figures, PDFs, `analytics.duckdb`, staging leftovers); it honours the same dir overrides.
 - Run `twin predict` with a scratch `TWIN_OUTPUT_DIR` when testing.
 - Never use a submission file unless `validate_predictions` returns no problems.
-- Narration and LLM text read `market_outputs.json` fields only and never compute numbers (`briefing.weekly_nowcast_summary`); add new numbers in `nowcast/outputs.py`.
+- Narration and LLM text read `market_outputs.json` fields only and never compute numbers; add new numbers in `nowcast/outputs.py`.
 - `residual_engine.pkl` must pickle a plain dict of scikit-learn estimators, never a project class (survives module moves).
 
 ## Change discipline

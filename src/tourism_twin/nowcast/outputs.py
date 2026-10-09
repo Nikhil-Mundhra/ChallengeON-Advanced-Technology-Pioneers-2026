@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
+from tourism_twin.features.calendar import week_monday
 from tourism_twin.models.noise import NoiseModel
 from tourism_twin.nowcast.predict import TestPredictions
 
@@ -34,11 +35,6 @@ ASSUMPTIONS = [
     "top_drivers are season and event effects as % of an average day; trend_vs_training_pct is the fitted slope "
     "relative to the training mean, extrapolated.",
 ]
-
-
-def _week_start(dates: pd.Series) -> pd.Series:
-    dates = pd.to_datetime(dates)
-    return (dates - pd.to_timedelta(dates.dt.dayofweek, unit="D")).dt.normalize()
 
 
 def _sign(values: pd.Series) -> pd.Series:
@@ -57,7 +53,7 @@ def weekly_forecast(market_daily: pd.DataFrame, phi: Mapping[str, float], covera
     market_daily: market, date, pred, lower, upper (daily `coverage` bounds); phi: daily error
     persistence per market (NoiseModel.phi_)."""
     z = norm.ppf(0.5 + coverage / 2)
-    frame = market_daily.assign(week_start=_week_start(market_daily["date"]),
+    frame = market_daily.assign(week_start=week_monday(market_daily["date"]),
                                 sd=np.log(market_daily["upper"] / market_daily["pred"]) / z).sort_values(["market", "date"])
     rows: List[Dict[str, Any]] = []
     for market, group in frame.groupby("market"):
@@ -91,7 +87,7 @@ def direction_backtest(backtest_predictions: pd.DataFrame, history: pd.DataFrame
     week's observed new arrivals, the same weeks a year earlier, and each market's most common
     training direction. Also the reliability of direction_prob and the weekly band coverage; the
     noise model is fitted on these same folds, so both are in-sample for the error model."""
-    by_week = history.assign(week_start=_week_start(history["date"])).groupby(["market", "week_start"])
+    by_week = history.assign(week_start=week_monday(history["date"])).groupby(["market", "week_start"])
     actual_weekly = by_week["guests"].agg(["sum", "size"])
     actual_weekly = actual_weekly[actual_weekly["size"] == 7]["sum"]
     arrivals_weekly = by_week["new_arrivals_filled"].sum()
@@ -100,7 +96,7 @@ def direction_backtest(backtest_predictions: pd.DataFrame, history: pd.DataFrame
         origin = group["origin"].iloc[0]
         daily = group.join(noise.intervals(group, coverage))
         weekly = weekly_forecast(daily, noise.phi_, coverage)
-        actual = (group.assign(week_start=_week_start(group["date"])).groupby(["market", "week_start"])["actual"]
+        actual = (group.assign(week_start=week_monday(group["date"])).groupby(["market", "week_start"])["actual"]
                   .agg(["sum", "size"]))
         weekly = weekly.join(actual, on=["market", "week_start"])
         weekly = weekly[weekly["size"] == 7].drop(columns="size").rename(columns={"sum": "actual"})
@@ -145,7 +141,7 @@ def build_outputs(predictions: TestPredictions, history: pd.DataFrame, spec: str
     if predictions.noise is None:
         raise ValueError("build_outputs needs predictions with intervals (a fitted noise model)")
     weekly = weekly_forecast(predictions.market_daily, predictions.noise.phi_, coverage)
-    actual_weekly = (history.assign(week_start=_week_start(history["date"]))
+    actual_weekly = (history.assign(week_start=week_monday(history["date"]))
                      .groupby(["market", "week_start"])["guests"].sum(min_count=7))
     explain = predictions.model.explain() if predictions.model is not None else {}
     markets: Dict[str, Any] = {}
@@ -195,7 +191,7 @@ def _attach_drivers(markets: Dict[str, Any], predictions: TestPredictions, top: 
     test = panel[panel["dataset_split"] == "test"]
     parts = model.decompose(test)
     parts = parts[[c for c in parts.columns if c not in LEVEL_COMPONENTS]]
-    parts = parts.assign(market=test["market"].to_numpy(), week_start=_week_start(test["date"]).to_numpy())
+    parts = parts.assign(market=test["market"].to_numpy(), week_start=week_monday(test["date"]).to_numpy())
     weekly = parts.groupby(["market", "week_start"]).mean()
     for market, detail in markets.items():
         for week in detail["weeks"]:

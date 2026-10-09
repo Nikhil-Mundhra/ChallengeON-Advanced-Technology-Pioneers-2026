@@ -206,11 +206,6 @@ def get_market_archetype(market_name: str) -> MarketArchetype:
     return MarketArchetype.EMERGING_SPARSE
 
 
-def get_archetype_profile(archetype: MarketArchetype) -> ArchetypeProfile:
-    """Return the profile for a given archetype."""
-    return ARCHETYPE_PROFILES[archetype]
-
-
 def get_cold_start_prior(country_name: str) -> ArchetypeProfile:
     """Return cold-start profile for an unmodeled country via hierarchical regional shrinkage."""
     arch = get_market_archetype(country_name)

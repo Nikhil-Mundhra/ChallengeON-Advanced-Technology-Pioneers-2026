@@ -17,7 +17,7 @@ from sklearn.linear_model import RidgeCV
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import SimulationResult
-from tourism_twin.planning.calendar_features import calendar_feature_matrix, extract_calendar_features
+from tourism_twin.planning.calendar_features import calendar_feature_matrix
 from tourism_twin.planning.structural import StructuralEngine
 
 class ResidualMLEngine:
@@ -69,30 +69,14 @@ class ResidualMLEngine:
 
         return self
 
-    def predict_residual(
-        self,
-        market: str,
-        iso_week: int,
-        quarter: int,
-        month: int,
-        is_holiday_week: int = 0,
-        is_major_event_week: int = 0,
-    ) -> float:
-        """Predict the calendar residual adjustment for a market and calendar period."""
-        m_norm = market.upper().strip()
-        if m_norm not in self.models:
-            return 0.0
-
-        x = extract_calendar_features(
-            iso_week=iso_week,
-            quarter=quarter,
-            month=month,
-            is_holiday_week=is_holiday_week,
-            is_major_event_week=is_major_event_week,
-        ).reshape(1, -1)
-
-        r_hat = float(self.models[m_norm].predict(x)[0])
-        return r_hat
+    def predict_residual(self, frame: pd.DataFrame) -> pd.Series:
+        """Calendar residual for each row of a frame with market and the CALENDAR_COLUMNS (0 for an
+        unmodelled market)."""
+        out = pd.Series(0.0, index=frame.index)
+        for market, rows in frame.groupby(frame["market"].str.upper().str.strip()):
+            if market in self.models:
+                out.loc[rows.index] = self.models[market].predict(calendar_feature_matrix(rows))
+        return out
 
     def season_residual(self, market: str, season: str) -> float:
         """Mean fitted residual over the market's training weeks in `season` (0 if none)."""

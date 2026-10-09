@@ -93,9 +93,5 @@ class LegacyHybrid:
 
     def predict(self, panel: pd.DataFrame) -> pd.Series:
         planning = self.structural_.planning_guests_for(panel)
-        residual = np.array([
-            self.residual_.predict_residual(m, w, q, mo, h, e)
-            for m, w, q, mo, h, e in zip(panel["market"], panel["iso_week"], panel["quarter"], panel["month"],
-                                         panel["is_holiday_week"], panel["is_major_event_week"])
-        ])
+        residual = self.residual_.predict_residual(panel).to_numpy()
         return pd.Series(np.maximum(0.0, planning + residual), index=panel.index)

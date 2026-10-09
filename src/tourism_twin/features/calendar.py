@@ -13,10 +13,15 @@ def _dates(frame: pd.DataFrame, anchor: str) -> pd.Series:
     return pd.to_datetime(frame[anchor])
 
 
+def week_monday(dates: pd.Series) -> pd.Series:
+    """Monday (midnight) of each date's week."""
+    dates = pd.to_datetime(dates)
+    return (dates - pd.to_timedelta(dates.dt.dayofweek, unit="D")).dt.normalize()
+
+
 def _week_start_keys(frame: pd.DataFrame, anchor: str) -> pd.Series:
     """Monday of the anchor's week, formatted like the keys in domain/events.py."""
-    dates = _dates(frame, anchor)
-    return (dates - pd.to_timedelta(dates.dt.dayofweek, unit="D")).dt.strftime("%Y-%m-%d")
+    return week_monday(_dates(frame, anchor)).dt.strftime("%Y-%m-%d")
 
 
 @PANEL_FEATURES.feature(Kind.CALENDAR, requires=["@anchor"])

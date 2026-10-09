@@ -8,48 +8,19 @@ import numpy as np
 from tourism_twin.domain.seasons import assign_season
 
 
-def extract_calendar_features(
-    iso_week: int,
-    quarter: int,
-    month: int,
-    is_holiday_week: int,
-    is_major_event_week: int,
-) -> np.ndarray:
-    """Extract regularized calendar and event features for a single observation."""
-    sin_w1 = np.sin(2.0 * np.pi * iso_week / 52.1775)
-    cos_w1 = np.cos(2.0 * np.pi * iso_week / 52.1775)
-    sin_w2 = np.sin(4.0 * np.pi * iso_week / 52.1775)
-    cos_w2 = np.cos(4.0 * np.pi * iso_week / 52.1775)
-
-    q1 = 1.0 if quarter == 1 else 0.0
-    q2 = 1.0 if quarter == 2 else 0.0
-    q3 = 1.0 if quarter == 3 else 0.0
-    q4 = 1.0 if quarter == 4 else 0.0
-
-    season = assign_season(month)
-    winter = 1.0 if season == "Winter_Peak" else 0.0
-    summer = 1.0 if season == "Summer_Trough" else 0.0
-
-    return np.array([
-        sin_w1,
-        cos_w1,
-        sin_w2,
-        cos_w2,
-        float(is_holiday_week),
-        float(is_major_event_week),
-        q1,
-        q2,
-        q3,
-        q4,
-        winter,
-        summer,
-    ], dtype=float)
-
-
 CALENDAR_COLUMNS = ("iso_week", "quarter", "month", "is_holiday_week", "is_major_event_week")
 
 
 def calendar_feature_matrix(frame) -> np.ndarray:
-    """extract_calendar_features for every row of `frame` (one row per observation)."""
-    columns = [frame[c].to_numpy() for c in CALENDAR_COLUMNS]
-    return np.stack([extract_calendar_features(*values) for values in zip(*columns)])
+    """Regularised calendar and event features, one row per observation: two week-of-year
+    harmonic pairs, holiday and major-event flags, quarter dummies, winter and summer flags."""
+    week = frame["iso_week"].to_numpy(dtype=float)
+    quarter = frame["quarter"].to_numpy()
+    season = np.array([assign_season(m) for m in frame["month"].to_numpy()])
+    return np.column_stack([
+        np.sin(2.0 * np.pi * week / 52.1775), np.cos(2.0 * np.pi * week / 52.1775),
+        np.sin(4.0 * np.pi * week / 52.1775), np.cos(4.0 * np.pi * week / 52.1775),
+        frame["is_holiday_week"].to_numpy(dtype=float), frame["is_major_event_week"].to_numpy(dtype=float),
+        *[(quarter == q).astype(float) for q in (1, 2, 3, 4)],
+        (season == "Winter_Peak").astype(float), (season == "Summer_Trough").astype(float),
+    ])

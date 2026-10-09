@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Iterable, List, Union
+from typing import Callable, Dict, List, Union
 
 import numpy as np
 import pandas as pd
@@ -124,13 +124,18 @@ def backtest(
     return BacktestResult(predictions, score(predictions), skipped, pd.DataFrame(fit_counts))
 
 
+def segment_of(markets: pd.Series) -> np.ndarray:
+    """Reporting segment of each market: "domestic" or "international" (never pooled)."""
+    return np.where(markets.to_numpy() == DOMESTIC, "domestic", "international")
+
+
 def score(predictions: pd.DataFrame) -> pd.DataFrame:
     """Metrics per fold, model and segment; an empty segment gets n=0 and no metrics."""
     rows = []
-    segments: Iterable = (("all", None), ("domestic", True), ("international", False))
     for (fold, model), group in predictions.groupby(["fold", "model"], sort=False):
-        for segment, domestic in segments:
-            part = group if domestic is None else group[(group["market"] == DOMESTIC) == domestic]
+        labels = segment_of(group["market"])
+        for segment in ("all", "domestic", "international"):
+            part = group if segment == "all" else group[labels == segment]
             metrics = forecast_metrics(part["actual"].to_numpy(), part["pred"].to_numpy()) if len(part) else {}
             rows.append({"fold": fold, "model": model, "segment": segment, "n": len(part), **metrics})
     return pd.DataFrame(rows)

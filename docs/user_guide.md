@@ -59,7 +59,6 @@ Season effects are relative to the training average, event effects to a day outs
 
 Stay fields are withheld for 7 of 21 markets (DOMESTIC, CHINA, EGYPT, INDIA, PHILIPPINES, OTHER_ASIA_PACIFIC, UNITED STATES OF AMERICA), whose base stock carries more than 25% of the training stock.
 
-`nowcast.narration.weekly_nowcast_summary(market, document["markets"][market], week)` formats one week of the document as a paragraph; it computes no numbers.
 
 ---
 

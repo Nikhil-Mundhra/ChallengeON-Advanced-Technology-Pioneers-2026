@@ -225,11 +225,10 @@ A pooled market's prediction is split across its nationalities by share = (trail
 | Trend vs training | Domestic slope contribution relative to the training mean, extrapolated |
 | Implied mean stay, short-stay share | Σ w_k and 1 − w₂ / w₀; withheld when the base stock carries more than 25% of the training stock (7 of 21 markets) |
 
-`nowcast/narration.weekly_nowcast_summary` formats one week of this document; it computes no numbers.
 
 ### 7.9 Same-day guests (`nowcast/same_day.py`)
 
-`SameDayPoisson`: one Poisson GLM per market on weekday, holiday week and log(1 + new arrivals); markets with fewer than 60 training days use their mean. A suppressed nationality value (`*`) counts as 0: no observed same-day value is 0, observed counts fall from 1 (6,814 rows) to 2 (5,179) to 3 (2,967), and suppressed days have lower arrivals (CHINA median 328 vs 501). `same_day_backtest` scores it on rolling origins. Not called by `twin predict` (the test workbooks contain `Same-Day Guests`).
+`SameDayPoisson`: one Poisson GLM per market on weekday, holiday week and log(1 + new arrivals); markets with fewer than 60 training days use their mean. A suppressed nationality value (`*`) counts as 0: no observed same-day value is 0, observed counts fall from 1 (6,814 rows) to 2 (5,179) to 3 (2,967), and suppressed days have lower arrivals (CHINA median 328 vs 501). `same_day_backtest` scores it on rolling origins (`scripts/same_day_backtest.py`). Not called by `twin predict` (the test workbooks contain `Same-Day Guests`).
 
 ## 8. Archetypes
 
