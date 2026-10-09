@@ -770,6 +770,23 @@ def test_waterfall_reconciles_exactly_for_every_market_and_season(twin, lever_na
                     assert getattr(result, part) == pytest.approx(0.0, abs=1e-5), (market, season, part)
 
 
+def test_scenario_residual_follows_the_scenario_season():
+    from tourism_twin.domain.scenario import SimulationResult
+    from tourism_twin.models.residual import ResidualMLEngine
+
+    class SummerFlag:  # residual = the is_summer calendar feature (last column)
+        def predict(self, x):
+            return x[:, -1]
+
+    engine = ResidualMLEngine()
+    engine.models = {"M": SummerFlag()}
+    assert engine.season_residual("M", "Summer_Trough") == 1.0
+    assert engine.season_residual("M", "Winter_Peak") == 0.0
+    zeros = {name: 0.0 for name in SimulationResult.__dataclass_fields__ if name not in ("market", "season", "is_cold_start")}
+    result = SimulationResult(market="M", season="Summer_Trough", is_cold_start=False, **zeros)
+    assert engine.predict_hybrid(result)["residual_correction"] == 1.0
+
+
 @pytest.mark.parametrize("market", ["UNITED KINGDOM", "GERMANY", "INDIA"])
 def test_route_closure_removes_all_aviation_demand(twin, market: str):
     result = twin.structural_engine.simulate(market, "Winter_Peak", ScenarioLever(market, delta_seats_pct=-1.0))

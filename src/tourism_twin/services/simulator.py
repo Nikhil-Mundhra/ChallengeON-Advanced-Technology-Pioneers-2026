@@ -72,11 +72,6 @@ class TourismDigitalTwin:
         season: str,
         lever: ScenarioLever,
         n_draws: int = 1500,
-        iso_week: int = 10,
-        quarter: int = 1,
-        month: int = 2,
-        is_holiday_week: int = 0,
-        is_major_event_week: int = 0,
     ) -> ScenarioReport:
         """Run complete end-to-end scenario evaluation."""
         market_norm = market.upper().strip()
@@ -86,14 +81,7 @@ class TourismDigitalTwin:
         struct_res = self.structural_engine.simulate(market_norm, season, lever)
 
         # 2. Residual correction & monotonicity validation
-        hybrid_res = self.residual_engine.predict_hybrid(
-            structural_result=struct_res,
-            iso_week=iso_week,
-            quarter=quarter,
-            month=month,
-            is_holiday_week=is_holiday_week,
-            is_major_event_week=is_major_event_week,
-        )
+        hybrid_res = self.residual_engine.predict_hybrid(struct_res)
 
         # 3. Uncertainty quantification
         unc_bands = self.uncertainty_engine.run_monte_carlo(

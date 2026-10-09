@@ -17,8 +17,12 @@ from sklearn.linear_model import RidgeCV
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import SimulationResult
+from tourism_twin.domain.seasons import assign_season
 from tourism_twin.models.features import calendar_feature_matrix, extract_calendar_features
 from tourism_twin.models.structural import StructuralEngine
+
+# ISO weeks 1-52 of a reference year with their Monday, the date the weekly panel anchors on.
+SEASON_REFERENCE_WEEKS = [(week, pd.Timestamp.fromisocalendar(2025, week, 1)) for week in range(1, 53)]
 
 
 class ResidualMLEngine:
@@ -90,24 +94,15 @@ class ResidualMLEngine:
         r_hat = float(self.models[m_norm].predict(x)[0])
         return r_hat
 
-    def predict_hybrid(
-        self,
-        structural_result: SimulationResult,
-        iso_week: int = 10,
-        quarter: int = 1,
-        month: int = 2,
-        is_holiday_week: int = 0,
-        is_major_event_week: int = 0,
-    ) -> Dict[str, float]:
-        """Combine structural simulation with residual correction."""
-        r_hat = self.predict_residual(
-            market=structural_result.market,
-            iso_week=iso_week,
-            quarter=quarter,
-            month=month,
-            is_holiday_week=is_holiday_week,
-            is_major_event_week=is_major_event_week,
-        )
+    def season_residual(self, market: str, season: str) -> float:
+        """Mean calendar residual over the season's ordinary weeks (ISO weeks 1-52 whose Monday
+        falls in one of the season's months, no holiday or major event)."""
+        weeks = [(week, monday.month) for week, monday in SEASON_REFERENCE_WEEKS if assign_season(monday.month) == season]
+        return float(np.mean([self.predict_residual(market, week, (month - 1) // 3 + 1, month) for week, month in weeks]))
+
+    def predict_hybrid(self, structural_result: SimulationResult) -> Dict[str, float]:
+        """Combine a structural simulation with the residual correction for its market and season."""
+        r_hat = self.season_residual(structural_result.market, structural_result.season)
 
         base_hybrid = max(0.0, structural_result.base_guests + r_hat)
         sim_hybrid = max(0.0, structural_result.sim_guests + r_hat)
