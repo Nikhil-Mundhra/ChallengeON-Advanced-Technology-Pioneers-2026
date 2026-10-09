@@ -23,6 +23,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin evaluate` | Weekly benchmarks through the back-test harness → `evaluation_results.json` (run before `train`, which reads its coverage) | lake |
 | `twin predict [--spec S] [--no-intervals]` | Daily nowcast of the test split (default spec `twin_daily`); refuses output failing `validate_predictions` | output (`predictions/`) |
 | `twin ablate-blocks` | Nowcast block ablation on 13 rolling origins (~10 min) | output (`nowcast_block_ablation.json`) |
+| `twin evaluate-model [--spec S \| --model P] --start D --end D [--frozen-test]` | Fit a spec up to `--start` minus a 21-day gap (or load a saved model) and score it on the window without refitting → `evaluations/*.json`; refuses the frozen test window without `--frozen-test` | output (`models/`, `evaluations/`) |
 | `twin simulate --market M --season S [levers]` | Print a scenario briefing | — |
 | `twin charts` | Waterfall, tornado, benchmark figures | output |
 | `twin report {solution,database}` | PDF report (needs `report` extra) | output |
@@ -55,7 +56,7 @@ features/   registry + ratios, flags, calendar, lags (imports domain only)
 data/       ingest, validation, lake_writer, manifest, lake, repository, imputation, panel, daily_panel
 models/     shared model kernel, no use case: protocol, registry (component/fitter names), spec (ModelSpec),
             handler (DataHandler, RowRule), weighting, components/ (base + one module per component),
-            linear_solve, fitters, composite, backtest, noise
+            linear_solve, fitters, composite, backtest, evaluate, noise
 nowcast/    daily competition model: specs, routing, baselines, predict (orchestration),
             disaggregation, submission (floor, workbook files, validation), weekly, outputs,
             evaluation, same_day
@@ -104,6 +105,7 @@ cli/        the `twin` command
 - Kernel weights, their sum and guests ÷ arrivals ratios are fitting quantities: never output, export or label them as length of stay; label the planning factor L "guests-per-arrival factor".
 - Nowcast specs are per series (`docs/model_design.md` §4.6): the arrivals kernel owns the level; DOMESTIC adds a centred slope and no events; INTERNATIONAL has events and no slope.
 - Before changing a nowcast model, reproduce the reference evaluation in `docs/model_design.md` §5.7 and compare with its expected values.
+- Score a fitted model on later data only through `models/evaluate.evaluate_fitted` (no refitting); compare model choices with `models/backtest.compare` on `VALIDATION_ORIGINS`; score `FROZEN_TEST` once, after every choice is final.
 - Compare models only through `models/backtest.backtest` with `RollingOrigin`/`HoldoutSplit`; pass `period_days=7` for weekly panels (else look-ahead leakage).
 - Never rank `DIAGNOSTIC_SPECS` with forecast specs; they read realized test-period data.
 - Judge event components only on back-test folds that contain their windows Decide specs on rolling origins, not on the two reference folds alone.
