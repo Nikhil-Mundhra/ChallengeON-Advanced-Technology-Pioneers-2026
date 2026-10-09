@@ -177,6 +177,7 @@ The two tables are not comparable: the nowcast uses the predicted period's new a
 | :--- | :--- |
 | `output/predictions/domestic_test_guests.csv`, `international_test_guests.csv` | `twin predict` (test workbooks row for row + `Guests`) |
 | `output/predictions/test_guests_intervals.csv` | `twin predict` (P10/P50/P90; not written with `--no-intervals`, nor is `market_outputs.json`) |
+| `output/predictions/test_total_guests.csv` | `twin predict` (daily total guests with its own P10/P90) |
 | `output/predictions/market_outputs.json`, `test_predictions.png` | `twin predict` |
 | `output/figures/{waterfall_attribution,tornado_sensitivity,model_benchmark}.png` | `twin charts` |
 | `output/pdf/challengeon_solution_report.pdf` | `twin report solution` |

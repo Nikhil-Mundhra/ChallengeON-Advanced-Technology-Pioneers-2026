@@ -28,6 +28,7 @@ from tourism_twin.nowcast.specs import DAILY_SPECS
 DOMESTIC_TEST_FILE = "data domestic_test.xlsx"
 INTERNATIONAL_TEST_FILE = "data international_test.xlsx"
 NOISE_ORIGINS = RollingOrigin("2024-07-01", "2025-02-01", horizon_months=7)  # test horizon is 7 months
+TOTAL = "TOTAL"  # domestic + international guests, with its own error series in the noise model
 
 
 @dataclass
@@ -38,7 +39,8 @@ class TestPredictions:
     market_daily: pd.DataFrame    # market, date, pred, lower, upper (before disaggregation)
     model: object = None          # the fitted spec (for decomposition and explain())
     backtest_predictions: pd.DataFrame = None  # the interval back-test's predictions (None without intervals)
-    noise: Optional[NoiseModel] = None         # fitted on backtest_predictions (None without intervals)
+    noise: Optional[NoiseModel] = None         # fitted on backtest_predictions plus their TOTAL series
+    total: pd.DataFrame = None    # date, pred, lower, upper: daily total guests over all markets
 
 
 def predict_test_split(
@@ -52,14 +54,19 @@ def predict_test_split(
     model = DAILY_SPECS[spec]().fit(train)
     market = test[["market", "date"]].assign(pred=model.predict(test))
     market["horizon_days"] = (market["date"] - market["date"].min()).dt.days
+    total = total_series(market)
     backtest_predictions, noise = None, None
     if with_intervals:
         backtest_predictions = backtest({spec: DAILY_SPECS[spec]}, panel, NOISE_ORIGINS).predictions
-        noise = NoiseModel().fit(backtest_predictions)
+        # The total's errors are correlated across markets (shared calendar shocks), so its
+        # interval comes from the back-test errors of the summed series, not from adding bounds.
+        noise = NoiseModel().fit(pd.concat([backtest_predictions, total_series(backtest_predictions)], ignore_index=True))
         market = market.join(noise.intervals(market, coverage))
+        total = total.join(noise.intervals(total, coverage))
     else:
         market = market.assign(lower=np.nan, upper=np.nan)
-    market = market.drop(columns=["horizon_days"])
+        total = total.assign(lower=np.nan, upper=np.nan)
+    market, total = market.drop(columns=["horizon_days"]), total.drop(columns=["horizon_days", "market"])
 
     rows = build_nationality_rows(repository)
     rows["share"] = split_shares(rows)
@@ -90,7 +97,14 @@ def predict_test_split(
     if not with_intervals:
         intervals = intervals.iloc[0:0]
     return TestPredictions(domestic.drop(columns=["_lower", "_upper"]), international.drop(columns=["_lower", "_upper"]),
-                           intervals, market, model, backtest_predictions, noise)
+                           intervals, market, model, backtest_predictions, noise, total)
+
+
+def total_series(predictions: pd.DataFrame) -> pd.DataFrame:
+    """Predictions summed over markets per day (and per fold for back-test rows), as market TOTAL."""
+    keys = [c for c in ("fold", "origin", "model", "date", "horizon_days") if c in predictions.columns]
+    values = [c for c in ("pred", "actual") if c in predictions.columns]
+    return predictions.groupby(keys, as_index=False)[values].sum().assign(market=TOTAL)
 
 
 def guest_floor(new_arrivals: pd.Series) -> pd.Series:

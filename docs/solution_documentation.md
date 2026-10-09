@@ -207,6 +207,8 @@ bounds = pred × exp(± z · sqrt(var(h))),   z = Φ⁻¹(0.9) for 80%
 
 `twin predict` fits it on 8 monthly origins (2024-07-01 to 2025-02-01) with a 7-month horizon, the length of the test period, and counts h from 2025-08-01. No month or bias factor.
 
+**Sums.** The interval of a sum over days (a week, any date range) uses the AR(1) covariance of the daily log errors, cov(eᵢ, eⱼ) = φ^|hᵢ−hⱼ| · var(min(hᵢ, hⱼ)), with the sum's log error the prediction-weighted mean of the daily ones (`NoiseModel.range_interval`). The daily total over all markets (`test_total_guests.csv`) has its own error series, `TOTAL`, fitted on the back-test predictions summed per fold and day, because errors are correlated across markets. Its 80% interval covers 80.9% of back-test days (leave one origin out) and 79.4% (±3 months excluded); adding the 21 markets' bounds instead covers 98.7%.
+
 ### 7.7 Nationality split (`nowcast/disaggregation.py`)
 
 A pooled market's prediction is split across its nationalities by share = (trailing 7-day new arrivals × the nationality's training guests ÷ new arrivals ratio), normalised per market and day. Splitting actual market guests over the last training year this way gives a nationality WMAPE of 14.0%, against 24.0% for shares of same-day arrivals. Nationality bounds add the split's log-error variance (s.d. 0.18–0.25 per pooled market, last 365 training days) to the market's.

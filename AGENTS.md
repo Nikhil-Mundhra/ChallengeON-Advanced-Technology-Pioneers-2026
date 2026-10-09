@@ -30,7 +30,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin query "SQL" [--database P] [--limit N]` | Read-only SQL on `analytics.duckdb` | — |
 
 - `twin query` and `twin report database` need `lake/analytics.duckdb` (gitignored; built by `twin build-lake`).
-- `twin predict` needs the raw test workbooks; it writes `{domestic,international}_test_guests.csv`, `test_guests_intervals.csv` and `market_outputs.json` (neither with `--no-intervals`), `test_predictions.png`.
+- `twin predict` needs the raw test workbooks; it writes `{domestic,international}_test_guests.csv`, `test_total_guests.csv`, `test_guests_intervals.csv` and `market_outputs.json` (neither with `--no-intervals`), `test_predictions.png`.
 - Makefile targets: `install`, `lake`, `panel` (weekly + daily), `evaluate`, `train`, `charts`, `report` (solution), `test`, `all` (lake → panel → evaluate → train → charts → report → test), `clean`.
 
 ## Tests
@@ -99,6 +99,7 @@ cli/        the `twin` command
 - Encode categoricals one-hot, season as Fourier terms, continuous inputs in log, lunar holidays from explicit dates.
 - Tune hyperparameters on validation folds with time-ordered splits only, never on the reported folds; compute calibration statistics (z-scores, conformal margins, σ) from training folds only.
 - Fit interval models (`models/noise.NoiseModel`) on out-of-sample back-test errors only.
+- Interval for a sum (a week, a date range, a total over markets): use `NoiseModel.range_interval` or the summed series' own back-test errors; never add bounds.
 - Report domestic and international separately. Ship a component only if it lowers rolling-origin WMAPE by ≥ 0.3 pp on both; among variants within 0.2 pp of the best, keep the simplest. `ResidualGBM` failed, keep it out of `twin_daily`.
 - Add event occurrences to `domain/events.csv` (with `scope`); `kind=one_off` rows are masked from training via `is_one_off_period`.
 - Never derive legacy `HOLIDAY_WEEKS` / `MAJOR_EVENT_WEEKS` from `events.csv`; that moves shipped weekly results.

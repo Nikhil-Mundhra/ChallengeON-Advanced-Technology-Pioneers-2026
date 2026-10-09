@@ -69,6 +69,26 @@ class NoiseModel:
         stationary = np.where(phi < 1, sigma ** 2 / (1 - phi ** 2), np.inf)
         return v0 * decay + stationary * (1 - decay)
 
+    def covariance(self, market: str, horizon: np.ndarray) -> np.ndarray:
+        """AR(1) covariance of the log errors at the given horizons of one market:
+        cov(e_i, e_j) = phi^|h_i - h_j| * var(min(h_i, h_j))."""
+        h = np.asarray(horizon, dtype=float)
+        var = self.variance(pd.Series([market] * len(h)), pd.Series(h))
+        earlier = np.minimum.outer(h, h)
+        var_earlier = np.interp(earlier, h[np.argsort(h)], var[np.argsort(h)])
+        return self.phi_[market] ** np.abs(np.subtract.outer(h, h)) * var_earlier
+
+    def range_interval(self, market: str, horizon: np.ndarray, pred: np.ndarray, coverage: float = 0.8) -> tuple:
+        """Bounds of the central `coverage` interval for the SUM of `pred` over a set of days (e.g.
+        a week or a 14-day range): the sum's log error is the prediction-weighted mean of the daily
+        log errors, with their AR(1) covariance (summing daily bounds would assume perfect
+        correlation)."""
+        pred = np.asarray(pred, dtype=float)
+        weights = pred / pred.sum()
+        sd = float(np.sqrt(weights @ self.covariance(market, horizon) @ weights))
+        z = norm.ppf(0.5 + coverage / 2)
+        return pred.sum() * np.exp(-z * sd), pred.sum() * np.exp(z * sd)
+
     def intervals(self, frame: pd.DataFrame, coverage: float = 0.8) -> pd.DataFrame:
         """Bounds of the central `coverage` interval around frame["pred"]; frame needs market,
         horizon_days (0 = first forecast day) and pred columns."""

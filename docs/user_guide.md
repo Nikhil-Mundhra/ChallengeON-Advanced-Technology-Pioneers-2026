@@ -26,6 +26,7 @@ Steps:
 | `domestic_test_guests.csv` | 212 | `Date`, `New Arrivals`, `Same-Day Guests`, `Residence (groups)`, `Guests` |
 | `international_test_guests.csv` | 9,202 | `Date`, `New Arrivals`, `Same-Day Guests`, `Nationality`, `Residence (groups)`, `Guests` |
 | `test_guests_intervals.csv` | 9,414 | `Date`, `Nationality` (empty for domestic), `Residence (groups)`, `Guests_p10`, `Guests_p50`, `Guests_p90`; international rows first, then domestic. `Guests_p50` equals `Guests`. Not written with `--no-intervals` |
+| `test_total_guests.csv` | 212 | `Date`, `Guests_total` (domestic + international), `Guests_total_p10`, `Guests_total_p90`: the total's own 80% interval from the back-test errors of the summed series (empty bounds with `--no-intervals`) |
 | `market_outputs.json` | — | Per-market weekly outputs (below) |
 | `test_predictions.png` | — | One panel per market: last 365 training days of actual guests, test predictions, 80% band |
 

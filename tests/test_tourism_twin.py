@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from scipy.stats import norm
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.data.panel import build_weekly_panel
@@ -600,6 +601,15 @@ def test_noise_model_recovers_ar1_errors_and_widens_with_the_horizon():
     assert width[0] < width[1] < width[2] and width[2] == pytest.approx(width[1], rel=0.1)
     with pytest.raises(ValueError, match="non-positive or non-finite"):
         NoiseModel().fit(_ar1_backtest(0.8, 0.05).assign(actual=0.0))
+    # A range total (e.g. 14 days) uses the AR(1) covariance: wider than one day's relative band,
+    # narrower than adding the daily bounds (which assumes perfectly correlated days).
+    days = np.arange(30.0, 44.0)
+    covariance = model.covariance("UNITED KINGDOM", days)
+    lower, upper = model.range_interval("UNITED KINGDOM", days, np.full(14, 1000.0))
+    z = norm.ppf(0.9)
+    assert np.log(upper / 14000) == pytest.approx(z * np.sqrt(covariance.mean()))  # equal weights 1/14
+    daily = model.intervals(pd.DataFrame({"market": "UNITED KINGDOM", "horizon_days": days, "pred": 1000.0}))
+    assert upper - 14000 < daily["upper"].sum() - 14000
 
 
 def test_held_out_coverage_is_close_to_nominal_and_ignores_the_held_out_fold():
@@ -707,11 +717,14 @@ def test_test_days_missing_from_the_file_get_below_threshold_arrivals():
 
 def test_weekly_outputs_keep_full_weeks_and_give_a_direction_probability():
     from tourism_twin.nowcast.outputs import weekly_forecast
+    from tourism_twin.nowcast.predict import total_series
 
     dates = pd.date_range("2025-08-04", periods=17, freq="D")  # two full Monday weeks + 3 days
     pred = np.where(dates < "2025-08-11", 100.0, 120.0)
     daily = pd.DataFrame({"market": "M", "date": dates, "pred": pred, "lower": pred * 0.9, "upper": pred * 1.1})
     weekly = weekly_forecast(daily, {"M": 0.9})
+    total = total_series(pd.concat([daily, daily.assign(market="N", pred=daily["pred"] * 2)]))
+    assert (total["market"] == "TOTAL").all() and total["pred"].tolist() == (daily["pred"] * 3).tolist()
     assert list(weekly["week_start"].dt.strftime("%Y-%m-%d")) == ["2025-08-04", "2025-08-11"]
     assert weekly["forecast"].tolist() == [700.0, 840.0]
     assert weekly["direction"].iloc[0] == "increase" and weekly["direction_prob"].iloc[0] > 0.9

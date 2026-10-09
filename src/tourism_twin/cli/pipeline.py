@@ -203,6 +203,8 @@ def predict(args: argparse.Namespace) -> None:
     if len(predictions.intervals):
         paths["intervals"] = out / "test_guests_intervals.csv"
         predictions.intervals.to_csv(paths["intervals"], index=False)
+    paths["total"] = out / "test_total_guests.csv"
+    predictions.total.rename(columns={"date": "Date", "pred": "Guests_total", "lower": "Guests_total_p10", "upper": "Guests_total_p90"}).to_csv(paths["total"], index=False)
     panel = build_daily_panel()
     train = panel[panel["dataset_split"] == "train"]
     plot = plot_test_predictions(train, predictions.market_daily, out / "test_predictions.png")
