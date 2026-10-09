@@ -289,6 +289,8 @@ Findings:
 
 ### 9.3 Daily nowcast
 
+**Validation (issue #11 protocol).** Origins monthly 2024-02-01..2024-08-01, horizon up to 6 months ending by 2025-01-31, 21-day gap, expanding window; WAPE % of daily segment totals, mean over 7 folds, domestic / international: `naive_364` 16.91 / 22.97; `arrivals_ratio` 17.93 / 8.86; `time_only` 10.10 / 10.68; `flow_only` 9.55 / 5.44; `flow_time` 4.18 / 4.42; `twin_daily` 4.18 / 4.59. Market grain (`compare`, 90% moving-block bootstrap): `twin_daily` − `naive_364` −12.71 pp [−15.45, −10.43] domestic, −18.42 [−19.98, −16.87] international; removing events +0.37 [+0.11, +0.67] international; all 7/7 folds. The frozen test 2025-02..2025-07 has been scored once, for #16 only.
+
 **Design** (exploratory under issue #11: these origins overlap the frozen test 2025-02..2025-07). `RollingOrigin`: 8 monthly origins, 2024-07-01 to 2025-02-01; each fold trains on days before its origin and tests the next 6 months (folds overlap in calendar time). A fresh model is fitted per fold (`models/backtest.py`). WMAPE is computed per fold over the market-days of each segment (domestic; the 20 international markets), then averaged over folds. A component stays only if it lowers WMAPE by ≥ 0.3 pp on both segments.
 
 | Spec | Domestic WMAPE | International WMAPE |

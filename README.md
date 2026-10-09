@@ -115,18 +115,20 @@ Model parts:
 
 ## 3. Results
 
-### 3.1 Daily nowcast (rolling-origin back-test)
+### 3.1 Daily nowcast (validation, issue #11 protocol)
 
-8 monthly origins (2024-07-01 to 2025-02-01), 6-month horizon, model refitted before each origin. Mean fold WMAPE:
+Validation origins: monthly 2024-02-01 to 2024-08-01, horizon up to 6 months ending by 2025-01-31, training ending 21 days before each origin (expanding window). The frozen test (2025-02-01 to 2025-07-31) is scored once, after all choices. Grain: WAPE % of **daily segment totals**, mean over the 7 folds.
 
 | Spec | Domestic | International |
 | :--- | :---: | :---: |
-| `naive_364` (same weekday 364 days earlier) | 20.4% | 26.6% |
-| `arrivals_ratio` (arrivals × training guests / arrivals) | 15.9% | 19.2% |
-| **`twin_daily`** | **6.2%** | **9.4%** |
-| `twin_daily_gbm` (+ residual GBM; not shipped) | 6.2% | 9.1% |
+| `naive_364` (same weekday 364 days earlier) | 16.91% | 22.97% |
+| `arrivals_ratio` (arrivals × training guests / arrivals) | 17.93% | 8.86% |
+| `time_only` (level + season + weekday + events, no arrivals) | 10.10% | 10.68% |
+| `flow_only` (arrivals kernel alone) | 9.55% | 5.44% |
+| `flow_time` (kernel + calendar, no events) | 4.18% | 4.42% |
+| **`twin_daily`** (shipped) | **4.18%** | **4.59%** |
 
-80% interval coverage of `twin_daily`: 81.4% with each origin's intervals fitted on the other origins; 79.2% when origins within ±3 months are also excluded. Week-to-week direction accuracy (1,154 market-weeks, a nowcast given observed arrivals): 87.2% vs 83.4% for the direction of new arrivals and 63.1% for last year's direction. Details: [solution documentation §9.3](docs/solution_documentation.md#93-daily-nowcast).
+At market grain (row-level, `models/backtest.compare`, 90% moving-block bootstrap), `twin_daily` beats `naive_364` by 12.71 pp [10.43, 15.45] (domestic) and 18.42 pp [16.87, 19.98] (international), 7/7 folds; removing the events costs international markets 0.37 pp [0.11, 0.67], 7/7 folds. On segment totals events partly cancel across markets, hence `flow_time` ≤ `twin_daily` for the international total. Nationality grain (#16): pooled-market nationalities predicted by `POOLED_NATIONALITIES`, international nationality WAPE 12.24% vs 12.79% for the arrival-share split on validation, frozen test 11.16% vs 11.38%. Earlier 8-origin figures overlap the frozen test and are exploratory ([solution documentation §9.3](docs/solution_documentation.md#93-daily-nowcast)).
 
 ### 3.2 Weekly planning model (forward holdout)
 
