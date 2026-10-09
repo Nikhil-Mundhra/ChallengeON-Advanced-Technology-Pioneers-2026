@@ -325,7 +325,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 81%
 
 ## 10. Tests
 
-105 tests: 81 in `tests/test_tourism_twin.py` (lake grain contract, feature registry, weekly and daily panel contracts, daily-to-weekly reconciliation, synthetic recovery for every model component, event registry, back-test harness leakage and parity with `evaluation_results.json`, noise model, prediction validator, outputs document, same-day GLM, waterfall identity, route closure, domestic decoupling, monotonicity, cold start, deterministic uncertainty, API validation) and 24 in `tests/test_audit_agent.py`. On a fresh clone 104 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022` needs `flight_monthly.parquet` from `twin build-lake`). Details: [user guide §10](user_guide.md#10-tests).
+76 tests: 52 in `tests/test_tourism_twin.py` (lake, feature registry, panels and their reconciliation, synthetic recovery for every model component, event registry, back-test harness leakage and parity with `evaluation_results.json`, noise model, architecture layering, prediction validator and outputs, same-day GLM, scenario invariants) and 24 in `tests/test_audit_agent.py`; all pass on a fresh clone. Details: [user guide §10](user_guide.md#10-tests).
 
 ## 11. Limitations
 

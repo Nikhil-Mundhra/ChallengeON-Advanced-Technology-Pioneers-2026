@@ -35,9 +35,10 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 ## Tests
 
 - Run `.venv/bin/pytest -q` (or `make test`). If you report counts, run pytest and quote its actual output.
-- `test_monthly_flights_are_isolated_to_2022` skips when `lake/curated/flight_monthly.parquet` is not built (it is not committed).
 - Product suite is one file: `tests/test_tourism_twin.py`; shared fixtures in `tests/conftest.py`. Audit-tool tests: `tests/test_audit_agent.py`.
-- Add product tests to `test_tourism_twin.py` in the matching pipeline-order section: domain, lake, feature registry, panels, model components, back-test harness, competition predictions, simulator, API. Never create a new product test file.
+- Add product tests to `test_tourism_twin.py` in the matching pipeline-order section: lake, feature registry, panels, model components, back-test harness, competition predictions, simulator. Never create a new product test file.
+- Test behaviour: known-answer recovery, leakage, reconciliation, invariants, regressions. Do not test constants, registry membership, constructor errors or message text.
+- Extend an existing test that already builds the same objects before adding a new one; a new test must fail on the code it guards (check by breaking it).
 - `test_benchmarks_through_the_harness_reproduce_the_committed_evaluation` pins `evaluation_results.json`; a diff there is a metric change.
 
 ## Layout and layering

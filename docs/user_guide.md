@@ -228,30 +228,22 @@ Results are in the [README](../README.md#32-weekly-planning-model-forward-holdou
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-105 tests: 81 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`. On a fresh clone 104 pass and 1 skips (`test_monthly_flights_are_isolated_to_2022`, until `twin build-lake` creates `flight_monthly.parquet`). The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required. The raw workbooks are not required either: `twin predict` itself is not run by the tests.
+76 tests: 52 in `tests/test_tourism_twin.py` (fixtures in `tests/conftest.py`), 24 in `tests/test_audit_agent.py`; all pass on a fresh clone. The daily panel is built in memory by the fixture, so `daily_market_panel.parquet` is not required. The prediction-validator test needs the raw test workbooks; `twin predict` itself is not run by the tests.
 
-Product checks in `tests/test_tourism_twin.py`:
+Product checks in `tests/test_tourism_twin.py`, by section:
 
-| Test | Asserts |
+| Section | Asserts |
 | :--- | :--- |
-| `test_lake_tables_keep_their_grain_contract` | `flight_daily` is daily from 2023-01-01; `guest_daily` has 69,920 rows and its flag columns |
-| `test_registry_*` (2) | Feature registry resolves dependencies first, computes each once, rejects missing inputs, cycles, duplicate names |
-| `test_weekly_panel_contract` | Exactly the 21 markets; unique (week, market, split); load factor > 1 kept in `load_factor_raw` and flagged, `load_factor` ≤ 1 |
-| `test_weekly_panel_rebuilds_from_the_lake_exactly` | Rebuilding the weekly panel from the curated Parquet equals the committed panel |
-| `test_daily_panel_contract`, `test_daily_lags_cross_the_train_test_boundary`, `test_daily_panel_sums_to_the_weekly_panel` | Lag completeness, lags continue across the train→test boundary, weekly sums of daily guests and arrivals equal the weekly panel |
-| `test_waterfall_reconciles_exactly_for_every_market_and_season` | For every calibrated market + `SWEDEN`, every season, 6 lever sets: waterfall sum = lift within 1e-9; zero levers give zero lift |
-| `test_a_served_route_that_converts_nobody_*`, `test_scenario_residual_is_the_mean_fit_*`, `test_waterfall_guard_is_relative_*` | Planning and simulation share one arrivals rule; the scenario residual is the mean fit over the season's training weeks; the waterfall check is relative for 1e7-guest scenarios |
-| `test_route_closure_removes_all_aviation_demand` | `delta_seats_pct=-1` zeroes seats through guests; all lift attributed to seats |
-| `test_domestic_ignores_aviation_levers` | Domestic seats stay 0; only multiplier and LOS move guests |
-| `test_added_capacity_never_lowers_demand` | +2 flights gives structural lift ≥ 0 and hybrid lift ≥ 0 for 5 markets |
-| `test_cold_start_*` (2) | `SWEDEN`, `BRAZIL`, `NORWAY`, `PAKISTAN` resolve to archetype priors with positive guests; tornado works for cold start |
-| `test_uncertainty_is_deterministic` | Identical inputs give identical Monte Carlo bands |
-| `test_api_validates_season_and_exposes_the_hybrid_model` | API returns 400 on an invalid season and hybrid fields on success |
-| Model components (`test_joint_linear_*`, `test_backfitting_*`, `test_composite_*`, `test_annual_fourier_*`, `test_day_of_week_*`, `test_local_level_*`, `test_arrivals_convolution_*` (3), `test_event_kernel_*`, `test_residual_gbm_*`) | Each component recovers a known synthetic truth; backfitting converges to the joint solution; one level owner; invalid inputs raise; w₀ ≤ 1 holds when it binds; base stock flat beyond the training days; level extrapolates flat |
-| Event registry (`test_event_registry_*`, `test_one_off_periods_*`, `test_event_offsets_*`) | Golden event dates; registry covers the test period; one-off shock masked from training |
-| Harness (`test_rolling_origin_*`, `test_weekly_rows_straddling_an_origin_never_train`, `test_harness_rejects_*`, `test_oracle_diagnostics_*`, `test_benchmarks_through_the_harness_*`) | No fold trains on the future; misindexed or missing predictions raise; `realized_chain` is not ranked; the harness reproduces the committed `evaluation_results.json` |
-| Noise model (`test_noise_*`, `test_held_out_coverage_*`) | AR(1) recovery; closed-form variance at h = 0, 1, 2; a fold's own errors never set its own bounds |
-| Outputs (`test_prediction_validator_*`, `test_weekly_outputs_*`, `test_direction_backtest_*`, `test_stay_outputs_*`, `test_narration_*`, `test_same_day_poisson_*`, `test_suppressed_same_day_*`, `test_poisson_deviance_*`) | The validator accepts mirrored files and flags bad ones; full weeks only with a direction probability; the direction back-test scores each week once against its baselines; stay fields are withheld when the base stock dominates; the briefing only formats the document; the same-day GLM recovers a weekday effect; suppressed same-day values count as 0; Poisson deviance matches its closed form |
+| Lake | `flight_daily` is daily from 2023-01-01 (monthly flights only in 2022 when built); `guest_daily` has 69,920 rows and its flag columns |
+| Feature registry | Dependencies resolve first and once; missing inputs and cycles raise |
+| Panels | Exactly 21 markets, unique keys, load factor capped and flagged; the weekly panel rebuilds from the lake exactly; daily lags continue across the train→test boundary; weekly sums of daily guests and arrivals equal the weekly panel |
+| Model components | Each component recovers a known synthetic truth; backfitting matches the joint solution and never raises the penalised objective; the kernel's log gradient matches finite differences and it beats its raw-scale warm start; w₀ ≤ 1 holds when it binds; the knot base is flat beyond training; an arrivals-proportional base follows a 0.55× shock; invalid inputs that would give silent nonsense raise |
+| Event registry | Golden dates; windows do not overlap; Ramadan and Eid al-Fitr never share a day; the one-off 2022 shock is masked |
+| Back-test harness | No fold trains on the future (daily and weekly rows); segment metrics; misindexed or missing predictions raise; skipped folds reported; the harness reproduces `evaluation_results.json` |
+| Noise model | AR(1) recovery and its closed-form variance; a fold's own errors never set its own bounds |
+| Architecture | `nowcast` and `planning` never import each other; packages import only lower layers (any import form); no row loops in model packages |
+| Competition predictions | The validator accepts mirrored files and flags bad ones (including Guests below max(New Arrivals, 10)); absent test days get below-threshold arrivals; full weeks with an AR(1)-based direction probability; the direction back-test scores each week once against its baselines; stay fields withheld when the base stock dominates; the same-day GLM recovers a weekday effect and reads `*` as 0 |
+| Simulator | Waterfall = lift within 1e-9 for every calibrated market + `SWEDEN`, season and 6 lever sets, and relatively for 1e7-guest scenarios; route closure, domestic decoupling, added capacity never lowers demand, cold-start priors and tornado, deterministic Monte Carlo; planning and simulation share one arrivals rule; the scenario residual is the season's mean fit |
 
 ---
 

@@ -48,7 +48,7 @@ twin report database                                # schema & database PDF (nee
 
 Every command is also available as `python -m tourism_twin <command>`; `twin <command> --help` lists options.
 
-**Tests:** 105 tests (81 in `tests/test_tourism_twin.py`, 24 in `tests/test_audit_agent.py`). On a fresh clone 104 pass and 1 skips: `test_monthly_flights_are_isolated_to_2022` needs `lake/curated/flight_monthly.parquet`, which `twin build-lake` creates and which is not committed.
+**Tests:** 76 tests (52 in `tests/test_tourism_twin.py`, 24 in `tests/test_audit_agent.py`); all pass on a fresh clone.
 
 ### Configuration
 

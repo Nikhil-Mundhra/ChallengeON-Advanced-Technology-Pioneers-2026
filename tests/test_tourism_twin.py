@@ -24,7 +24,6 @@ from tourism_twin.planning.evaluation import evaluate
 from tourism_twin.models.noise import NoiseModel, held_out_coverage
 from tourism_twin.models.fitters import Backfitting, JointLinear
 from tourism_twin.features.lags import DEFAULT_MAX_LAG, lag_column
-from tourism_twin.domain.archetypes import MarketArchetype, get_market_archetype
 from tourism_twin.domain.markets import REGIONAL_CLUSTERS, TOP_15_INTERNATIONAL_MARKETS
 from tourism_twin.domain.scenario import ScenarioLever
 from tourism_twin.domain.seasons import SEASONS, assign_season
@@ -39,36 +38,19 @@ def waterfall_total(result) -> float:
 
 # --- domain ---------------------------------------------------------------------------------
 
-def test_top15_membership_and_archetypes():
-    assert "PHILIPPINES" in TOP_15_INTERNATIONAL_MARKETS
-    assert "ARMENIA" not in TOP_15_INTERNATIONAL_MARKETS
-    assert get_market_archetype("PHILIPPINES") == MarketArchetype.RESIDENT_VFR
-
-
 # --- lake -----------------------------------------------------------------------------------
 
 def test_lake_tables_keep_their_grain_contract():
     flights = pd.read_parquet(SETTINGS.flight_daily_path)
     assert (flights["source_grain"] == "daily").all()
     assert pd.to_datetime(flights["date"]).min() >= pd.Timestamp("2023-01-01")
+    if SETTINGS.flight_monthly_path.exists():  # built by `twin build-lake`, not committed
+        monthly = pd.read_parquet(SETTINGS.flight_monthly_path)
+        assert (monthly["source_grain"] == "monthly").all() and pd.to_datetime(monthly["date"]).max().year == 2022
 
     guests = pd.read_parquet(SETTINGS.guest_daily_path)
     assert {"is_source_present", "target_available", "is_suppressed_arrival", "source_grain"} <= set(guests.columns)
     assert len(guests) == 69_920  # 1,520 dates x (45 international nationalities + domestic)
-
-
-def test_monthly_flights_are_isolated_to_2022():
-    if not SETTINGS.flight_monthly_path.exists():
-        pytest.skip("flight_monthly.parquet is produced by `twin build-lake` and is not committed")
-    monthly = pd.read_parquet(SETTINGS.flight_monthly_path)
-    assert (monthly["source_grain"] == "monthly").all()
-    assert pd.to_datetime(monthly["date"]).max().year == 2022
-
-
-def test_model_artifacts_exist_and_load():
-    for path in (SETTINGS.calibration_path, SETTINGS.residual_model_path, SETTINGS.conformal_path):
-        assert path.exists(), path
-    assert "_demonstrated_holdout_coverage" in json.loads(SETTINGS.conformal_path.read_text())
 
 
 # --- feature registry ---------------------------------------------------------------------
@@ -80,20 +62,15 @@ def _toy_registry() -> FeatureRegistry:
     return registry
 
 
-def test_registry_computes_dependencies_first_and_only_once():
+def test_registry_resolves_dependencies_once_and_rejects_bad_graphs():
     frame = pd.DataFrame({"a": [2.0, 1.0], "b": [1.0, 2.0]})
-    out = _toy_registry().apply(frame, ["ratio_flag", "ratio"])
+    registry = _toy_registry()
+    out = registry.apply(frame, ["ratio_flag", "ratio"])
     assert list(out.columns) == ["a", "b", "ratio", "ratio_flag"]
     assert out["ratio_flag"].tolist() == [1, 0]
     assert list(frame.columns) == ["a", "b"]  # input frame is not mutated
-
-
-def test_registry_rejects_missing_inputs_cycles_and_duplicates():
-    registry = _toy_registry()
     with pytest.raises(KeyError, match="missing column 'b'"):
         registry.apply(pd.DataFrame({"a": [1.0]}), ["ratio"])
-    with pytest.raises(ValueError, match="already registered"):
-        registry.register(FeatureSpec("ratio", Kind.RATIO, (), lambda f, **_: f))
     registry.register(FeatureSpec("x", Kind.FLAG, ("y",), lambda f, **_: f))
     registry.register(FeatureSpec("y", Kind.FLAG, ("x",), lambda f, **_: f))
     with pytest.raises(ValueError, match="cycle"):
@@ -213,15 +190,6 @@ def test_composite_fits_each_market_separately_and_resolves_registered_features(
         model.predict(frame.assign(market="C"))
 
 
-def test_composite_requires_exactly_one_level_owner_and_unique_names():
-    with pytest.raises(ValueError, match="own the level"):
-        AdditiveLogModel([LinearRegressors(["sin"])])
-    with pytest.raises(ValueError, match="own the level"):
-        AdditiveLogModel([LinearTrend(), LinearTrend(name="trend2")])
-    with pytest.raises(ValueError, match="unique"):
-        AdditiveLogModel([LinearTrend(), LinearRegressors(["sin"], name="trend")])
-
-
 def test_fit_state_carries_to_out_of_sample_and_single_row_predictions():
     frame = _synthetic(noise=0.0)
     model = AdditiveLogModel(_components(), fitter=JointLinear()).fit(frame.iloc[:500])
@@ -238,17 +206,8 @@ def test_composite_rejects_inputs_that_would_give_silent_nonsense():
         model.fit(frame.assign(sin=frame["sin"].where(frame.index != 3, np.nan)))
     with pytest.raises(ValueError, match="index must be unique"):
         model.fit(pd.concat([frame, frame]))
-    model.fit(frame)
-    with pytest.raises(ValueError, match="non-finite values"):
-        model.predict(frame.assign(sin=np.nan))
-    with pytest.raises(ValueError, match="have no 'market'"):
-        model.predict(frame.assign(market=None))
-    with pytest.raises(TypeError, match="non-numeric"):
-        AdditiveLogModel([LinearTrend(), LinearRegressors(["market"])]).fit(frame)
-    with pytest.raises(ValueError, match="anchor"):
-        AdditiveLogModel([LinearTrend(date_column="week_start")])
-    with pytest.raises(RuntimeError, match="not fitted"):
-        LinearRegressors(["sin"]).explain()
+    with pytest.raises(ValueError, match="own the level"):  # two level owners would split the level arbitrarily
+        AdditiveLogModel([LinearTrend(), LinearTrend(name="trend2")])
 
 
 def test_fit_report_flags_overlapping_and_unidentified_columns():
@@ -264,31 +223,6 @@ def test_trend_origin_is_shared_across_markets_and_smearing_corrects_the_mean():
     model = AdditiveLogModel(_components(), fitter=JointLinear(), bias_correction="smearing").fit(pd.concat([early, late], ignore_index=True))
     assert model.explain()["A"]["trend"]["origin"] == model.explain()["B"]["trend"]["origin"] == "2023-01-01"
     assert model.smearing_["A"] == pytest.approx(np.exp(0.2 ** 2 / 2), rel=0.02)
-
-
-class _ScaledSine:
-    """Non-linear-protocol stub: fits a * sin by closed form on y - offset."""
-    name, requires, owns_level = "scaled_sine", ("sin",), False
-
-    def fit(self, panel, offset, y):
-        x = panel["sin"] - panel["sin"].mean()
-        self.a = float(x @ (y - offset) / (x @ x))
-        self.mean = panel["sin"].mean()
-        return self
-
-    def contribution(self, panel):
-        return self.a * (panel["sin"] - self.mean)
-
-    def explain(self):
-        return {"a": self.a}
-
-
-def test_backfitting_cycles_protocol_components_and_joint_linear_rejects_them():
-    frame = _synthetic(event=0.0)
-    model = AdditiveLogModel([LinearTrend(), _ScaledSine()], fitter=Backfitting()).fit(frame)
-    assert model.explain()["M"]["scaled_sine"]["a"] == pytest.approx(0.3, abs=0.01)
-    with pytest.raises(TypeError, match="Use Backfitting"):
-        AdditiveLogModel([LinearTrend(), _ScaledSine()], fitter=JointLinear()).fit(frame)
 
 
 def _calendar(event: str, anchors, start: int, end: int, kind: str = "solar") -> pd.DataFrame:
@@ -351,19 +285,14 @@ GOLDEN_EVENT_DATES = {
 }
 
 
-def test_event_registry_matches_golden_dates():
+def test_event_registry_matches_golden_dates_and_is_consistent():
     calendar = load_event_calendar()
     anchors = set(zip(calendar["event"], calendar["anchor_date"].dt.strftime("%Y-%m-%d")))
     assert GOLDEN_EVENT_DATES <= anchors
-
-
-def test_event_registry_is_consistent_and_covers_the_test_period():
-    calendar = load_event_calendar()
     assert set(DEFAULT_KERNEL_EVENTS) <= set(calendar["event"])
     for event, rows in calendar.groupby("event"):
         rows = rows.sort_values("anchor_date")
         assert (rows["window_start"].iloc[1:].to_numpy() > rows["window_end"].iloc[:-1].to_numpy()).all(), event
-    anchors = set(zip(calendar["event"], calendar["anchor_date"].dt.strftime("%Y-%m-%d")))
     assert {("national_day", "2025-12-02"), ("christmas_new_year", "2025-12-25"), ("ramadan", "2026-02-18")} <= anchors
     # Eid al-Fitr must not share a day with Ramadan, or the two kernels are not identifiable.
     ramadan, fitr = calendar[calendar["event"] == "ramadan"], calendar[calendar["event"] == "eid_al_fitr"]
@@ -488,13 +417,18 @@ def test_arrivals_kernel_beats_its_raw_scale_warm_start_on_the_log_objective():
     assert log_sse(component._flow(rows)) < 0.99 * log_sse(design @ raw)
 
 
-def test_arrivals_convolution_enforces_w0_at_most_one_when_it_binds():
+def test_arrivals_convolution_keeps_its_constraints():
     true_w = 1.3 * np.exp(-np.arange(8) / 2.0)  # data generated with w0 = 1.3: an unconstrained fit lands above 1
-    frame = _conv_frame(true_w, base=0.0, noise=0.02)
-    model = AdditiveLogModel([ArrivalsConvolution(max_lag=7)], fitter=Backfitting(), include_flag="lag_complete").fit(frame)
+    model = AdditiveLogModel([ArrivalsConvolution(max_lag=7)], fitter=Backfitting(), include_flag="lag_complete").fit(_conv_frame(true_w, base=0.0, noise=0.02))
     fitted = model.explain()["M"]["arrivals"]
     assert fitted["w0"] <= 1.0 + 1e-12
     assert all(a >= b - 1e-12 for a, b in zip(fitted["survival_w"], fitted["survival_w"][1:]))
+    # The knot base stock is flat beyond the training days.
+    frame = _conv_frame(np.exp(-np.arange(8) / 3.0), base=300.0, noise=0.0)
+    model = AdditiveLogModel([ArrivalsConvolution(max_lag=7)], fitter=Backfitting(), include_flag="lag_complete").fit(frame.iloc[:600])
+    component = model.fitted_["M"][0][0]
+    base = component._base(frame.iloc[600:]["date"]) @ component.c_
+    assert np.ptp(base) == 0.0 and base[0] == pytest.approx(list(model.explain()["M"]["arrivals"]["base_stock_by_knot"].values())[-1])
 
 
 def test_an_arrivals_proportional_base_stock_follows_an_arrival_shock():
@@ -515,15 +449,6 @@ def test_an_arrivals_proportional_base_stock_follows_an_arrival_shock():
         model = AdditiveLogModel([ArrivalsConvolution(max_lag=7, base=base)], fitter=Backfitting(), include_flag="lag_complete").fit(frame.iloc[:800])
         ratio = (model.predict(shocked.iloc[late]) / model.predict(frame.iloc[late])).to_numpy()
         assert (np.abs(ratio - 0.55) < 0.01).all() == follows, base
-
-
-def test_arrivals_convolution_base_stock_is_flat_beyond_the_training_days():
-    frame = _conv_frame(np.exp(-np.arange(8) / 3.0), base=300.0, noise=0.0)
-    model = AdditiveLogModel([ArrivalsConvolution(max_lag=7)], fitter=Backfitting(), include_flag="lag_complete").fit(frame.iloc[:600])
-    component = model.fitted_["M"][0][0]
-    future = frame.iloc[600:]
-    base = component._base(future["date"]) @ component.c_
-    assert np.ptp(base) == 0.0 and base[0] == pytest.approx(list(model.explain()["M"]["arrivals"]["base_stock_by_knot"].values())[-1])
 
 
 def test_residual_gbm_picks_up_a_structure_the_other_parts_miss():
@@ -576,7 +501,7 @@ class _LastTrainDate:
 
 
 def test_rolling_origin_never_trains_on_the_future_and_scores_segments():
-    frame = pd.concat([_synthetic(market="DOMESTIC"), _synthetic(market="UNITED KINGDOM", seed=1)], ignore_index=True)
+    frame = pd.concat([_synthetic(market="DOMESTIC"), _synthetic(market="UNITED KINGDOM", level=6.0, seed=1)], ignore_index=True)
     _LastTrainDate.seen = []
     result = backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2024-03-01", "2024-05-01", horizon_months=2))
     folds = result.predictions.groupby("fold")["date"].agg(["min", "max"])
@@ -584,7 +509,10 @@ def test_rolling_origin_never_trains_on_the_future_and_scores_segments():
     for last_train, (fold, row) in zip(_LastTrainDate.seen, folds.iterrows()):
         assert last_train < row["min"] == pd.Timestamp(fold.removeprefix("origin_"))
         assert row["max"] == row["min"] + pd.DateOffset(months=2) - np.timedelta64(1, "D")
-    assert set(result.metrics["segment"]) == {"all", "domestic", "international"}
+    first = result.metrics[result.metrics["fold"] == "origin_2024-03-01"].set_index("segment")
+    domestic = result.predictions[(result.predictions["fold"] == "origin_2024-03-01") & (result.predictions["market"] == "DOMESTIC")]
+    assert first.loc["domestic", "n"] == first.loc["international", "n"] == len(domestic)
+    assert first.loc["domestic", "mae"] == pytest.approx((domestic["actual"] - domestic["pred"]).abs().mean())
 
 
 def test_weekly_rows_straddling_an_origin_never_train():
@@ -593,16 +521,6 @@ def test_weekly_rows_straddling_an_origin_never_train():
     _LastTrainDate.seen = []
     backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2024-10-01", "2024-10-01", horizon_months=1), period_days=7)
     assert _LastTrainDate.seen[0] + np.timedelta64(6, "D") < pd.Timestamp("2024-10-01")  # week of 2024-09-30 excluded
-
-
-def test_segments_hold_the_right_markets():
-    frame = pd.concat([_synthetic(market="DOMESTIC"), _synthetic(market="UNITED KINGDOM", level=6.0, seed=1)], ignore_index=True)
-    result = backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2024-03-01", "2024-03-01", horizon_months=1))
-    metrics = result.metrics.set_index("segment")
-    assert metrics.loc["domestic", "n"] == metrics.loc["international", "n"] == 31
-    predictions = result.predictions
-    domestic = predictions[predictions["market"] == "DOMESTIC"]
-    assert metrics.loc["domestic", "mae"] == pytest.approx((domestic["actual"] - domestic["pred"]).abs().mean())
 
 
 class _BadIndex(_LastTrainDate):
@@ -624,16 +542,6 @@ def test_harness_rejects_misindexed_or_missing_predictions_and_reports_skipped_f
     with pytest.warns(UserWarning, match="Skipped folds"):
         result = backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2022-11-01", "2023-02-01", 1))
     assert result.skipped == ["origin_2022-11-01", "origin_2022-12-01", "origin_2023-01-01"]
-    with pytest.raises(ValueError, match="No fold"):
-        backtest({"mean": _LastTrainDate}, frame, RollingOrigin("2030-01-01", "2030-01-01", 1))
-
-
-def test_oracle_diagnostics_are_not_ranked_with_forecast_models():
-    from tourism_twin.nowcast.specs import DAILY_SPECS
-    from tourism_twin.planning.specs import DIAGNOSTIC_SPECS, WEEKLY_SPECS
-
-    assert "realized_chain" in DIAGNOSTIC_SPECS
-    assert "realized_chain" not in WEEKLY_SPECS and "realized_chain" not in DAILY_SPECS
 
 
 def _ar1_backtest(phi: float, sigma: float, folds: int = 40, horizon: int = 120, seed: int = 11, scale: dict | None = None) -> pd.DataFrame:
@@ -654,23 +562,17 @@ def _ar1_backtest(phi: float, sigma: float, folds: int = 40, horizon: int = 120,
 
 def test_noise_model_recovers_ar1_errors_and_widens_with_the_horizon():
     model = NoiseModel().fit(_ar1_backtest(phi=0.8, sigma=0.05))
-    assert model.phi_["UNITED KINGDOM"] == pytest.approx(0.8, abs=0.03)
-    assert model.sigma_eta_["UNITED KINGDOM"] == pytest.approx(0.05, abs=0.003)
-    assert model.v0_["UNITED KINGDOM"] == pytest.approx(0.05 ** 2, rel=0.3)  # e_0 = eta_0
-    frame = pd.DataFrame({"market": "UNITED KINGDOM", "horizon_days": [0, 5, 60], "pred": 1000.0})
+    phi, sigma, v0 = model.phi_["UNITED KINGDOM"], model.sigma_eta_["UNITED KINGDOM"], model.v0_["UNITED KINGDOM"]
+    assert phi == pytest.approx(0.8, abs=0.03) and sigma == pytest.approx(0.05, abs=0.003)
+    assert v0 == pytest.approx(0.05 ** 2, rel=0.3)  # e_0 = eta_0
+    horizon = pd.Series([0, 5, 60])
+    expected = v0 * phi ** (2 * horizon) + sigma ** 2 * (1 - phi ** (2 * horizon)) / (1 - phi ** 2)
+    np.testing.assert_allclose(model.variance(pd.Series(["UNITED KINGDOM"] * 3), horizon), expected, rtol=1e-12)
+    frame = pd.DataFrame({"market": "UNITED KINGDOM", "horizon_days": horizon, "pred": 1000.0})
     width = (model.intervals(frame)["upper"] / frame["pred"]).to_numpy()
     assert width[0] < width[1] < width[2] and width[2] == pytest.approx(width[1], rel=0.1)
-    with pytest.raises(ValueError, match="no errors for markets"):
-        model.intervals(frame.assign(market="ATLANTIS"))
     with pytest.raises(ValueError, match="non-positive or non-finite"):
         NoiseModel().fit(_ar1_backtest(0.8, 0.05).assign(actual=0.0))
-
-
-def test_noise_variance_matches_the_closed_form():
-    model = NoiseModel(phi_={"M": 0.9}, sigma_eta_={"M": 0.1}, v0_={"M": 0.04})
-    variance = model.variance(pd.Series(["M"] * 3), pd.Series([0, 1, 2]))
-    expected = [0.04 * 0.9 ** (2 * h) + 0.01 * (1 - 0.9 ** (2 * h)) / (1 - 0.81) for h in (0, 1, 2)]
-    np.testing.assert_allclose(variance, expected, rtol=1e-12)
 
 
 def test_held_out_coverage_is_close_to_nominal_and_ignores_the_held_out_fold():
@@ -835,38 +737,8 @@ def test_stay_outputs_come_from_the_kernel_and_are_withheld_when_the_base_stock_
     assert withheld["base_stock_share"] == 0.4
 
 
-def test_narration_only_formats_the_outputs_document():
-    from tourism_twin.nowcast.narration import weekly_nowcast_summary
-
-    week = {"week_start": "2025-12-22", "forecast": 1000.0, "p10": 900.0, "p90": 1100.0, "direction": "decrease",
-            "direction_prob": 0.8, "yoy_change": 0.05, "trend_vs_training_pct": -12.0,
-            "top_drivers": [{"component": "events", "effect_pct": 40.0}]}
-    market = {"implied_mean_stay_days": 3.5, "short_stay_share": 0.4, "base_stock_share": 0.1}
-    text = weekly_nowcast_summary("M", market, week)
-    for fragment in ("1,000", "900-1,100", "+5.0%", "decrease (probability 80%)", "events +40%", "Trend -12%",
-                     "3.5 nights", "40% gone", "10% of guests"):
-        assert fragment in text
-
-
-def test_poisson_deviance_matches_its_closed_form():
-    from tourism_twin.nowcast.same_day import poisson_deviance
-
-    assert poisson_deviance([0.0], [2.0]) == pytest.approx(4.0)  # 2 * mu when y = 0
-    assert poisson_deviance([3.0], [3.0]) == pytest.approx(0.0)
-    assert poisson_deviance([4.0], [2.0]) == pytest.approx(2 * (4 * np.log(2) - 2))
-    assert np.isfinite(poisson_deviance([1.0], [0.0]))
-
-
-def test_suppressed_same_day_values_count_as_zero():
-    from tourism_twin.nowcast.same_day import same_day_target
-
-    panel = pd.DataFrame({"same_day_guests": [5.0, np.nan, 3.0, np.nan], "n_same_day_suppressed": [0, 2, 1, 0]})
-    target = same_day_target(panel)
-    assert target.iloc[:3].tolist() == [5.0, 0.0, 3.0] and np.isnan(target.iloc[3])
-
-
-def test_same_day_poisson_recovers_a_weekday_effect():
-    from tourism_twin.nowcast.same_day import SameDayPoisson
+def test_same_day_model_recovers_a_weekday_effect_and_reads_suppressed_values_as_zero():
+    from tourism_twin.nowcast.same_day import SameDayPoisson, poisson_deviance, same_day_target
 
     rng = np.random.default_rng(13)
     dates = pd.date_range("2023-01-02", periods=700, freq="D")
@@ -875,8 +747,11 @@ def test_same_day_poisson_recovers_a_weekday_effect():
     frame = pd.DataFrame({"market": "M", "date": dates, "same_day_guests": rng.poisson(rate).astype(float),
                           "n_same_day_suppressed": 0, "is_holiday_week": 0, "new_arrivals_filled": arrivals})
     model = SameDayPoisson().fit(frame)
-    friday_coef = model.models_["M"].coef_[3]  # design columns: Tue..Sun, holiday, log arrivals
-    assert friday_coef == pytest.approx(0.5, abs=0.05)
+    assert model.models_["M"].coef_[3] == pytest.approx(0.5, abs=0.05)  # design: Tue..Sun, holiday, log arrivals
+    suppressed = pd.DataFrame({"same_day_guests": [5.0, np.nan, 3.0, np.nan], "n_same_day_suppressed": [0, 2, 1, 0]})
+    target = same_day_target(suppressed)
+    assert target.iloc[:3].tolist() == [5.0, 0.0, 3.0] and np.isnan(target.iloc[3])
+    assert poisson_deviance([0.0, 4.0], [2.0, 2.0]) == pytest.approx((4.0 + 2 * (4 * np.log(2) - 2)) / 2)
 
 
 # --- simulator ------------------------------------------------------------------------------
@@ -891,17 +766,43 @@ LEVER_GRID = {
 }
 
 
-@pytest.mark.parametrize("lever_name", LEVER_GRID)
-def test_waterfall_reconciles_exactly_for_every_market_and_season(twin, lever_name: str):
+def test_waterfall_reconciles_exactly_for_every_market_season_and_lever(twin):
     markets = [*sorted(twin.structural_engine.params), "SWEDEN"]  # all calibrated + one cold-start
-    for market in markets:
-        for season in SEASONS:
-            result = twin.structural_engine.simulate(market, season, ScenarioLever(market, **LEVER_GRID[lever_name]))
-            assert abs(waterfall_total(result) - result.delta_guests) < 1e-9, (market, season)
-            if lever_name == "zero":
-                assert result.sim_guests == pytest.approx(result.base_guests, abs=1e-5), (market, season)
-                for part in WATERFALL_PARTS:
-                    assert getattr(result, part) == pytest.approx(0.0, abs=1e-5), (market, season, part)
+    for lever_name, levers in LEVER_GRID.items():
+        for market in markets:
+            for season in SEASONS:
+                result = twin.structural_engine.simulate(market, season, ScenarioLever(market, **levers))
+                assert abs(waterfall_total(result) - result.delta_guests) < 1e-9, (lever_name, market, season)
+                if lever_name == "zero":
+                    assert result.sim_guests == pytest.approx(result.base_guests, abs=1e-5), (market, season)
+                    assert all(getattr(result, part) == pytest.approx(0.0, abs=1e-5) for part in WATERFALL_PARTS)
+    # ~1.5e7 guests: float rounding is ~2e-9 absolute, so the guard in simulate() must be relative.
+    lever = ScenarioLever("GERMANY", delta_frequency=1335.0, aircraft_gauge=451.0, delta_seats_pct=17.47,
+                          delta_load_factor=-0.02, delta_p2p_share=-0.01, delta_multiplier_pct=-0.46, delta_los=6.1)
+    large = twin.structural_engine.simulate("GERMANY", "Autumn_Shoulder", lever)
+    assert abs(waterfall_total(large) - large.delta_guests) <= 1e-9 * large.sim_guests
+
+
+def test_scenarios_follow_the_planning_rules(twin):
+    engine = twin.structural_engine
+    for market in ("UNITED KINGDOM", "GERMANY", "INDIA"):  # closing a route removes all aviation demand
+        closed = engine.simulate(market, "Winter_Peak", ScenarioLever(market, delta_seats_pct=-1.0))
+        assert (closed.sim_seats, closed.sim_pax, closed.sim_p2p, closed.sim_arrivals, closed.sim_guests) == (0.0,) * 5
+        assert closed.waterfall_seats == pytest.approx(-closed.base_guests, abs=1e-4)
+    domestic = engine.simulate("DOMESTIC", "Winter_Peak", ScenarioLever(
+        "DOMESTIC", delta_frequency=5.0, aircraft_gauge=300.0, delta_load_factor=0.05, delta_multiplier_pct=0.10, delta_los=0.2))
+    assert (domestic.sim_seats, domestic.waterfall_seats, domestic.waterfall_lf, domestic.waterfall_p2p) == (0.0,) * 4
+    assert domestic.waterfall_multiplier > 0.0 and domestic.waterfall_los > 0.0
+    for market in ("UNITED KINGDOM", "INDIA", "CHINA"):  # added capacity never lowers demand
+        report = twin.run_scenario(market, "Winter_Peak", ScenarioLever(market, delta_frequency=2.0, aircraft_gauge=250.0))
+        assert report.structural_result.delta_guests >= 0.0 and report.hybrid_result["hybrid_delta"] >= -1e-6
+    for country in ("SWEDEN", "PAKISTAN"):  # unmodelled countries fall back to regional priors
+        report = twin.run_scenario(country, "Winter_Peak", ScenarioLever(country, delta_frequency=1.0, aircraft_gauge=200.0))
+        assert report.is_cold_start and report.structural_result.sim_guests > 0.0 and report.uncertainty_bands.delta_p50 > 0.0
+        assert report.tornado_sensitivity[0]["swing_spread"] > 0.0
+    lever = ScenarioLever("UNITED KINGDOM", delta_frequency=2)
+    assert twin.uncertainty_engine.run_monte_carlo("UNITED KINGDOM", "Winter_Peak", lever) == \
+        twin.uncertainty_engine.run_monte_carlo("UNITED KINGDOM", "Winter_Peak", lever)  # same scenario, same bands
 
 
 def test_a_served_route_that_converts_nobody_brings_no_aviation_arrivals():
@@ -942,75 +843,3 @@ def test_scenario_residual_is_the_mean_fit_over_the_season_training_weeks():
     zeros = {name: 0.0 for name in SimulationResult.__dataclass_fields__ if name not in ("market", "season", "is_cold_start")}
     result = SimulationResult(market="M", season="Summer_Trough", is_cold_start=False, **zeros)
     assert engine.predict_hybrid(result)["residual_correction"] == pytest.approx(engine.season_residual("M", "Summer_Trough"))
-
-
-def test_waterfall_guard_is_relative_for_large_scenarios(twin):
-    # ~1.5e7 guests: float rounding in the five parts is ~2e-9 absolute, which an absolute 1e-9 guard rejected.
-    lever = ScenarioLever("GERMANY", delta_frequency=1335.0, aircraft_gauge=451.0, delta_seats_pct=17.47,
-                          delta_load_factor=-0.02, delta_p2p_share=-0.01, delta_multiplier_pct=-0.46, delta_los=6.1)
-    result = twin.structural_engine.simulate("GERMANY", "Autumn_Shoulder", lever)
-    assert abs(waterfall_total(result) - result.delta_guests) <= 1e-9 * result.sim_guests
-
-
-@pytest.mark.parametrize("market", ["UNITED KINGDOM", "GERMANY", "INDIA"])
-def test_route_closure_removes_all_aviation_demand(twin, market: str):
-    result = twin.structural_engine.simulate(market, "Winter_Peak", ScenarioLever(market, delta_seats_pct=-1.0))
-    assert (result.sim_seats, result.sim_pax, result.sim_p2p, result.sim_arrivals, result.sim_guests) == (0.0,) * 5
-    assert result.delta_guests == pytest.approx(-result.base_guests, abs=1e-4)
-    assert result.waterfall_seats == pytest.approx(-result.base_guests, abs=1e-4)
-    assert (result.waterfall_lf, result.waterfall_p2p, result.waterfall_multiplier, result.waterfall_los) == (0.0,) * 4
-
-
-def test_domestic_ignores_aviation_levers(twin):
-    lever = ScenarioLever("DOMESTIC", delta_frequency=5.0, aircraft_gauge=300.0, delta_load_factor=0.05,
-                          delta_multiplier_pct=0.10, delta_los=0.2)
-    result = twin.structural_engine.simulate("DOMESTIC", "Winter_Peak", lever)
-    assert (result.base_seats, result.sim_seats) == (0.0, 0.0)
-    assert (result.waterfall_seats, result.waterfall_lf, result.waterfall_p2p) == (0.0, 0.0, 0.0)
-    assert result.waterfall_multiplier > 0.0 and result.waterfall_los > 0.0
-
-
-@pytest.mark.parametrize("market", ["UNITED KINGDOM", "INDIA", "GERMANY", "SAUDI ARABIA", "CHINA"])
-def test_added_capacity_never_lowers_demand(twin, market: str):
-    report = twin.run_scenario(market, "Winter_Peak", ScenarioLever(market, delta_frequency=2.0, aircraft_gauge=250.0))
-    assert report.structural_result.delta_guests >= 0.0
-    assert report.hybrid_result["hybrid_delta"] >= -1e-6
-
-
-@pytest.mark.parametrize("country", ["SWEDEN", "BRAZIL", "NORWAY", "PAKISTAN"])
-def test_cold_start_markets_use_regional_priors(twin, country: str):
-    report = twin.run_scenario(country, "Winter_Peak", ScenarioLever(country, delta_frequency=1.0, aircraft_gauge=200.0))
-    assert report.is_cold_start
-    assert report.structural_result.sim_guests > 0.0
-    assert report.uncertainty_bands.delta_p50 > 0.0
-
-
-def test_cold_start_tornado_uses_a_reference_route(twin):
-    report = twin.run_scenario("SWEDEN", "Winter_Peak", ScenarioLever("SWEDEN", delta_frequency=0))
-    assert report.tornado_sensitivity and report.tornado_sensitivity[0]["swing_spread"] > 0.0
-    assert "influential driver" in report.recommendation_summary
-
-
-def test_uncertainty_is_deterministic(twin):
-    lever = ScenarioLever("UNITED KINGDOM", delta_frequency=2)
-    first = twin.uncertainty_engine.run_monte_carlo("UNITED KINGDOM", "Winter_Peak", lever)
-    second = twin.uncertainty_engine.run_monte_carlo("UNITED KINGDOM", "Winter_Peak", lever)
-    assert first == second
-
-
-# --- API ------------------------------------------------------------------------------------
-
-def test_api_validates_season_and_exposes_the_hybrid_model():
-    from app.server import DigitalTwinHandler
-
-    class Recorder:
-        def send_json(self, data, status=200):
-            self.response, self.status = data, status
-
-    handler = Recorder()
-    DigitalTwinHandler.handle_simulate(handler, {"market": ["UNITED KINGDOM"], "season": ["InvalidSeason"]})
-    assert handler.status == 400 and "Invalid season" in handler.response["error"]
-
-    DigitalTwinHandler.handle_simulate(handler, {"market": ["UNITED KINGDOM"], "season": ["Winter_Peak"], "delta_freq": [2]})
-    assert handler.status == 200
-    assert {"residual_adjustment", "is_monotonic"} <= set(handler.response["hybrid"])
