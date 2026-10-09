@@ -71,6 +71,13 @@ def test_event_kernel_recovers_a_known_bump():
     pooled = pd.concat([frame, other], ignore_index=True)
     design = scoped.design(pooled)
     assert design.iloc[len(frame):].to_numpy().sum() == 0 and design.iloc[:len(frame)].to_numpy().sum() == 10
+    # A nationality-scoped event (MOROCCO inside a pooled market) covers that nationality's rows only,
+    # and nothing on a market-grain panel, which has no nationality column.
+    morocco = EventKernel(["fest"], calendar=_calendar("fest", ["2023-04-10", "2024-04-10"], -1, 3, scope="MOROCCO"))
+    rows = pd.concat([frame.assign(market="OTHER_AMERICAS_AFRICA", nationality=n) for n in ("MOROCCO", "BRAZIL")], ignore_index=True)
+    covered = morocco.design(rows).to_numpy().sum(axis=1) > 0
+    assert covered[: len(frame)].sum() == 10 and not covered[len(frame):].any()
+    assert morocco.design(frame.assign(market="OTHER_AMERICAS_AFRICA")).to_numpy().sum() == 0
 
 
 def test_event_kernel_penalty_never_couples_two_events():

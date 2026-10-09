@@ -7,7 +7,9 @@ from typing import Iterable, Optional
 import numpy as np
 import pandas as pd
 
-from tourism_twin.domain.markets import DOMESTIC
+from tourism_twin.domain.markets import DOMESTIC, MODELED_MARKETS, REGIONAL_CLUSTERS
+
+NATIONALITY_SCOPES = frozenset(n for nationalities in REGIONAL_CLUSTERS.values() for n in nationalities)
 from tourism_twin.domain.events import load_event_calendar
 from tourism_twin.features.registry import PANEL_FEATURES, Kind
 
@@ -32,10 +34,14 @@ def event_day_offsets(frame: pd.DataFrame, anchor: str, **_) -> pd.DataFrame:
     return event_offsets(frame[anchor], load_event_calendar())
 
 
-def in_scope(markets: pd.Series, scope: str) -> pd.Series:
-    """Whether each market is covered by an event scope: all, domestic, international, or one market."""
+def in_scope(markets: pd.Series, scope: str, nationalities: Optional[pd.Series] = None) -> pd.Series:
+    """Whether each row is covered by an event scope: all, domestic, international, one market, or
+    one nationality (matched against `nationalities` on nationality-grain panels; a market-grain
+    panel has none, so a nationality-scoped event covers none of its rows)."""
     if scope == "all":
         return pd.Series(True, index=markets.index)
+    if scope in NATIONALITY_SCOPES and scope not in set(MODELED_MARKETS):
+        return nationalities == scope if nationalities is not None else pd.Series(False, index=markets.index)
     if scope not in ("domestic", "international"):
         return markets == scope
     domestic = markets == DOMESTIC

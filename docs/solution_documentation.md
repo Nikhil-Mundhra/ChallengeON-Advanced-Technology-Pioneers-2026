@@ -334,7 +334,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 
 **Domestic slope beyond training** (13 origins 2024-02..2025-02, daily WAPE / bias): linear 5.97% / −2.61%; damped over 180 days 5.76% / −2.01%; over 90 days 5.66% / −1.63%; flat 5.46% / −0.36%; no slope 8.72% / +7.27%. `CentredSlope` holds the trend flat beyond the last training day by default.
 
-**Market-scoped events** (folds 2024-08..2025-01, which contain the windows; market daily WAPE without / with): Chinese New Year for CHINA 16.47% / 16.78%; Morocco winter guest block (`morocco_winter_block`) for OTHER_AMERICAS_AFRICA 11.28% / 13.42%. Both are in `events.csv` with their market scope and neither is in the default event kernel.
+**Market-scoped events** (folds 2024-08..2025-01, which contain the windows; market daily WAPE without / with): Chinese New Year for CHINA 16.47% / 16.78%; Morocco winter guest block (`morocco_winter_block`) for OTHER_AMERICAS_AFRICA 11.28% / 13.42%. Neither is in the default event kernel. Events can also be scoped to one pooled-market nationality (matched on the nationality panel); `morocco_winter_block` is now scoped to MOROCCO, for testing inside the pooled nationality model.
 
 **Time-varying kernel** (not shipped): per-regime curves 8.72% overall WMAPE vs 8.39% for one shared curve × calendar (both measured with the earlier raw-scale kernel fit; the shipped fit now scores 8.31%); recency weighting destabilised domestic. `twin_daily` uses one kernel per market.
 

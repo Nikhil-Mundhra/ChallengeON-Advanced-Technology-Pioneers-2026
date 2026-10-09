@@ -62,7 +62,8 @@ class EventKernel(LinearComponent):
 
     def design(self, panel: pd.DataFrame) -> pd.DataFrame:
         offsets = event_offsets(panel[self.date_column], self.calendar, self.events)
-        covered = {event: in_scope(panel["market"], self.scopes[event]).to_numpy() for event in self.events}
+        nationalities = panel["nationality"] if "nationality" in panel.columns else None
+        covered = {event: in_scope(panel["market"], self.scopes[event], nationalities).to_numpy() for event in self.events}
         columns = {
             f"{event}@{k:+d}": ((offsets[offset_column(event)] == k) & covered[event]).astype(float)
             for event, k in self._columns()
