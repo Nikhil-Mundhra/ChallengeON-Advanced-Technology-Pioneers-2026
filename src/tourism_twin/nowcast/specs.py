@@ -9,66 +9,49 @@ from __future__ import annotations
 from typing import Callable, Dict
 
 from tourism_twin.features.lags import lag_column
-from tourism_twin.models.components import (
-    AnnualFourier,
-    ArrivalsConvolution,
-    CentredSlope,
-    DayOfWeek,
-    EventKernel,
-    LocalLevel,
-    ResidualGBM,
-)
-from tourism_twin.models.composite import AdditiveLogModel
-from tourism_twin.models.fitters import Backfitting, JointLinear
+from tourism_twin.models.handler import flagged, not_flagged
 from tourism_twin.models.protocol import Model
+from tourism_twin.models.spec import ModelSpec
 from tourism_twin.nowcast.baselines import ArrivalsRatio, SeasonalNaive
 from tourism_twin.nowcast.routing import MarketRouter
 
 
-BACKFIT_MAX_ITER, BACKFIT_TOL = 200, 1e-6  # converged fits stop well before the cap
+BACKFIT = ("backfitting", {"max_iter": 200, "tol": 1e-6})  # converged fits stop well before the cap
 GBM_FEATURES = ("dow", "month", "iso_week", "is_holiday_week", lag_column(0), lag_column(7))
 
+# Training-row rules (models/handler.py): one-off shocks never train; the arrivals kernel needs a
+# full lag window.
+TIME_ROWS = (not_flagged("is_one_off_period"),)
+NOWCAST_ROWS = (not_flagged("is_one_off_period"), flagged("lag_complete"))
 
-def intl_nowcast(gbm: bool = False, base: str = "knots", events: bool = True) -> AdditiveLogModel:
-    """International nowcast (docs/model_design.md §3, §4.6): arrivals kernel (owns the level) +
-    season + weekday + events, no trend (+ residual GBM, gated). Every block minimises the same
-    log-scale objective, so backfitting descends and converges; results do not depend on the pass cap."""
-    components = [ArrivalsConvolution(max_lag=21, base=base), AnnualFourier(4), DayOfWeek(), *([EventKernel()] if events else [])]
-    if gbm:
-        components.append(ResidualGBM(GBM_FEATURES))
-    return AdditiveLogModel(components, fitter=Backfitting(max_iter=BACKFIT_MAX_ITER, tol=BACKFIT_TOL),
-                            exclude_flag="is_one_off_period", include_flag="lag_complete")
+KERNEL = ("arrivals_kernel", {"max_lag": 21, "base": "knots"})
+KERNEL_BASE90 = ("arrivals_kernel", {"max_lag": 21, "base": "arrivals"})  # base stock tied to 90-day arrivals
+SEASON = ("annual_fourier", {"harmonics": 4})
+GBM = ("residual_gbm", {"features": GBM_FEATURES})
 
+# Every block minimises the same log-scale objective, so backfitting descends and converges;
+# results do not depend on the pass cap.
+INTL_NOWCAST = ModelSpec(components=(KERNEL, SEASON, "weekday", "events"), fitter=BACKFIT, rules=NOWCAST_ROWS)
+# Weekday x season beat plain weekday by only 0.07 pp daily WAPE on 13 rolling origins
+# (scripts/compare_domestic_weekday.py), under the 0.3 pp gate, so the simpler one ships.
+DOMESTIC_NOWCAST = ModelSpec(components=(KERNEL, "slope", SEASON, "weekday"), fitter=BACKFIT, rules=NOWCAST_ROWS)
+# Time only (arrivals unknown, planning): local level (flat beyond the training days) + season +
+# weekday + events; all linear, so one exact joint solve.
+DOMESTIC_TIME = ModelSpec(components=("local_level", SEASON, ("weekday", {"by_season": True}), "events"),
+                          fitter="joint_linear", rules=TIME_ROWS)
+INTL_TIME = ModelSpec(components=("local_level", SEASON, "weekday", "events"), fitter="joint_linear", rules=TIME_ROWS)
+FLOW_ONLY = ModelSpec(components=(KERNEL,), fitter=BACKFIT, rules=NOWCAST_ROWS)
 
-def domestic_nowcast(base: str = "knots") -> AdditiveLogModel:
-    """Domestic nowcast (docs/model_design.md §3, §4.6): arrivals kernel (owns the level) + centred
-    log-slope + season + weekday; no event kernels. Weekday × season beat plain weekday by only 0.07 pp
-    daily WAPE on 13 rolling origins (scripts/compare_domestic_weekday.py), under the 0.3 pp gate, so
-    the simpler one ships."""
-    components = [ArrivalsConvolution(max_lag=21, base=base), CentredSlope(), AnnualFourier(4), DayOfWeek()]
-    return AdditiveLogModel(components, fitter=Backfitting(max_iter=BACKFIT_MAX_ITER, tol=BACKFIT_TOL),
-                            exclude_flag="is_one_off_period", include_flag="lag_complete")
-
-
-def domestic_time() -> AdditiveLogModel:
-    """Domestic time-only model for when arrivals are unknown (planning): local level (flat
-    beyond the training days) + season + weekday by season + events; all linear, so one exact
-    joint solve."""
-    components = [LocalLevel(), AnnualFourier(4), DayOfWeek(by_season=True), EventKernel()]
-    return AdditiveLogModel(components, fitter=JointLinear(), exclude_flag="is_one_off_period")
-
-
-def intl_time() -> AdditiveLogModel:
-    """International time-only model (no arrivals): local level + season + weekday + events; the
-    counterpart of domestic_time and the "time" row of the block ablation."""
-    components = [LocalLevel(), AnnualFourier(4), DayOfWeek(), EventKernel()]
-    return AdditiveLogModel(components, fitter=JointLinear(), exclude_flag="is_one_off_period")
+# Variants: one spec each, derived from the shipped ones.
+INTL_NOWCAST_GBM = INTL_NOWCAST.adding(GBM)
+INTL_NOWCAST_BASE90 = INTL_NOWCAST.replace_component("arrivals_kernel", KERNEL_BASE90)
+DOMESTIC_NOWCAST_BASE90 = DOMESTIC_NOWCAST.replace_component("arrivals_kernel", KERNEL_BASE90)
+INTL_FLOW_TIME = INTL_NOWCAST.without("events")
 
 
-def flow_only() -> AdditiveLogModel:
-    """The arrivals kernel alone: the "flow" row of the block ablation."""
-    return AdditiveLogModel([ArrivalsConvolution(max_lag=21)], fitter=Backfitting(max_iter=BACKFIT_MAX_ITER, tol=BACKFIT_TOL),
-                            exclude_flag="is_one_off_period", include_flag="lag_complete")
+def routed(domestic: ModelSpec, international: ModelSpec) -> Callable[[], Model]:
+    """A factory for MarketRouter over two specs (DOMESTIC rows, every other market)."""
+    return lambda: MarketRouter(domestic.build, international.build)
 
 
 # Block ablation (docs/model_design.md §3.1): time only, flow only, flow + time, and twin_daily
@@ -83,11 +66,11 @@ BLOCK_ABLATION = ("naive_364", "time_only", "flow_only", "flow_time", "twin_dail
 DAILY_SPECS: Dict[str, Callable[[], Model]] = {
     "naive_364": SeasonalNaive,
     "arrivals_ratio": ArrivalsRatio,
-    "twin_daily": lambda: MarketRouter(domestic_nowcast, lambda: intl_nowcast(gbm=False)),
-    "twin_daily_gbm": lambda: MarketRouter(domestic_nowcast, lambda: intl_nowcast(gbm=True)),
-    "twin_daily_base90": lambda: MarketRouter(lambda: domestic_nowcast(base="arrivals"), lambda: intl_nowcast(base="arrivals")),
-    "domestic_time": domestic_time,
-    "time_only": lambda: MarketRouter(domestic_time, intl_time),
-    "flow_only": lambda: MarketRouter(flow_only, flow_only),
-    "flow_time": lambda: MarketRouter(domestic_nowcast, lambda: intl_nowcast(events=False)),
+    "twin_daily": routed(DOMESTIC_NOWCAST, INTL_NOWCAST),
+    "twin_daily_gbm": routed(DOMESTIC_NOWCAST, INTL_NOWCAST_GBM),
+    "twin_daily_base90": routed(DOMESTIC_NOWCAST_BASE90, INTL_NOWCAST_BASE90),
+    "domestic_time": DOMESTIC_TIME.build,
+    "time_only": routed(DOMESTIC_TIME, INTL_TIME),
+    "flow_only": routed(FLOW_ONLY, FLOW_ONLY),
+    "flow_time": routed(DOMESTIC_NOWCAST, INTL_FLOW_TIME),
 }

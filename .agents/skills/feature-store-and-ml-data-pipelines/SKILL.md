@@ -19,7 +19,8 @@ Do not treat feature pipelines as ordinary marts; leakage and parity are distinc
 - Define derived columns once in `tourism_twin/features` (`@PANEL_FEATURES.feature(kind, requires=[...])`) and request them by name with `PANEL_FEATURES.apply`.
 - Recompute ratios from summed parts at each grain; never sum or average them.
 - Lags shift within one market's series only; check that no planning-mode feature uses values unknown at decision time.
-- Components name features in `requires`; `AdditiveLogModel` computes registered ones identically at fit and predict (training-serving parity).
+- Components name features in `requires`; `DataHandler` (`models/handler.py`, owned by `AdditiveLogModel`) computes registered ones identically at fit and predict (training-serving parity).
+- Training-row filters are named `RowRule`s and training weights are `Weighting` strategies (`models/weighting.py`); both are declared per `ModelSpec`, so a data step is never hidden inside a component.
 - Prove point-in-time correctness with `models/backtest.backtest` (fresh fit per fold on rows ending before the origin; `period_days=7` weekly).
 - Nowcast features never derive from `Guests`; test-split `New Arrivals` are inputs.
 

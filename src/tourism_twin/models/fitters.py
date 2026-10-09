@@ -10,12 +10,13 @@ linear components form one jointly-solved block, so only non-linear components c
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 import pandas as pd
 
-from tourism_twin.models.components.base import Component, LinearComponent, solve_linear_block
+from tourism_twin.models.components.base import Component, LinearComponent
+from tourism_twin.models.linear_solve import row_scale, solve_linear_block
 
 
 @dataclass
@@ -44,12 +45,22 @@ def _linear_diagnostics(components: Sequence[Component], panel: pd.DataFrame) ->
     return int(np.linalg.matrix_rank(stacked)), stacked.shape[1], unidentified
 
 
+def _fit_one(component: Component, panel: pd.DataFrame, offset: pd.Series, y: pd.Series,
+             weights: Optional[np.ndarray]) -> None:
+    """Fit one component; pass weights only when given, so unweighted fits work for any Component."""
+    if weights is None:
+        component.fit(panel, offset, y)
+    else:
+        component.fit(panel, offset, y, weights=weights)
+
+
 class JointLinear:
-    def fit(self, components: Sequence[Component], panel: pd.DataFrame, y: pd.Series) -> FitReport:
+    def fit(self, components: Sequence[Component], panel: pd.DataFrame, y: pd.Series,
+            weights: Optional[np.ndarray] = None) -> FitReport:
         nonlinear = [c.name for c in components if not isinstance(c, LinearComponent)]
         if nonlinear:
             raise TypeError(f"JointLinear needs linear components only; got {nonlinear}. Use Backfitting.")
-        diagnostics = solve_linear_block(list(components), panel, y)
+        diagnostics = solve_linear_block(cast(List[LinearComponent], list(components)), panel, y, weights)
         return FitReport(1, True, 0.0, diagnostics.rank, diagnostics.columns, diagnostics.unidentified)
 
 
@@ -69,24 +80,26 @@ class Backfitting:
             blocks = ([linear] if linear else []) + [[c] for c in components if not isinstance(c, LinearComponent)]
         return sorted(blocks, key=lambda block: not any(c.owns_level for c in block))
 
-    def fit(self, components: Sequence[Component], panel: pd.DataFrame, y: pd.Series) -> FitReport:
+    def fit(self, components: Sequence[Component], panel: pd.DataFrame, y: pd.Series,
+            weights: Optional[np.ndarray] = None) -> FitReport:
         """Cycle the blocks until converged, then fit final-stage components (e.g. a GBM) once on
         what the others leave unexplained."""
-        cycling = [c for c in components if not getattr(c, "final_stage", False)]
-        final = [c for c in components if getattr(c, "final_stage", False)]
+        cycling = [c for c in components if not c.final_stage]
+        final = [c for c in components if c.final_stage]
         contributions: Dict[str, pd.Series] = {c.name: pd.Series(0.0, index=panel.index) for c in cycling}
         max_change = np.inf
         converged, iterations = False, self.max_iter
         objective: List[float] = []
+        scale = row_scale(weights, len(y))
         for iteration in range(1, self.max_iter + 1):
             max_change = 0.0
             for block in self._blocks(cycling):
                 names = {c.name for c in block}
                 offset = sum((s for n, s in contributions.items() if n not in names), pd.Series(0.0, index=panel.index))
                 if self.joint_linear and all(isinstance(c, LinearComponent) for c in block):
-                    solve_linear_block(block, panel, y - offset)
+                    solve_linear_block(block, panel, y - offset, weights)
                 else:
-                    block[0].fit(panel, offset, y)
+                    _fit_one(block[0], panel, offset, y, weights)
                 for component in block:
                     updated = component.contribution(panel)
                     if not np.isfinite(updated.to_numpy()).all():
@@ -94,14 +107,15 @@ class Backfitting:
                     max_change = max(max_change, float((updated - contributions[component.name]).abs().max()))
                     contributions[component.name] = updated
             total = sum(contributions.values(), pd.Series(0.0, index=panel.index))
-            penalties = sum(getattr(c, "penalty", lambda: 0.0)() for c in cycling)
-            objective.append(float(((y - total) ** 2).sum()) + penalties)
+            penalties = sum(c.penalty() for c in cycling)
+            squared = (y - total) ** 2
+            objective.append(float(squared.sum() if scale is None else (scale ** 2 * squared.to_numpy()).sum()) + penalties)
             if max_change < self.tol:
                 converged, iterations = True, iteration
                 break
         offset = sum(contributions.values(), pd.Series(0.0, index=panel.index))
         for component in final:
-            component.fit(panel, offset, y)
+            _fit_one(component, panel, offset, y, weights)
             offset = offset + component.contribution(panel)
         rank, columns, unidentified = _linear_diagnostics(components, panel)
         return FitReport(iterations, converged, max_change, rank, columns, unidentified, objective)

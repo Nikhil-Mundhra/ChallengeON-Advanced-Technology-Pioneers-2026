@@ -7,14 +7,16 @@ spec is decided by the back-test (an ablation spec without it), not by the compo
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, Optional
 
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
 
+from tourism_twin.models.components.base import ComponentBase
 
-class ResidualGBM:
+
+class ResidualGBM(ComponentBase):
     owns_level = False
     final_stage = True
     group = "residual"
@@ -30,9 +32,10 @@ class ResidualGBM:
         self.model_: HistGradientBoostingRegressor | None = None
         self.centre_ = 0.0
 
-    def fit(self, panel: pd.DataFrame, offset: pd.Series, y: pd.Series) -> "ResidualGBM":
+    def fit(self, panel: pd.DataFrame, offset: pd.Series, y: pd.Series,
+            weights: Optional[np.ndarray] = None) -> "ResidualGBM":
         X = panel[list(self.requires)].to_numpy(dtype=float)
-        self.model_ = HistGradientBoostingRegressor(**self.params).fit(X, (y - offset).to_numpy())
+        self.model_ = HistGradientBoostingRegressor(**self.params).fit(X, (y - offset).to_numpy(), sample_weight=weights)
         self.centre_ = float(np.mean(self.model_.predict(X)))
         return self
 

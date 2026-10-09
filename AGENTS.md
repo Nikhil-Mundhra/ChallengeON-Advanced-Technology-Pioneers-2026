@@ -53,8 +53,9 @@ config.py   all filesystem paths (stdlib only)
 domain/     markets, archetypes, seasons, events, scenario types
 features/   registry + ratios, flags, calendar, lags (imports domain only)
 data/       ingest, validation, lake_writer, manifest, lake, repository, imputation, panel, daily_panel
-models/     shared model kernel, no use case: protocol, components/ (base + one module per component),
-            fitters, composite, backtest, noise
+models/     shared model kernel, no use case: protocol, registry (component/fitter names), spec (ModelSpec),
+            handler (DataHandler, RowRule), weighting, components/ (base + one module per component),
+            linear_solve, fitters, composite, backtest, noise
 nowcast/    daily competition model: specs, routing, baselines, predict (orchestration),
             disaggregation, submission (floor, workbook files, validation), weekly, outputs,
             evaluation, same_day
@@ -82,7 +83,12 @@ cli/        the `twin` command
 - Read `docs/model_design.md` (§3 form, §4 evidence, §5 structure, §5.7 rules) before changing any model. When a measured result changes a modeling rule, update the rule here and its evidence in `docs/model_design.md` in the same change.
 - No general neural networks (MLP/CNN/RNN): ~1,300 daily rows; MLPs lost to the seasonal naive. The arrivals "convolution" is one constrained linear kernel.
 - No interaction or power terms by default (weekday × season, seasonal kernels, `flow^α`): none passed the gate (`docs/model_design.md` §4.2).
-- Add a model part as: one module in `models/components/` (`Component` protocol or `LinearComponent`), its export in `components/__init__.py`, a synthetic test in `tests/test_tourism_twin.py` that recovers a known truth, and a spec entry in `nowcast/specs.py` (weekly: `planning/specs.py`). Edit nothing else; never hard-wire a model into `training.py` or `evaluation.py`.
+- Add a model part as: one module in `models/components/` (`Component` protocol or `LinearComponent`, `fit(panel, offset, y, weights=None)`), its export in `components/__init__.py`, one `COMPONENTS.register(name, cls)` line in `models/registry.py`, a synthetic test in `tests/test_tourism_twin.py` that recovers a known truth, and its name in a `ModelSpec` in `nowcast/specs.py` (weekly: `planning/specs.py`). Edit nothing else; never hard-wire a model into `training.py` or `evaluation.py`.
+- Declare models as `ModelSpec` data (`models/spec.py`: components by registered name, fitter, row rules, weighting); never build component lists inside functions. Make variants with `adding` / `without` / `replace_component` / `with_weighting`, and route domestic/international with `routed(domestic_spec, international_spec)`.
+- Subclass `ComponentBase` (or `LinearComponent`) for a new component: it supplies the hooks the model and fitters call (`reset`, `penalty`, `final_stage`, `set_default_origin`); never probe for those hooks with `hasattr`/`getattr`.
+- Least-squares fitting math lives in `models/linear_solve.py`; components only provide designs and penalty rows.
+- Put every data step that is not math (features, training-row filters, target transform, weights) in `models/handler.py` as a `RowRule` or in `models/weighting.py` as a `Weighting`; never inside a component, fitter or `AdditiveLogModel`. (`AdditiveLogModel`'s `exclude_flag` / `include_flag` are shorthands that only create the same `RowRule`s; prefer `rules=`.)
+- A training-weight axis (recency, nationality, …) is one `Weighting` class; combine axes with `Product`. Weights must be positive; only relative values matter. Ship a weighting only if it passes the gate below.
 - Compose components only via `AdditiveLogModel` (`models/composite.py`); exactly one component per model sets `owns_level=True` (it raises otherwise).
 - Mark residual learners `final_stage = True` (fitted once, after the rest converge).
 - Add an ablation as a new spec entry, not a code branch.

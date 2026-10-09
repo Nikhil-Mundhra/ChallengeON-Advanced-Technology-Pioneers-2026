@@ -18,9 +18,10 @@ from typing import Any, Dict, Hashable, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-from tourism_twin.features import PANEL_FEATURES
 from tourism_twin.models.components.base import Component
 from tourism_twin.models.fitters import Backfitting, FitReport, JointLinear
+from tourism_twin.models.handler import DataHandler, RowRule, flagged, not_flagged
+from tourism_twin.models.weighting import Weighting
 
 BIAS_CORRECTIONS = ("none", "smearing")
 
@@ -37,6 +38,8 @@ class AdditiveLogModel:
         exclude_flag: Optional[str] = None,
         include_flag: Optional[str] = None,
         bias_correction: str = "none",
+        rules: Sequence[RowRule] = (),
+        weighting: Optional[Weighting] = None,
     ) -> None:
         names = [c.name for c in components]
         if len(set(names)) != len(names):
@@ -54,25 +57,17 @@ class AdditiveLogModel:
         self.group_by = group_by
         self.target = target
         self.anchor = anchor
-        self.feature_params = {"anchor": anchor, **(feature_params or {})}
         self.exclude_flag = exclude_flag
         self.include_flag = include_flag
+        # exclude_flag / include_flag are shorthands for the not_flagged / flagged row rules.
+        flag_rules = ([not_flagged(exclude_flag)] if exclude_flag else []) + ([flagged(include_flag)] if include_flag else [])
+        self.handler = DataHandler(target, anchor, feature_params, [*flag_rules, *rules], weighting)
         self.bias_correction = bias_correction
         self.fitted_: Dict[Hashable, Tuple[List[Component], FitReport]] = {}
         self.smearing_: Dict[Hashable, float] = {}
 
     def _with_features(self, panel: pd.DataFrame) -> pd.DataFrame:
-        if not panel.index.is_unique:
-            raise ValueError("Panel index must be unique (reset_index after concatenating frames)")
-        needed = {r for c in self.components for r in c.requires if r not in panel.columns}
-        for flag in (self.exclude_flag, self.include_flag):
-            if flag and flag not in panel.columns:
-                needed.add(flag)
-        registered = [name for name in needed if name in PANEL_FEATURES]
-        missing = needed - set(registered)
-        if missing:
-            raise KeyError(f"Columns not in panel and not registered features: {sorted(missing)}")
-        return PANEL_FEATURES.apply(panel, registered, **self.feature_params) if registered else panel
+        return self.handler.with_features(panel, [r for c in self.components for r in c.requires])
 
     def _groups(self, panel: pd.DataFrame):
         if self.group_by is None:
@@ -82,29 +77,26 @@ class AdditiveLogModel:
         return list(panel.groupby(self.group_by, sort=True))
 
     def fit(self, panel: pd.DataFrame) -> "AdditiveLogModel":
-        panel = self._with_features(panel)
-        train = panel[panel[self.target].notna()]
-        if self.exclude_flag:
-            train = train[train[self.exclude_flag] != 1]
-        if self.include_flag:
-            train = train[train[self.include_flag].astype(bool)]
-        non_positive = int((train[self.target] <= 0).sum())
-        if non_positive:
-            raise ValueError(f"{non_positive} training rows have {self.target} <= 0; the log target needs positive values")
+        train = self.handler.training_rows(self._with_features(panel))
+        weights = self.handler.weights(train)
         origin = pd.to_datetime(train[self.anchor]).min() if self.anchor in train.columns else None
         self.fitted_, self.smearing_ = {}, {}
         for key, rows in self._groups(train):
             components = copy.deepcopy(self.components)
             for component in components:
-                if hasattr(component, "reset"):
-                    component.reset()
-                if origin is not None and hasattr(component, "set_default_origin"):
+                component.reset()
+                if origin is not None:
                     component.set_default_origin(origin)
-            y = np.log(rows[self.target])
-            report = self.fitter.fit(components, rows, y)
+            y = self.handler.y(rows)
+            row_weights = None if weights is None else weights.loc[rows.index].to_numpy()
+            if row_weights is None:
+                report = self.fitter.fit(components, rows, y)
+            else:
+                report = self.fitter.fit(components, rows, y, weights=row_weights)
             self.fitted_[key] = (components, report)
             fitted = sum(c.contribution(rows) for c in components)
-            self.smearing_[key] = float(np.mean(np.exp(y - fitted)))
+            # Duan's smearing factor, weighted like the fit (unweighted: a plain mean).
+            self.smearing_[key] = float(np.average(np.exp(y - fitted), weights=row_weights))
         return self
 
     def decompose(self, panel: pd.DataFrame) -> pd.DataFrame:

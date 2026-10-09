@@ -503,6 +503,130 @@ def test_seasonal_naive_uses_the_same_weekday_a_year_earlier():
     np.testing.assert_allclose(pred.iloc[364:], frame["guests"].iloc[36:72].to_numpy())
 
 
+# Registry, data handler and training weights (docs/model_design.md §5): one interface per axis.
+
+def test_registry_builds_specs_and_covers_every_block():
+    from tourism_twin.models.registry import BLOCKS, COMPONENTS
+    from tourism_twin.models.spec import ModelSpec
+    from tourism_twin.nowcast.specs import DOMESTIC_NOWCAST, INTL_NOWCAST
+
+    assert {COMPONENTS.block(name) for name in COMPONENTS.names()} == set(BLOCKS)
+    assert INTL_NOWCAST.blocks() == ["flow", "time", "time", "holiday"]
+    assert DOMESTIC_NOWCAST.blocks() == ["flow", "time", "time", "time"]
+    first, second = INTL_NOWCAST.build(), INTL_NOWCAST.build()
+    assert first.components[0] is not second.components[0]  # every build is a fresh, unfitted model
+    with pytest.raises(KeyError, match="Unknown component"):
+        ModelSpec(components=("no_such_component",)).build()
+
+
+def test_row_rules_match_the_flag_shorthands():
+    from tourism_twin.models.handler import DataHandler, flagged, not_flagged
+
+    frame = _calendar_conv_frame()
+    frame["is_one_off_period"] = (np.arange(len(frame)) % 50 == 0).astype(int)
+    shorthand = AdditiveLogModel([LinearTrend()], exclude_flag="is_one_off_period", include_flag="lag_complete").handler
+    rules = DataHandler(rules=[not_flagged("is_one_off_period"), flagged("lag_complete")])
+    kept = rules.training_rows(frame).index
+    assert shorthand.training_rows(frame).index.equals(kept)
+    assert not frame.loc[kept, "is_one_off_period"].any() and frame.loc[kept, "lag_complete"].all()
+
+
+def test_uniform_or_constant_weights_reproduce_the_unweighted_fit():
+    from tourism_twin.models.weighting import ByColumn, Uniform
+
+    frame = _calendar_conv_frame()
+
+    def predict(weighting):
+        components = [ArrivalsConvolution(max_lag=7), AnnualFourier(2), DayOfWeek()]
+        model = AdditiveLogModel(components, fitter=Backfitting(), include_flag="lag_complete", weighting=weighting)
+        return model.fit(frame).predict(frame[frame["lag_complete"].astype(bool)]).to_numpy()
+
+    unweighted = predict(None)
+    np.testing.assert_allclose(predict(Uniform()), unweighted, rtol=1e-9)
+    np.testing.assert_allclose(predict(ByColumn("market", {"M": 3.0})), unweighted, rtol=1e-9)  # w and 3w fit alike
+
+
+def test_recency_weighting_follows_a_recent_regime():
+    from tourism_twin.models.weighting import Product, Recency, Uniform
+
+    rng = np.random.default_rng(3)
+    dates = pd.date_range("2023-01-01", periods=730, freq="D")
+    x = rng.uniform(1.0, 2.0, len(dates))
+    effect = np.where(np.arange(len(dates)) < 365, 1.0, 2.0)  # the relation doubles in year two
+    frame = pd.DataFrame({"market": "M", "date": dates, "x": x, "guests": np.exp(5.0 + effect * x)})
+
+    def coef(weighting):
+        model = AdditiveLogModel([LinearTrend(), LinearRegressors(["x"])], fitter=JointLinear(), weighting=weighting)
+        return model.fit(frame).explain()["M"]["regressors"]["coef"]["x"]
+
+    assert coef(None) == pytest.approx(1.5, abs=0.1)
+    assert coef(Recency(half_life_days=30)) > 1.9
+    weights = Product(Recency(90), Uniform()).weights(frame)
+    assert weights.mean() == pytest.approx(1.0) and weights.iloc[-1] > weights.iloc[0]
+
+
+def test_weighted_kernel_gradient_and_objective():
+    from tourism_twin.models.components.arrivals_conv import log_gradient, log_objective
+    from tourism_twin.models.weighting import ByColumn
+
+    rng = np.random.default_rng(4)
+    design, penalty = rng.uniform(1, 50, (200, 6)), 0.1 * rng.normal(size=(3, 6))
+    z, p, w = np.log(rng.uniform(100, 400, 200)), rng.uniform(0.5, 2.0, 6), rng.uniform(0.2, 3.0, 200)
+    numeric = np.array([(log_objective(p + h, design, penalty, z, 1e-9, w) - log_objective(p - h, design, penalty, z, 1e-9, w)) / 2e-6
+                        for h in 1e-6 * np.eye(6)])
+    np.testing.assert_allclose(log_gradient(p, design, penalty, z, 1e-9, w), numeric, rtol=1e-5)
+
+    # Weighted backfitting still descends: the weighted penalised objective never increases.
+    frame = _calendar_conv_frame()
+    frame["half"] = np.where(np.arange(len(frame)) < len(frame) // 2, "early", "late")
+    components = [ArrivalsConvolution(max_lag=7), AnnualFourier(2), DayOfWeek(), EventKernel()]
+    model = AdditiveLogModel(components, fitter=Backfitting(max_iter=40, tol=0.0), include_flag="lag_complete",
+                             weighting=ByColumn("half", {"late": 4.0})).fit(frame)
+    objective = model.fitted_["M"][1].objective
+    assert all(later <= earlier * (1 + 1e-10) for earlier, later in zip(objective, objective[1:]))
+
+
+def test_weighted_kernel_follows_the_favoured_regime():
+    from tourism_twin.models.weighting import ByColumn
+
+    early, late = 1.0 * np.exp(-np.arange(8) / 1.5), 1.0 * np.exp(-np.arange(8) / 4.0)  # stays lengthen
+    halves = [_conv_frame(true_w, base=50.0, noise=0.01, n=600, seed=s) for true_w, s in ((early, 1), (late, 2))]
+    frame = pd.concat(halves, ignore_index=True)
+    frame["date"] = pd.date_range("2022-01-01", periods=len(frame), freq="D")
+    frame["regime"] = np.repeat(["early", "late"], 600)
+
+    def stay(weighting):
+        model = AdditiveLogModel([ArrivalsConvolution(max_lag=7)], fitter=Backfitting(), include_flag="lag_complete",
+                                 weighting=weighting).fit(frame)
+        return model.explain()["M"]["arrivals"]["implied_mean_stay_days"]
+
+    unweighted, favour_late = stay(None), stay(ByColumn("regime", {"late": 50.0}))
+    assert early.sum() < unweighted < late.sum()
+    assert abs(favour_late - late.sum()) < abs(unweighted - late.sum()) / 3
+
+
+def test_spec_builds_share_nothing_and_router_rejects_unserved_rows():
+    from tourism_twin.models.spec import ModelSpec
+    from tourism_twin.nowcast.routing import MarketRouter
+
+    spec = ModelSpec(components=(("annual_fourier", {"harmonics": 2}), "linear_trend"), fitter="joint_linear")
+    with pytest.raises(TypeError):
+        spec.components[0][1]["harmonics"] = 9  # entries are frozen: one spec is safe to share
+    import copy, pickle
+    from tourism_twin.nowcast.specs import INTL_NOWCAST_GBM
+    assert pickle.loads(pickle.dumps(INTL_NOWCAST_GBM)) == INTL_NOWCAST_GBM == copy.deepcopy(INTL_NOWCAST_GBM)
+    assert len({INTL_NOWCAST_GBM, copy.deepcopy(INTL_NOWCAST_GBM)}) == 1  # hashable: usable as a cache key
+    frame = _synthetic()
+    first = spec.build().fit(frame)
+    assert spec.build().fitted_ == {} and first.fitted_  # every build is a fresh model
+
+    router = MarketRouter(spec.build, spec.build).fit(frame)  # trained on international rows only
+    with pytest.raises(KeyError, match="No DOMESTIC model"):
+        router.predict(frame.assign(market="DOMESTIC"))
+    with pytest.raises(TypeError, match="Cannot build component 'annual_fourier'"):
+        ModelSpec(components=(("annual_fourier", {"no_such_param": 1}), "linear_trend")).build()
+
+
 # --- back-test harness ---------------------------------------------------------------------
 
 def test_benchmarks_through_the_harness_reproduce_the_committed_evaluation():

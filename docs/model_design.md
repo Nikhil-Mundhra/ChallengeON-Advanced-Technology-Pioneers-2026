@@ -217,6 +217,22 @@ Holdout checks use simple stand-ins (fit 2023–24, score Jan–Jul 2025): read 
 | Flight data adds little once arrivals are known | Median gain −0.09 pp (Egypt, Germany, Ireland +1.5–3.8; Italy, Azerbaijan −4.6 to −5.9). Departure country ≠ nationality (India 0.17 arrivals per passenger, China 6.0) | Use flights to detect regime changes (as above), not as a guest regressor |
 | Domestic decline flattened in 2025 | The −12% to −23% drop behind the domestic slope levelled off; domestic test arrivals −4% vs a year earlier, same weekday profile | Damp or cap the domestic slope over the 7-month horizon; implemented: the slope is held flat beyond training (13 origins: 5.46 vs 5.97 linear, bias −0.36% vs −2.61%) |
 
+### 4.8 Date-range totals — *Analysis finding (from the rolling back-test predictions)*
+
+`twin_daily`, 8 rolling origins (2024-07 → 2025-02, 6-month horizon), segment totals; consecutive non-overlapping ranges inside each test window.
+
+| Range | WAPE DOM | WAPE INTL | Direction vs previous range DOM / INTL | Error of the % change DOM / INTL (pp) |
+| --- | ---: | ---: | --- | --- |
+| 1 day | 6.5 | 3.8 | 87% / 78% | 3.5 / 2.0 |
+| 7 days | 5.5 | 3.2 | 85% / 90% | 2.9 / 3.0 |
+| 14 days | 5.3 | 2.7 | 90% / 94% | 4.0 / 2.9 |
+| 28 days | 4.8 | 2.3 | 95% / 100% | 5.3 / 2.3 |
+
+- Range totals are more accurate than days, but by 20–30%, not the √n of independent errors: daily errors are autocorrelated (§4.4).
+- Direction over 2-week ranges is right ~90%; the size of the change is off by ~3–4 pp, so a stated "up X%" needs |X| ≳ 8% (about twice that error) to be reliable.
+- Predictions are medians (`exp(Σ)`), so summed ranges are biased low unless smeared (`bias_correction="smearing"`, a metric change to gate).
+- Not covered by automated tests yet: the back-test scores single days only (§6).
+
 ## 5. Code structure — *Mostly implemented*
 
 Same pattern as `features/registry.py` (declare once, request by name), applied to models. Tracked in issues [#9](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/9) (time effects), [#10](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/10) (rolling back-test), [#11](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/11) (train / validation / test split).
@@ -230,31 +246,44 @@ Status on `main` (verify with `git ls-files src/tourism_twin/models`):
 | Event registry `domain/events.csv` | Implemented |
 | Back-test harness (`HoldoutSplit`, `RollingOrigin`), weekly and daily specs (`planning/specs.py`, `nowcast/specs.py`), `MarketRouter` | Implemented |
 | `NoiseModel` (`models/noise.py`), test-split predictions (`nowcast/predict.py`, `twin predict`), same-day model (`nowcast/same_day.py`) | Implemented |
-| Block grouping (`group` tag + decomposition by block), time-only international spec, flight block | Proposed |
+| Block grouping (`group` tag, `decompose_by_group`), time-only international spec (`INTL_TIME`) | Implemented |
+| Flight block | Component registered (`regressors`, block flight); no spec uses flight features (they add ~0 once arrivals are known, §4.7) |
 | Shared kernel / season shape with per-market scale (partial pooling) | Proposed |
 
-### 5.1 Component interface
+### 5.1 Layers: registry → handler → model
 
 ```text
-Component: name, requires (feature names resolved through PANEL_FEATURES)
-  fit(panel, offset, y)      y = log target; offset = sum of all other components (log)
-  contribution(panel)        log-scale series; centred, except the one component that owns the level
-  explain()                  fitted parameters in plain form
+spec (data) ──► ComponentRegistry / FITTERS ──► DataHandler ──────────────────► AdditiveLogModel ──► Fitter
+ModelSpec        names → fresh components        features (PANEL_FEATURES)        groups (market)       Backfitting / JointLinear
+(nowcast/specs)  block of each component         row rules (named, in order)      log target            cycles components with
+                                                 log target, training weights                           optional row weights
+MarketRouter: DOMESTIC rows → one spec, every other market → another (a series type is a spec, never a subclass)
 ```
 
-| Component | Contribution |
-| --- | --- |
-| `ArrivalsConvolution(K)` | log flow_t with the §3 constraints; owns the level when present |
-| `LocalLevel` / `LinearTrend` | Random-walk level + slope (Kalman); owns the level otherwise |
-| `AnnualFourier(H)` | Season on day of year |
-| `DayOfWeek(by_season)` | Weekday, optionally × season |
-| `EventKernel` | One smoothed kernel per event type, read from `events.csv` |
-| `ResidualGBM` | Kept only if it passes a back-test gate |
-| `StructuralComponent` | Wraps the existing `StructuralEngine` for benchmarking |
+| Layer | Module | Owns | Extend by |
+| --- | --- | --- | --- |
+| Registry | `models/registry.py` (`COMPONENTS`, `FITTERS`) | Names → factories; each component's block (`group`: flow, time, holiday, flight, residual) | `COMPONENTS.register(name, cls)` |
+| Spec | `models/spec.py` (`ModelSpec`, immutable, validated at declaration); instances in `nowcast/specs.py` (`INTL_NOWCAST`, `DOMESTIC_NOWCAST`, variants `*_GBM`, `*_BASE90`, `INTL_FLOW_TIME`, time-only and flow-only) | Which components, fitter, row rules and weighting a model uses | A new `ModelSpec`, or `adding` / `without` / `replace_component` / `with_weighting` of an existing one |
+| Handler | `models/handler.py` (`DataHandler`, `RowRule`, `flagged`, `not_flagged`, `target_present`) | Feature resolution, training-row rules, log target, training weights | A new `RowRule` |
+| Weighting | `models/weighting.py` (`Uniform`, `Recency`, `ByColumn`, `Product`) | How much each training row counts; one axis per strategy, combined by `Product` | A class with `weights(rows) -> Series` (positive, mean 1) |
+| Model | `models/composite.py` (`AdditiveLogModel`) | Grouping, component copies per group, prediction, decomposition (by component and by block) | — |
+| Fitter | `models/fitters.py`, `models/linear_solve.py` (weighted least squares with penalty rows) | Joint / backfitting solve of the components on prepared rows | `FITTERS.register(name, cls)` |
+| Component | `models/components/` (`ComponentBase` hooks, `LinearComponent`) | One additive log-scale term: `fit(panel, offset, y, weights=None)`, `contribution`, `explain` | One module + registry entry |
 
-### 5.2 Specs and fitting
+Weights apply to the squared error of data rows only (penalty rows are unweighted) and are relative: `w` and `3w` give the same fit, and `weights=None` follows the unweighted code path exactly. The smearing factor is weighted like the fit. Centring of periodic terms stays unweighted (the level owner absorbs the difference, so predictions are unaffected; only the split of the decomposition shifts). Implemented weightings: `Recency(half_life_days)` (drifting guests-per-arrival, §4.7) and `ByColumn` (e.g. per nationality). No shipped spec uses a weighting yet; each is a candidate for the rolling back-test gate.
 
-A spec is a named component list (`intl_nowcast`, `domestic_time`, `planning`, `naive_364`); an ablation is a spec with one component removed. A composite `AdditiveLogModel` sums contributions and returns a per-component decomposition. Fitters: one joint linear solve for the linear parts, backfitting for the kernel and GBM.
+### 5.2 Components
+
+| Registered name | Class | Block | Contribution |
+| --- | --- | --- | --- |
+| `arrivals_kernel` | `ArrivalsConvolution` | flow | log(c_t + Σ w_k·A_{t−k}) with the §3 constraints; owns the level |
+| `local_level` / `linear_trend` | `LocalLevel` / `LinearTrend` | time | Level (+ slope); owns the level in time-only specs |
+| `slope` | `CentredSlope` | time | Centred log-slope (domestic nowcast) |
+| `annual_fourier` | `AnnualFourier` | time | Season on day of year |
+| `weekday` | `DayOfWeek` | time | Weekday, optionally × season |
+| `events` | `EventKernel` | holiday | One smoothed kernel per event type, from `domain/events.csv` |
+| `regressors` | `LinearRegressors` | flight | Linear terms on named feature columns |
+| `residual_gbm` | `ResidualGBM` | residual | Final-stage GBM on the remaining residual; kept only if it passes the gate |
 
 ### 5.3 Event registry as data
 
@@ -351,4 +380,5 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Test-period regime change | Wizz Air exit. Stress test (fit before 2025-02-01, the five nationalities' arrivals × 0.55, days 100–180): predicted guests / arrivals ratio KAZAKHSTAN 0.558 / 0.550, OTHER_EURASIA 0.663 / 0.660, OTHER_EUROPE 0.961 / 0.942. A base stock proportional to 90-day arrivals (`twin_daily_base90`) follows exactly but loses on the rolling back-test (domestic 11.23 vs 6.49, international 13.39 vs 9.42); the other intl terms are multipliers of the flow and scale with it | Checked; knot base kept |
 | Row-presence rules differ between train and test | Absent test days get the nationality's mean training arrivals below 10 (4.5–6.1; biased upward, train keeps only Guests ≥ 10); published test rows are clipped at 10 arrivals; predictions floored at max(New Arrivals, 10). Training absences (238 rows) keep interpolation | Implemented for test |
 | Missing events / blocks | Chinese New Year (China), Morocco winter block (§4.7) | Open |
+| Range totals not scored | Back-test scores days only; needs period totals (week, month, [A, B]), direction, % change error and range-interval coverage (§4.8) | Open |
 | Edge effect | Decompositions disagree on residual memory (last 1–2 days vs ~1–2 weeks); centred smoothers are unreliable near series ends | Analysis finding, unresolved |
