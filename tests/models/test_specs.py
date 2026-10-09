@@ -31,6 +31,9 @@ def test_spec_builds_share_nothing_and_router_rejects_unserved_rows():
     from tourism_twin.nowcast.specs import INTL_NOWCAST_GBM
     assert pickle.loads(pickle.dumps(INTL_NOWCAST_GBM)) == INTL_NOWCAST_GBM == copy.deepcopy(INTL_NOWCAST_GBM)
     assert len({INTL_NOWCAST_GBM, copy.deepcopy(INTL_NOWCAST_GBM)}) == 1  # hashable: usable as a cache key
+    from tourism_twin.nowcast.specs import POOLED_NATIONALITIES  # a spec with a training weighting
+    assert pickle.loads(pickle.dumps(POOLED_NATIONALITIES)) == POOLED_NATIONALITIES
+    assert len({POOLED_NATIONALITIES, copy.deepcopy(POOLED_NATIONALITIES)}) == 1
     frame = _synthetic()
     first = spec.build().fit(frame)
     assert spec.build().fitted_ == {} and first.fitted_  # every build is a fresh model

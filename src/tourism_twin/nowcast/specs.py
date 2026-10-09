@@ -12,6 +12,7 @@ from tourism_twin.features.lags import lag_column
 from tourism_twin.models.handler import flagged, not_flagged
 from tourism_twin.models.protocol import Model
 from tourism_twin.models.spec import ModelSpec
+from tourism_twin.models.weighting import Recency
 from tourism_twin.nowcast.baselines import ArrivalsRatio, SeasonalNaive
 from tourism_twin.nowcast.routing import MarketRouter
 
@@ -49,11 +50,16 @@ FLOW_ONLY = ModelSpec(components=(KERNEL,), fitter=BACKFIT, rules=NOWCAST_ROWS)
 # per-nationality scale shrunk toward the family (GroupScale) and a base stock tied to the
 # nationality's 90-day arrivals. Validation (#11 protocol, 7 origins): international nationality
 # WAPE 12.24 vs 12.79 for the market model + arrival-share split, -0.55 pp [-0.79, -0.32], 7/7
-# folds; frozen test 11.16 vs 11.38, -0.22 pp [-0.45, +0.02].
+# folds; frozen test 11.16 vs 11.38, -0.22 pp [-0.45, +0.02]. Training rows are weighted by recency
+# (half-life 365 days): guests per arrival drift by nationality (§4.7). Validation, 30 pooled-market
+# nationalities, nationality-day grain: guest-weighted WAPE 13.83 vs 14.23 unweighted, -0.40 pp
+# [-0.64, -0.19], 7/7 folds; mean |bias| per nationality 6.15% vs 7.32% (Morocco -3.3% vs -9.1%).
+# Grid (validation): Recency(180) -0.40 but 5/7 folds; ridge 1/10/1000 worse; data-driven families
+# worse; adding the MOROCCO-scoped morocco_winter_block kernel +0.15 vs this spec.
 SHORT_STAY_FAMILY = ("SAUDI ARABIA", "KUWAIT", "OMAN", "BAHRAIN", "QATAR")
 POOLED_NATIONALITIES = ModelSpec(
     components=(KERNEL_BASE90, ("group_scale", {"column": "nationality", "ridge": 100.0}), SEASON, "weekday", "events"),
-    fitter=BACKFIT, rules=NOWCAST_ROWS, options=(("group_by", "family"),))
+    fitter=BACKFIT, rules=NOWCAST_ROWS, weighting=Recency(365), options=(("group_by", "family"),))
 
 # Variants: one spec each, derived from the shipped ones.
 INTL_NOWCAST_GBM = INTL_NOWCAST.adding(GBM)

@@ -32,14 +32,34 @@ def _normalised(values: pd.Series, name: str) -> pd.Series:
     return values / values.mean()
 
 
-class Uniform:
+class _ValueWeighting:
+    """Equality and hashing by settings, so a ModelSpec holding a weighting stays a cache key and
+    survives pickling (a ModelSpec compares by value)."""
+
+    def _key(self) -> tuple:
+        raise NotImplementedError
+
+    def __eq__(self, other: object) -> bool:
+        return type(other) is type(self) and other._key() == self._key()
+
+    def __hash__(self) -> int:
+        return hash((type(self).__name__, self._key()))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}{self._key()}"
+
+
+class Uniform(_ValueWeighting):
     """Every row counts once (the default behaviour)."""
+
+    def _key(self) -> tuple:
+        return ()
 
     def weights(self, rows: pd.DataFrame) -> pd.Series:
         return pd.Series(1.0, index=rows.index)
 
 
-class Recency:
+class Recency(_ValueWeighting):
     """Exponential decay with age: a row `half_life_days` older than the newest training row
     counts half as much. For slowly drifting relations (guests per arrival, docs/model_design.md §4.7)."""
 
@@ -49,13 +69,16 @@ class Recency:
         self.half_life_days = half_life_days
         self.date_column = date_column
 
+    def _key(self) -> tuple:
+        return (self.half_life_days, self.date_column)
+
     def weights(self, rows: pd.DataFrame) -> pd.Series:
         dates = pd.to_datetime(rows[self.date_column])
         age = (dates.max() - dates).dt.days.to_numpy(dtype=float)
         return _normalised(pd.Series(0.5 ** (age / self.half_life_days), index=rows.index), "Recency")
 
 
-class ByColumn:
+class ByColumn(_ValueWeighting):
     """A weight per value of a column (e.g. nationality, season); unlisted values get `default`."""
 
     def __init__(self, column: str, mapping: Mapping[object, float], default: float = 1.0) -> None:
@@ -65,18 +88,24 @@ class ByColumn:
         self.mapping = dict(mapping)
         self.default = default
 
+    def _key(self) -> tuple:
+        return (self.column, tuple(sorted(self.mapping.items(), key=repr)), self.default)
+
     def weights(self, rows: pd.DataFrame) -> pd.Series:
         values = rows[self.column].map(self.mapping).fillna(self.default)
         return _normalised(values, f"ByColumn({self.column})")
 
 
-class Product:
+class Product(_ValueWeighting):
     """Several axes at once: the product of each strategy's weights."""
 
     def __init__(self, *parts: Weighting) -> None:
         if not parts:
             raise ValueError("Product needs at least one weighting")
         self.parts = parts
+
+    def _key(self) -> tuple:
+        return self.parts
 
     def weights(self, rows: pd.DataFrame) -> pd.Series:
         total = pd.Series(1.0, index=rows.index)
