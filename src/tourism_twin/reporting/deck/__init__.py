@@ -1,9 +1,12 @@
-"""Presentation deck: meta/deck/deck.yaml (content) → output/deck/deck.pptx (+ deck.pdf).
+"""Presentation deck: meta/deck/deck.yaml (content) → output/deck/deck.pptx (+ deck.pdf, previews).
 
-Teammates edit only the YAML: slide titles, one-line messages, check-icon lists (parent →
-detail lines), stat tiles, cards, figure and table names, speaker notes; `layout: cover` for the
-title slide. Numbers are `{name}` placeholders filled from artifacts
-(numbers.py); figures come from figures.py; layout from layout.py.
+`build_deck` is the one entry point: it loads the YAML, collects the numbers (numbers.py), checks
+the content rules, lays out the shared header, renders each slide by its `type` (slides/), puts the
+background art behind it (art.py), adds speaker notes, then exports. Geometry comes from grid.py,
+every colour, size and spacing from theme.py; renderers never write files.
+
+The build fails when: the deck does not have 10 slides; a hero or stat value is not a `{name}`
+placeholder (typed result numbers); a placeholder is unknown; any text overflows its box.
 """
 
 from __future__ import annotations
@@ -12,124 +15,153 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import yaml
-from pptx.util import Inches
 
 from tourism_twin.config import SETTINGS
-from tourism_twin.reporting.deck import figures, layout, numbers
+from tourism_twin.reporting.deck import art, canvas, grid, numbers, theme, typeset
+from tourism_twin.reporting.deck.grid import Box
+from tourism_twin.reporting.deck.slides import Frame, renderer
 
 DEFAULT_CONTENT = SETTINGS.root / "meta" / "deck" / "deck.yaml"
+SLIDE_COUNT = 10
+SOFFICE_PATHS = [Path("/opt/homebrew/bin/soffice"), Path("/usr/local/bin/soffice"),
+                 Path("/Applications/LibreOffice.app/Contents/MacOS/soffice")]
+NOT_TEXT = {"type", "tone", "figure", "scenario", "widths", "highlight_row"}   # spec keys never filled
 
 
 @dataclass
 class DeckResult:
     pptx: Path
     pdf: Optional[Path]
+    previews: List[Path]
     slides: int
     fallback_numbers: List[str]
 
 
-def _fill_tree(nodes, table, used):
-    out = []
-    for node in nodes or []:
-        if isinstance(node, str):
-            out.append(numbers.fill(node, table, used))
-        else:
-            out.append({"text": numbers.fill(node["text"], table, used),
-                        "children": _fill_tree(node.get("children", []), table, used)})
-    return out
+class DeckContentError(ValueError):
+    """deck.yaml breaks a content rule."""
 
 
-def _table_rows(spec: Dict[str, Any], table, used) -> tuple[List[str], List[List[str]]]:
-    header = [numbers.fill(h, table, used) for h in spec["header"]]
-    rows = [[numbers.fill(cell, table, used) for cell in row] for row in spec["rows"]]
-    return header, rows
+def _result_values(spec: Dict[str, Any]) -> List[str]:
+    """The values that must come from placeholders: hero and stat numbers."""
+    out = [spec["hero"]["value"]] if "hero" in spec else []
+    return out + [s["value"] for s in spec.get("stats", [])]
+
+
+def check_content(deck: Dict[str, Any]) -> None:
+    slides = deck["slides"]
+    if len(slides) != SLIDE_COUNT:
+        raise DeckContentError(f"the deck has {len(slides)} slides; it must have {SLIDE_COUNT}")
+    for page, spec in enumerate(slides, start=1):
+        for value in _result_values(spec):
+            typed = numbers.PLACEHOLDER.sub("", value)
+            if not numbers.PLACEHOLDER.search(value) or any(ch.isdigit() for ch in typed):
+                raise DeckContentError(f"slide {page}: {value!r} must be a {{name}} placeholder, not a typed number")
+
+
+def _fill(node: Any, fill: Callable[[str], str]) -> Any:
+    if isinstance(node, str):
+        return fill(node)
+    if isinstance(node, list):
+        return [_fill(item, fill) for item in node]
+    if isinstance(node, dict):
+        return {k: (v if k in NOT_TEXT else _fill(v, fill)) for k, v in node.items()}
+    return node
+
+
+def _tone(spec: Dict[str, Any]) -> str:
+    return "dark" if spec["type"] == "cover" or spec.get("tone") == "dark" else "light"
+
+
+def _header_boxes(spec: Dict[str, Any]):
+    title_lines = len(typeset.wrap(spec["title"], typeset.STYLES["title"], grid.CONTENT_W))
+    subtitle_lines = len(typeset.wrap(spec["subtitle"], typeset.STYLES["subtitle"], grid.CONTENT_W))
+    return grid.header(title_lines, subtitle_lines)
+
+
+def _text_boxes(slide) -> List[Box]:
+    emu = 914400
+    return [Box(s.left / emu, s.top / emu, s.width / emu, s.height / emu)
+            for s in slide.shapes if s.has_text_frame and s.text_frame.text.strip()]
+
+
+def render(deck: Dict[str, Any], table: numbers.DeckNumbers):
+    """The filled deck as a python-pptx Presentation (nothing written)."""
+    check_content(deck)
+    slides = [_fill(spec, table.fill) for spec in deck["slides"]]
+    footer = table.fill(deck.get("footer", ""))
+    content = [s for s in slides if s["type"] != "cover"]
+    frame = Frame(grid.body_top([_header_boxes(s)[2].bottom for s in content]), table)
+    prs = canvas.new_presentation()
+    for page, spec in enumerate(slides, start=1):
+        tone = _tone(spec)
+        slide = canvas.new_slide(prs, tone)
+        if spec["type"] != "cover":
+            _, title, subtitle = _header_boxes(spec)
+            canvas.text(slide, "title", title, spec["title"], "title")
+            canvas.text(slide, "subtitle", subtitle, spec["subtitle"], "subtitle")
+        icon = art.plane_icon(typeset.PALETTES[tone]["accent"])
+        canvas.chrome(slide, spec.get("kicker"), footer, page, len(slides), icon)
+        renderer(spec["type"])(slide, spec, frame)
+        if spec.get("footnote"):
+            style = typeset.STYLES["footnote"]
+            box = Box(grid.body_region(0).x, theme.FOOTNOTE_Y, grid.CONTENT_W, style.line)
+            canvas.text(slide, "footnote", box, spec["footnote"], style)
+        page_box = Box(0, 0, theme.SLIDE_W, theme.SLIDE_H)
+        art_layers = art.layers(tone, _text_boxes(slide), cover=spec["type"] == "cover")
+        background = [canvas.fill(slide, "bg.fill", page_box)] + [
+            canvas.picture(slide, name, png, page_box, fit_inside=False) for name, png in art_layers]
+        canvas.send_to_back(slide, background)
+        canvas.notes(slide, spec.get("notes", ""))
+    return prs
 
 
 def build_deck(content: Path = DEFAULT_CONTENT, out_dir: Optional[Path] = None, pdf: bool = True,
-               validation_summary: Optional[Path] = None, planning_evaluation: Optional[Path] = None,
-               outlook: Optional[Path] = None) -> DeckResult:
-    content = Path(content)
-    deck = yaml.safe_load(content.read_text())
+               previews: bool = False, validation_summary: Optional[Path] = None,
+               planning_evaluation: Optional[Path] = None, outlook: Optional[Path] = None,
+               deck_numbers: Optional[numbers.DeckNumbers] = None) -> DeckResult:
+    """Build and export the deck. `deck_numbers` replaces the artifact numbers (tests)."""
+    deck = yaml.safe_load(Path(content).read_text())
+    table = deck_numbers or numbers.collect(deck, validation_summary or SETTINGS.output_dir / "validation_summary.json",
+                                            planning_evaluation or SETTINGS.evaluation_results_path,
+                                            outlook or SETTINGS.output_dir / "outlook.json")
+    prs = render(deck, table)
     out_dir = Path(out_dir or SETTINGS.output_dir / "deck")
-    fig_dir = out_dir / "figures"
-    assets_dir = content.parent / "assets"
-    table = numbers.collect(deck.get("numbers", {}),
-                            validation_summary or SETTINGS.output_dir / "validation_summary.json",
-                            planning_evaluation or SETTINGS.evaluation_results_path,
-                            outlook or SETTINGS.output_dir / "outlook.json")
-    used: set = set()
+    pptx_path, pdf_path, preview_paths = export(prs, out_dir, pdf, previews)
+    return DeckResult(pptx_path, pdf_path, preview_paths, len(prs.slides), table.fallbacks(deck.get("numbers", {})))
 
-    prs = layout.new_presentation()
-    slides = deck["slides"]
-    footer = deck.get("footer", "")
-    fill = lambda text: numbers.fill(text, table, used)  # noqa: E731
-    for page, spec in enumerate(slides, start=1):
-        title, message = fill(spec["title"]), fill(spec.get("message", ""))
-        tiles = [{**s, "value": fill(s["value"]), "label": fill(s["label"])} for s in spec.get("stats", [])]
-        tiles_cards = [{**c, "title": fill(c["title"]), "lines": [fill(x) for x in c.get("lines", [])]} for c in spec.get("cards", [])]
-        if spec.get("layout") == "cover":
-            slide = layout.cover_slide(prs, title, message, fill(spec.get("kicker", "")), footer)
-            if tiles_cards:
-                left = Inches(5.9)
-                layout.cards(slide, tiles_cards, left, Inches(4.45), layout.WIDTH - left - layout.MARGIN, Inches(2.2))
-            layout.notes(slide, fill(spec.get("notes", "")))
-            continue
-        slide = layout.frame_slide(prs, title, message, page, len(slides), footer)
-        bullets = _fill_tree(spec.get("bullets"), table, used)
-        visual = spec.get("figure")
-        grid = spec.get("table")
-        top, bottom = layout.BODY_TOP, layout.BODY_BOTTOM
-        if tiles or tiles_cards:  # a band of stat tiles or cards, full width
-            draw = layout.stat_tiles if tiles else layout.cards
-            alone = not (bullets or visual or grid)
-            band_h = min(bottom - top, Inches(3.6)) if alone else (Inches(1.35) if tiles else Inches(2.2))
-            x, _, w, _ = layout.body_box()
-            if spec.get("band_position") == "top" or alone:
-                draw(slide, tiles or tiles_cards, x, top, w, band_h)
-                top += band_h + layout.GAP
-            else:
-                draw(slide, tiles or tiles_cards, x, bottom - band_h, w, band_h)
-                bottom -= band_h + layout.GAP
-        if bullets and visual and spec.get("figure_position") == "top":
-            x, y, w, h = layout.body_box(top=top, bottom=bottom)
-            region = (x, y, w, int(h * 0.5))
-            layout.check_list(slide, bullets, x, y + int(h * 0.54), w, int(h * 0.46))
-        elif bullets and (visual or grid):
-            left, right = layout.body_box(split="right", top=top, bottom=bottom)
-            layout.check_list(slide, bullets, *left)
-            region = right
-        elif bullets:
-            layout.check_list(slide, bullets, *layout.body_box(top=top, bottom=bottom))
-            region = None
-        elif visual or grid:
-            region = layout.body_box(top=top, bottom=bottom)
-        else:
-            region = None
-        if visual and region is not None:
-            path = figures.render(visual, fig_dir, {k: v.value for k, v in table.items()}, assets_dir)
-            layout.picture(slide, path, *region)
-        elif grid and region is not None:
-            x, y, w, _ = region
-            header, rows = _table_rows(grid, table, used)
-            layout.table(slide, header, rows, x, y, w, grid.get("highlight_row"), grid.get("widths"))
-        layout.notes(slide, fill(spec.get("notes", "")))
 
+def export(prs, out_dir: Path, pdf: bool, previews: bool):
+    """Write deck.pptx, and optionally deck.pdf (LibreOffice) and PNG previews (pdftoppm)."""
     out_dir.mkdir(parents=True, exist_ok=True)
     pptx_path = out_dir / "deck.pptx"
     prs.save(pptx_path)
-    pdf_path = to_pdf(pptx_path) if pdf else None
-    return DeckResult(pptx_path, pdf_path, len(slides), numbers.fallback_numbers(table, used, deck.get("numbers", {})))
+    pdf_path = to_pdf(pptx_path) if pdf or previews else None
+    preview_paths = to_previews(pdf_path, out_dir / "previews") if previews and pdf_path else []
+    return pptx_path, pdf_path, preview_paths
 
 
 def to_pdf(pptx_path: Path) -> Optional[Path]:
     """Convert with LibreOffice if it is installed; None otherwise."""
-    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    soffice = shutil.which("soffice") or shutil.which("libreoffice") or next(
+        (str(p) for p in SOFFICE_PATHS if p.exists()), None)
     if soffice is None:
         return None
     subprocess.run([soffice, "--headless", "--convert-to", "pdf", "--outdir", str(pptx_path.parent), str(pptx_path)],
                    check=True, capture_output=True, timeout=300)
     pdf = pptx_path.with_suffix(".pdf")
     return pdf if pdf.exists() else None
+
+
+def to_previews(pdf_path: Path, out_dir: Path) -> List[Path]:
+    """One PNG per slide (pdftoppm, from poppler); empty when it is not installed."""
+    pdftoppm = shutil.which("pdftoppm")
+    if pdftoppm is None:
+        return []
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True)
+    subprocess.run([pdftoppm, "-png", "-r", "110", str(pdf_path), str(out_dir / "slide")], check=True, timeout=300)
+    return sorted(out_dir.glob("slide-*.png"))

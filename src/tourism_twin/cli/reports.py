@@ -17,6 +17,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     report_parser.add_argument("kind", choices=["solution", "database", "deck"])
     report_parser.add_argument("--content", help="deck only: content YAML (default meta/deck/deck.yaml)")
     report_parser.add_argument("--no-pdf", action="store_true", help="deck only: skip the LibreOffice PDF export")
+    report_parser.add_argument("--previews", action="store_true", help="deck only: also render one PNG per slide (needs pdftoppm)")
     report_parser.set_defaults(func=report)
 
 
@@ -60,9 +61,11 @@ def report(args: argparse.Namespace) -> None:
     else:
         from tourism_twin.reporting.deck import DEFAULT_CONTENT, build_deck
 
-        result = build_deck(args.content or DEFAULT_CONTENT, pdf=not args.no_pdf)
+        result = build_deck(args.content or DEFAULT_CONTENT, pdf=not args.no_pdf, previews=args.previews)
         print(f"Deck: {result.pptx} ({result.slides} slides)")
         print(f"PDF: {result.pdf}" if result.pdf else "PDF: skipped (LibreOffice `soffice` not found, or --no-pdf)")
+        if result.previews:
+            print(f"Previews: {result.previews[0].parent} ({len(result.previews)} PNG)")
         if result.fallback_numbers:
             print("Numbers still from the deck's fallback block (run `twin validate` and `twin outlook` to source them from artifacts):")
             print("  " + ", ".join(result.fallback_numbers))

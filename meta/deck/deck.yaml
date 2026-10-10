@@ -1,162 +1,200 @@
-# Presentation content — the only file to edit. Build: `twin report deck` → output/deck/deck.pptx (+ deck.pdf)
-#
-# Each slide: title, message (one line under the title), bullets (check-icon list: text + short
-# detail lines), stats (big-number tiles: value, label, tone), cards (title, lines, tone), with
-# band_position: top|bottom; layout: cover (title slide: kicker, title, message, cards);
-# figure (a name from reporting/deck/figures.py, or asset:<file> in meta/deck/assets/),
-# table (header + rows), notes (speaker notes).
-# Numbers: write {name}. They are filled from artifacts (output/validation_summary.json,
-# output/outlook.json, lake/curated/evaluation_results.json); the `numbers:` block below is the fallback and must name
-# its source. Writing rules: plain words; a technical term only with its job ("we used X to do Y");
-# a detail always under its parent bullet.
+# Presentation content: the only file to edit. Build: `twin report deck` → output/deck/deck.pptx (+ deck.pdf)
+# Keys per slide type are listed in meta/deck/README.md. Every slide has `type`, `kicker`, `title`,
+# `subtitle` (the cover: `title`, `subtitle`) and `notes`; `footnote` is optional.
+# Numbers: write {name}; they are filled from artifacts and from the `scenarios:` below (run through
+# the planning simulator). Hero and stat values must be placeholders. Inline accents: **bold**,
+# ==accent==; one or two per slide, on the key number or claim.
 
-footer: "Abu Dhabi Tourism Digital Twin · DCT Abu Dhabi · Advanced Technology Pioneers 2026"
+footer: "Abu Dhabi Tourism Digital Twin  /  ChallengeON ATP 2026"
 
+# Fallbacks, used only when the artifact is missing; each names its source.
 numbers:
-  val.naive_364.domestic: {value: "16.9", source: "validation re-run on 901edb1 (#11)"}
-  val.naive_364.international: {value: "23.0", source: "validation re-run on 901edb1 (#11)"}
-  val.time_only.domestic: {value: "10.1", source: "validation re-run on 901edb1 (#11)"}
-  val.time_only.international: {value: "10.7", source: "validation re-run on 901edb1 (#11)"}
-  val.flow_only.domestic: {value: "9.6", source: "validation re-run on 901edb1 (#11)"}
-  val.flow_only.international: {value: "5.4", source: "validation re-run on 901edb1 (#11)"}
   val.twin_daily.domestic: {value: "4.2", source: "validation re-run on 901edb1 (#11)"}
   val.twin_daily.international: {value: "4.6", source: "validation re-run on 901edb1 (#11)"}
-  const.wizz_drop: {value: "45–49%", source: "test-period arrivals vs a year earlier, 5 Wizz Air markets (model_design §4.7)"}
-  const.order_gap: {value: "8.6", source: "model_design §4.1: greedy fit order vs joint backfit"}
-  const.pooling_gain_val: {value: "0.55", source: "#16, validation origins"}
-  const.recency_gain_val: {value: "0.40", source: "pooled grid, validation origins (#16 follow-up)"}
-  const.ramadan_domestic: {value: "−24%", source: "analysis/model_time.md §2: Ramadan event kernel, domestic"}
-  const.ramadan_international: {value: "−18%", source: "analysis/model_time.md §2: Ramadan event kernel, international"}
-  const.saturday_domestic: {value: "+23%", source: "analysis/model_time.md §2: domestic Saturday vs Monday"}
+
+# Named what-if scenarios: market, season and any ScenarioLever field
+# (delta_frequency, aircraft_gauge, delta_seats_pct, delta_load_factor, delta_p2p_share, ...).
+scenarios:
+  uk_flights: {market: UNITED KINGDOM, season: Winter_Peak, delta_frequency: 2, aircraft_gauge: 290}
+  uk_fuller: {market: UNITED KINGDOM, season: Winter_Peak, delta_load_factor: 0.02}
+  sweden_route: {market: SWEDEN, season: Winter_Peak, delta_frequency: 2, aircraft_gauge: 180}
+  india_seats: {market: INDIA, season: Winter_Peak, delta_seats_pct: 0.10}
 
 slides:
-  - layout: cover
+  - type: cover
     kicker: "Abu Dhabi Tourism Digital Twin"
-    title: "Know hotel demand before it arrives"
-    message: "Daily hotel guests by market, so hotels and DCT can plan staff, prices and campaigns ahead."
-    cards:
-      - {title: "Predict", lines: ["Daily guests by market and nationality"], tone: dark}
-      - {title: "Forecast", lines: ["Next winter under arrival scenarios"]}
-      - {title: "Explain", lines: ["What moves guest numbers"], tone: red}
-    notes: "One goal, three tasks. The question we answer: how many guests, from which countries, on which days, and what changes that number."
+    title: "What if more flights meant more hotel stays?"
+    subtitle: "A planning tool for DCT Abu Dhabi. It turns a flight change into hotel visitors and hotel nights."
+    line: "ChallengeON ATP 2026"
+    notes: >-
+      We built a simulator that answers one question for DCT Abu Dhabi: if flights change, how many
+      more people stay in hotels, and for how many nights. It runs in a web browser and uses the
+      flight and hotel data supplied for the challenge.
 
-  - title: "Problem and data"
-    message: "Flights bring passengers; only part of them become hotel guests."
-    figure: conversion_chain
-    figure_position: top
-    bullets:
-      - text: "Data we have"
-        children:
-          - "Daily guests and arrivals by nationality, 2022 → Jul 2025"
-          - "Arrivals only, Aug 2025 → Feb 2026: the period to predict"
-      - text: "The catch"
-        children:
-          - "Flight country = departure; hotel country = nationality. We model each market from its own check-ins"
-    notes: "Hidden small counts ('*') are treated as unknown, not zero. Flights per route and airline are daily from 2023."
+  - type: columns
+    kicker: "The question"
+    title: "More seats do not fill hotels one for one"
+    subtitle: "People drop out at each step between a plane seat and a hotel room."
+    columns:
+      - head: "What changes"
+        body: "A new route, more flights, bigger aircraft, fuller flights or a season mix."
+      - head: "What is lost"
+        body: "Some fly on, some stay with family, and stays vary in length."
+      - head: "What we answer"
+        body: "How many ==more hotel visitors and nights== each change brings a week."
+    notes: >-
+      These are the five planning questions: a new route, more weekly flights, bigger aircraft,
+      fuller flights, and a different market mix by season. Passengers who connect onward never
+      check in, residents go home, and some visitors stay with friends. The simulator models each
+      of these steps per market and season.
 
-  - title: "System design"
-    message: "Heavy work runs once, offline; the web app only reads the results."
-    figure: system_diagram
-    notes: "Build: Python pipeline (DuckDB data lake, feature and model registries, validation) exports one versioned JSON bundle. Serve: static React app with the same maths in TypeScript, checked against Python to 1e-9, so it runs free with no server."
+  - type: flow
+    kicker: "How it works"
+    title: "From seats to hotel nights in five steps"
+    subtitle: "Each step keeps a share of the people from the step before."
+    flow:
+      - steps:
+          - {head: "Seats", detail: "flights × seats each"}
+          - {head: "Passengers", detail: "seats filled"}
+          - {head: "Stay in Abu\u00a0Dhabi", detail: "no onward flight"}
+          - {head: "Hotel visitors", detail: "check-ins"}
+          - {head: "Hotel nights", detail: "guests each night"}
+      - label: "What runs it"
+        steps:
+          - {head: "Flight and hotel\u00a0data", detail: "pandas, DuckDB"}
+          - {head: "Models", detail: "scikit-learn"}
+          - {head: "Simulator", detail: "what-if levers"}
+          - {head: "Web app", detail: "React"}
+    notes: >-
+      Every link in the chain is fitted per market and season from past flights and hotel
+      check-ins, and a calendar model adds holidays and events. The models are fitted offline in
+      Python. The web app repeats the same arithmetic in the browser, so it needs no server.
 
-  - title: "Inputs we chose, and why"
-    message: "Each input has one job; anything that leaks the answer is left out."
-    table:
-      header: ["Input", "Used", "Why", "Assumption"]
-      widths: [0.27, 0.11, 0.35, 0.27]
-      rows:
-        - ["Hotel arrivals, last 22 days", "Yes", "Tonight's guests checked in recently", "Stay patterns change slowly"]
-        - ["Calendar: season, weekday, holidays", "Yes", "Demand follows the calendar too", "Each effect scales guests by a %"]
-        - ["Small nationalities, grouped", "Pooled", "Too few days to fit alone", "Group members behave alike"]
-        - ["Past guest counts", "No", "Unknown in the period to predict", "—"]
-        - ["Transfer share, stay length", "No", "No measurable gain", "—"]
-    notes: "Flight seats feed the what-if simulator; the daily model starts from hotel check-ins, which already reflect who flew in."
+  - type: hero
+    kicker: "Example: more flights"
+    title: "Two more UK flights a week in winter"
+    subtitle: "Each added flight has 290 seats. Everything else stays the same."
+    hero:
+      value: "{scen.uk_flights.visitors_delta}"
+      label: "hotel visitors a week"
+    side:
+      - "From {scen.uk_flights.visitors_base} to {scen.uk_flights.visitors_sim} a week"
+      - "About =={scen.uk_flights.nights_delta} hotel nights=="
+    footnote: "Weekly hotel nights in this scenario: {scen.uk_flights.p10} to {scen.uk_flights.p90} (stated range)."
+    notes: >-
+      Hotel visitors are check-ins: one person arriving at a hotel. Hotel nights count every guest
+      on every night, so a three-night stay counts three times. The range is wide because weekly
+      hotel demand moves a lot even without a flight change.
 
-  - title: "Model: arrivals become guests"
-    message: "Guests tonight = guests still staying from recent check-ins × that day's calendar effect."
-    figure: model_form
-    figure_position: top
-    bullets:
-      - text: "Distributed lag: counts who is still in the hotel"
-        children:
-          - "One weight per day since check-in, never negative, never rising"
-      - text: "Calendar multiplier: seasons, weekdays, holidays"
-        children:
-          - "Ramadan, Eid, National Day and New Year each get their own shape"
-    notes: "Guests_t = (c_t + Σ_k w_k · Arrivals_(t−k)) × exp(season + weekday + events). c_t is a slowly moving base of long-stay guests. About 1,300 days of data: a neural network did worse than 'same day last year'."
-
-  - title: "Training: fit everything together"
-    message: "Arrivals and the calendar overlap, so they are fitted jointly, not one after another."
-    figure: validation_bars
-    bullets:
-      - text: "Joint fit"
-        children:
-          - "Fitting order alone moved error by {const.order_gap} points"
-          - "Joint fitting gives one answer in any order"
-      - text: "Extra interactions: tested, dropped"
-        children:
-          - "None cut error by the 0.3-point bar"
-      - text: "Small nationalities pooled"
-        children:
-          - "{const.pooling_gain_val} points better; recent years weighted: {const.recency_gain_val} more"
-    notes: "Backfitting: each part is fitted with the others held fixed, repeated until nothing moves. Interactions tested: weekday × season, stay pattern × season, a boosted-tree model on the leftover error. The chart shows what each part adds."
-
-  - title: "Validation: only on periods the model never saw"
-    message: "Trained on the past, scored on the next 6 months, at 7 starting points."
-    figure: protocol_timeline
+  - type: stats
+    kicker: "Other levers"
+    title: "Three more changes a planner can test"
+    subtitle: "All in winter. Each number is extra hotel visitors a week."
     stats:
-      - {value: "{val.twin_daily.domestic}%", label: "Our error, domestic", tone: dark}
-      - {value: "{val.twin_daily.international}%", label: "Our error, international", tone: dark}
-      - {value: "{val.naive_364.domestic}%", label: "'Same day last year', domestic", tone: sand}
-      - {value: "{val.naive_364.international}%", label: "'Same day last year', international", tone: sand}
-    notes: "Error is WMAPE on daily totals. A 21-day gap separates training and scoring. Feb–Jul 2025 was kept aside and scored once, after every choice. A change counts only if it is at least 0.3 points better with a bootstrap range that excludes zero."
+      - label: "UK flights 2 points fuller"
+        value: "{scen.uk_fuller.visitors_delta}"
+        caption: "{scen.uk_fuller.nights_delta} hotel nights"
+      - label: "A new route from Sweden"
+        value: "{scen.sweden_route.visitors_delta}"
+        caption: "{scen.sweden_route.nights_delta} hotel nights"
+      - label: "10% more seats on India flights"
+        value: "{scen.india_seats.visitors_delta}"
+        caption: "{scen.india_seats.nights_delta} hotel nights"
+    footnote: "Sweden: 2 flights of 180 seats a week, estimated from similar markets."
+    notes: >-
+      Fuller flights means the share of seats sold rises by two points, for example from 80% to 82%.
+      Sweden has no route history in the data, so the simulator borrows the behaviour of similar
+      European markets. Treat that number as a first estimate until real bookings exist.
 
-  - title: "What we found"
-    message: "Arrivals drive international guests; the calendar drives domestic guests."
+  - type: chart
+    kicker: "What matters most"
+    title: "Which lever moves hotel nights most"
+    subtitle: "Each lever moved alone, low to high, for the UK in winter."
     figure: tornado
-    bullets:
-      - text: "International follows arrivals"
-        children:
-          - "Error {val.flow_only.international}% from arrivals alone, {val.time_only.international}% from the calendar alone"
-      - text: "Domestic follows the calendar"
-        children:
-          - "Saturdays {const.saturday_domestic}; Ramadan {const.ramadan_domestic}"
-      - text: "One airline can move a market"
-        children:
-          - "Wizz Air's exit: arrivals from 5 markets down {const.wizz_drop}"
-      - text: "In the simulator, {tornado.top1} matters most"
-    notes: "Chart: UK, winter peak, two more flights a week on a 290-seat aircraft, each lever moved alone. International Ramadan effect: {const.ramadan_international}."
+    scenario: uk_flights
+    side:
+      - "The largest swings come from =={scen.uk_flights.lever1}== and =={scen.uk_flights.lever2}==."
+    side_note: "Each lever has its own test range, so compare the order, not the exact gaps."
+    notes: >-
+      Each bar moves one lever between a low and a high setting while the others stay fixed:
+      seats by 15%, load factor by 4 points, stopover share by 5 points, hotel capture by 10% and
+      nights per visitor by half a night. The stopover share is the share of passengers who end
+      their trip in Abu Dhabi.
 
-  - title: "Outlook: winter {outlook.window}"
-    message: "Flat if arrivals hold; up if each market's trend continues."
+  - type: table
+    kicker: "Accuracy"
+    title: "How close the forecasts come"
+    subtitle: "Errors on past weeks and days the models never saw. Lower is better."
+    table:
+      header: ["Weekly planning model", "Error"]
+      widths: [0.72, 0.28]
+      highlight_row: 3
+      rows:
+        - ["Seasonal average", "{plan.prior.wmape}%"]
+        - ["Calendar only", "{plan.calendar.wmape}%"]
+        - ["Flight chain only", "{plan.structural.wmape}%"]
+        - ["Flight chain + calendar and events", "{plan.hybrid.wmape}%"]
+    side:
+      - "Daily forecast error: {val.twin_daily.domestic}% domestic, {val.twin_daily.international}% international"
+      - "Ranges covered **{plan.coverage_pct}% of real weeks**, against 80% intended"
+    notes: >-
+      Error is the average miss as a share of the true total. The weekly models were trained on
+      2023 to 2024 and scored on later weeks; the daily model was scored from seven starting points
+      it never saw. The daily model knows each day's hotel check-ins, so it is more accurate than
+      the weekly planner, which starts from flights.
+
+  - type: stats
+    kicker: "Winter outlook"
+    title: "This winter could bring more hotel nights"
+    subtitle: "December to February, in millions of hotel nights."
     stats:
-      - {value: "{outlook.flat.change}%", label: "Arrivals flat", tone: dark}
-      - {value: "{outlook.trend.change}%", label: "Arrival trend continues"}
-      - {value: "{outlook.trend.top1}", label: "Top source market, {outlook.trend.top1_share}% of guests", tone: red}
-    band_position: top
-    figure: outlook_months
-    bullets:
-      - text: "Who"
-        children:
-          - "{outlook.trend.top1}, {outlook.trend.top2}, {outlook.trend.top3}; domestic about {outlook.trend.domestic_share}%"
-      - text: "When"
-        children:
-          - "Peak in December; low in February (Ramadan)"
-      - text: "How sure"
-        children:
-          - "A range: on {outlook.bt.window}, flat {outlook.bt.flat.total}%, trend {outlook.bt.trend.total}%"
-    notes: "Guest data ends {outlook.guests_known_to}, so future arrivals are a scenario. The model converts arrivals into guests with about 4–5% error; the uncertainty is the arrivals. Changes compare with the model's estimate for winter {outlook.previous_window}. Rerun with real seats once airlines file winter schedules."
+      - label: "Last winter, {outlook.previous_window}"
+        value: "{outlook.previous.guests}m"
+        caption: "model estimate"
+      - label: "This winter, {outlook.window}"
+        value: "{outlook.trend.guests}m"
+        caption: "if recent trends hold"
+      - label: "Difference"
+        value: "{outlook.trend.change}%"
+        caption: "{outlook.flat.change}% if arrivals stay flat"
+    footnote: "Same method on winter {outlook.bt.window}: the trend path was {outlook.bt.trend.total}% off, the flat path {outlook.bt.flat.total}%."
+    notes: >-
+      Hotel data ends in {outlook.guests_known_to}, so this winter's arrivals are an assumption.
+      The trend path repeats each market's recent growth; the flat path keeps arrivals at last
+      year's level. When we ran the same method on an earlier winter, the trend path was too high,
+      so read the trend figure as an upper case and rerun once airlines file winter schedules.
 
-  - title: "Use, limits, and how to reproduce"
-    message: "Plan by market and week; rerun when new arrivals or schedules land."
-    cards:
-      - title: "For hotels and DCT"
-        tone: dark
-        lines: ["Staff and prices: daily guests with a range", "Campaigns: target the leading markets", "Route deals: test before signing"]
-      - title: "Limits"
-        tone: red
-        lines: ["No spending or trip purpose", "Hotel stays only", "Nationality is not residence", "Beyond known arrivals: a scenario"]
-      - title: "Reproduce"
-        tone: sand
-        lines: ["One command rebuilds data, models, validation, outlook and this deck", "Every number read from saved results"]
-    notes: "Commands: twin validate, twin outlook, twin report deck."
+  - type: rows
+    kicker: "Assumptions and limits"
+    title: "What the numbers assume"
+    subtitle: "Read every result with these limits in mind."
+    rows:
+      - {head: "One visitor per passenger", body: "Existing visitors are not multiplied"}
+      - {head: "Departure country", body: "Stands in for nationality"}
+      - {head: "Nights per visitor", body: "A ratio, not a measured stay"}
+      - {head: "Future years", body: "Repeat past seasons by default"}
+      - {head: "Ranges", body: "Cover =={plan.coverage_pct}% of real weeks==, not 80%"}
+      - {head: "Data", body: "Licensed for this competition only"}
+    notes: >-
+      An added passenger can bring at most one extra hotel visitor; visitors who already arrive by
+      other routes are left as they are. Flight data records where a flight left from, hotel data
+      records nationality, and we link the two per market. Nights per visitor is guests divided by
+      check-ins, which is not the same as how long people stay.
+
+  - type: columns
+    tone: dark
+    kicker: "What to do next"
+    title: "What a planner should do with this"
+    subtitle: "Three habits for the next route decision."
+    columns:
+      - head: "Test routes first"
+        body: "Run a route on the simulator before airline talks."
+      - head: "Look past seat counts"
+        body: "In the UK test, =={scen.uk_flights.lever1}== and {scen.uk_flights.lever2} moved hotel nights most."
+      - head: "Plan with the range"
+        body: "Staff and price for both ends of the range."
+    footnote: "Live site: https://abu-dhabi-hotel-outlook.vercel.app"
+    notes: >-
+      The simulator is live at abu-dhabi-hotel-outlook.vercel.app and needs no login. A route test
+      takes a minute: pick the market and season, move the levers, read visitors and nights with
+      their range. Rerun the outlook when new hotel data or airline schedules arrive.
