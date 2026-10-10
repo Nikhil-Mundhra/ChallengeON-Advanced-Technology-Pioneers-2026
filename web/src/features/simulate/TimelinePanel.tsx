@@ -6,7 +6,13 @@ import type { Weekly, WeekPoint } from "../../engine/weekly";
 
 /** Past weeks with the model's check against them, and the forecast with the changes from a chosen week. */
 export function TimelinePanel({ weekly, points, error, start }: { weekly: Weekly; points: WeekPoint[]; error: number | null; start: string }) {
-  if (!points.length) return <p className="note">No hotel history for this market yet, so only the weekly estimate applies.</p>;
+  if (!points.length) {
+    return (
+      <div className="canvas__body">
+        <p className="note">No direct flight or hotel history for this market yet. Weekly impact is estimated using archetype priors from similar markets (see &ldquo;How it adds up&rdquo; or &ldquo;Biggest levers&rdquo;).</p>
+      </div>
+    );
+  }
   const checked = points.filter((p) => p.holdout !== null).map((p) => p.week);
   const forecastFrom = points.find((p) => p.kind === "projected")?.week ?? null;
   const eventError = holdoutWmape(points.filter((p) => p.event));

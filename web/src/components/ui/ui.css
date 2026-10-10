@@ -47,6 +47,8 @@
 .slider-row__track input { width: 100%; margin: 0; accent-color: var(--color-accent); display: block; }
 .slider-row__mark { position: absolute; top: -3px; width: 2px; height: 6px; margin-left: -1px; background: var(--color-text-muted); pointer-events: none; }
 .slider-row__scale { display: flex; justify-content: space-between; padding: 0 36px; font-size: 10px; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.slider-row--disabled { opacity: 0.45; }
+.slider-row--disabled input { cursor: not-allowed; }
 @media (pointer: coarse) { .slider-row__control { grid-template-columns: 32px 1fr 32px; } .slider-row__step { width: 32px; height: 32px; } .slider-row__scale { padding: 0 40px; } }
 
 .control-section + .control-section { border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
@@ -57,4 +59,5 @@
 
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chips__chip { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: var(--radius-sm); padding: 6px var(--space-3); font-size: var(--text-xs); color: var(--color-text); cursor: pointer; }
+.chips__chip:disabled { opacity: 0.45; cursor: not-allowed; }
 .chips__chip[aria-pressed="true"] { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-accent); font-weight: var(--weight-medium); }

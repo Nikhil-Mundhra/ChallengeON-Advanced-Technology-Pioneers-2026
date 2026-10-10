@@ -41,6 +41,12 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
 
   const starts = points.filter((p) => p.week > weekly.last_actual_week && Number(p.week.slice(5, 7)) % 3 === 1 && Number(p.week.slice(8, 10)) <= 7);
 
+  const isDomestic = market === "DOMESTIC";
+  const presets = useMemo(() => PRESETS.map((p) => ({
+    ...p,
+    disabled: isDomestic && p.value === "more_flights",
+  })), [isDomestic]);
+
   return (
     <div className="workbench">
       <aside className="workbench__panel" aria-label="Scenario settings">
@@ -52,16 +58,30 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
             {headline.result.is_cold_start && <Badge tone="neutral">No direct flights today, estimated from similar markets</Badge>}
           </ControlSection>
           <ControlSection title="Start from">
-            <Chips label="Scenario presets" options={PRESETS} value={activePreset(input)} onChange={(id) => dispatch({ type: "preset", id })} />
+            <Chips label="Scenario presets" options={presets} value={activePreset(input)} onChange={(id) => dispatch({ type: "preset", id })} />
           </ControlSection>
-          {LEVER_GROUPS.map((group) => (
-            <ControlSection key={group.id} title={group.title} onReset={() => dispatch({ type: "resetGroup", group: group.id })} resetDisabled={!groupChanged(input, group)}>
-              {group.sliders.map((s) => (
-                <SliderRow key={s.key} label={s.label} hint={s.hint} value={input[s.key]} defaultValue={DEFAULT_INPUT[s.key]}
-                           min={s.min} max={s.max} step={s.step} format={s.format} onChange={(value) => dispatch({ type: "set", key: s.key, value })} />
-              ))}
-            </ControlSection>
-          ))}
+          {LEVER_GROUPS.map((group) => {
+            const isFlights = group.id === "flights";
+            const sectionDisabled = isDomestic && isFlights;
+            return (
+              <ControlSection key={group.id} title={group.title} onReset={() => dispatch({ type: "resetGroup", group: group.id })} resetDisabled={sectionDisabled || !groupChanged(input, group)}>
+                {sectionDisabled && <p className="note">UAE resident staycations do not use flight routes.</p>}
+                {group.sliders.map((s) => {
+                  const disabled = isDomestic ? (isFlights || s.key === "p2pPts") : (s.key === "gauge" && input.frequency === 0);
+                  const hint = (s.key === "gauge" && input.frequency === 0)
+                    ? "Applies when extra flights are added"
+                    : (isDomestic && s.key === "p2pPts")
+                    ? "Not applicable to domestic residents"
+                    : s.hint;
+                  return (
+                    <SliderRow key={s.key} label={s.label} hint={hint} value={input[s.key]} defaultValue={DEFAULT_INPUT[s.key]}
+                               min={s.min} max={s.max} step={s.step} format={s.format} disabled={disabled}
+                               onChange={(value) => dispatch({ type: "set", key: s.key, value })} />
+                  );
+                })}
+              </ControlSection>
+            );
+          })}
           <ControlSection title="Forecast" onReset={() => { setStart(weekly.last_actual_week); setGrowthPct(0); }}
                           resetDisabled={start === weekly.last_actual_week && growthPct === 0}>
             <div className="timeline__field">
@@ -70,7 +90,7 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
                       options={[{ value: weekly.last_actual_week, label: `${formatMonth(weekly.last_actual_week)} (after the latest data)` },
                                 ...starts.map((p) => ({ value: p.week, label: formatMonth(p.week) }))]} />
             </div>
-            <SliderRow label="Expected yearly growth" hint="Your assumption. Without it the forecast stays flat." value={growthPct} defaultValue={0}
+            <SliderRow label="Expected yearly growth" hint="Applies to multi-year timeline forecast. Without it the forecast stays flat." value={growthPct} defaultValue={0}
                        min={-5} max={10} step={0.5} format={(v) => `${formatSigned(v, String)}% a year`} onChange={setGrowthPct} />
           </ControlSection>
         </Card>
@@ -120,7 +140,7 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
           <Card title="Your scenario">
             <p className="note">Move a slider or pick a starting point on the left. The numbers here show what your changes add, week by week and year by year.</p>
           </Card>
-        ) : years.length > 0 && (
+        ) : years.length > 0 ? (
           <Card title="Extra guests per year" subtitle={`From ${formatMonth(start)}, when your changes start`}>
             <table className="table">
               <thead><tr><th scope="col">Year</th><th scope="col">Extra guests</th></tr></thead>
@@ -133,6 +153,10 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
                 ))}
               </tbody>
             </table>
+          </Card>
+        ) : (
+          <Card title="Estimated impact">
+            <p className="note">New service impact is estimated from archetype priors. Multi-year timeline projections are available for markets with historical flight schedules.</p>
           </Card>
         )}
         <p className="note">Estimates from past flight and hotel data, not guarantees. In past checks, real weeks landed within the stated error about 2 weeks in 3.</p>

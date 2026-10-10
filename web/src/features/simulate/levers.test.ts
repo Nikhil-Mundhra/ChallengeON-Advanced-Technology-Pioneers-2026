@@ -11,4 +11,17 @@ describe("lever state", () => {
     expect(reset).toEqual(DEFAULT_INPUT);
     expect(toLever(more)).toMatchObject({ delta_frequency: 2, aircraft_gauge: 290, delta_load_factor: 0.02 });
   });
+
+  it("handles cold start market naming correctly", async () => {
+    const mockPlanning = {
+      calibration: { "UNITED KINGDOM": {} as any },
+      archetypes: { country: { "UNITED KINGDOM": "Major Hub", "ARMENIA": "Highly Seasonal" } } as any,
+    } as any;
+    const { marketOptions } = await import("./levers");
+    const options = marketOptions(mockPlanning);
+    expect(options).toEqual([
+      { value: "UNITED KINGDOM", label: "UNITED KINGDOM" },
+      { value: "ARMENIA", label: "ARMENIA (no direct flights)" },
+    ]);
+  });
 });

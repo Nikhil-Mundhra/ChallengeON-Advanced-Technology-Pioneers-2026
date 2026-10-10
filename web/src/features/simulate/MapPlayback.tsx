@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Area, AreaChart, ReferenceLine, ResponsiveContainer, XAxis } from "recharts";
+import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { FlowMap, type DotMode } from "../../components/charts/FlowMap";
 import { SERIES } from "../../components/charts/theme";
 import { Badge, Segmented } from "../../components/ui";
@@ -63,8 +63,14 @@ export function MapPlayback({ pb, selected, startWeek, onSelect }: { pb: Playbac
       <div className="playback__scrub">
         <ResponsiveContainer width="100%" height={56}>
           <AreaChart data={series} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}
-                     onClick={(e) => { const i = pb.weeks.indexOf(String(e?.activeLabel ?? "")); if (i >= 0) { setW(i); setPlaying(false); } }}>
+                     onClick={(e) => {
+                       const idx = e?.activeTooltipIndex !== undefined
+                         ? Number(e.activeTooltipIndex)
+                         : pb.weeks.indexOf(String(e?.activeLabel ?? ""));
+                       if (idx >= 0 && idx <= last) { setW(idx); setPlaying(false); }
+                     }}>
             <XAxis dataKey="week" hide />
+            <Tooltip content={() => null} cursor={false} />
             <Area dataKey="total" stroke={SERIES.actual} fill={SERIES.scenario} fillOpacity={0.15} isAnimationActive={false} dot={false} />
             <ReferenceLine x={firstForecast} stroke="var(--color-text-muted)" strokeDasharray="3 3" />
             <ReferenceLine x={pb.weeks[w]} stroke={SERIES.check} strokeWidth={2} />

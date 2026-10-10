@@ -45,9 +45,25 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highli
             </g>
           );
         })}
-        {domestic && <circle className="flowmap__hub-ring" cx={hx} cy={hy} r={4 + width(domestic.sim) / 1.5} />}
-        <circle className="flowmap__hub" cx={hx} cy={hy} r={6} />
-        <text className="flowmap__label flowmap__label--hub" x={hx + 10} y={hy + 18}>Abu Dhabi</text>
+        {domestic && (
+          <g className={`flowmap__flow flowmap__hub-group${selected === "DOMESTIC" ? " flowmap__flow--selected" : ""}`}
+             onClick={() => onSelect("DOMESTIC")} role="button" tabIndex={0}
+             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect("DOMESTIC"); }}
+             aria-label={`Abu Dhabi (Domestic): ${formatCount(domestic.sim)} guests a week`}>
+            <title>{`Abu Dhabi (Domestic): ${formatCount(domestic.sim)} guests a week${selected === "DOMESTIC" && Math.abs(domestic.sim - domestic.base) >= 1 ? ` (${formatSigned(domestic.sim - domestic.base, formatCount)} from your changes)` : ""}`}</title>
+            <circle className="flowmap__hub-ring" cx={hx} cy={hy} r={4 + width(domestic.sim) / 1.5} />
+            <circle className="flowmap__hub" cx={hx} cy={hy} r={6} />
+            <text className="flowmap__label flowmap__label--hub" x={hx + 10} y={hy + 18}>
+              Abu Dhabi{selected === "DOMESTIC" && Math.abs(domestic.sim - domestic.base) >= 1 ? ` ${formatSigned(domestic.sim - domestic.base, formatCount)}` : ""}
+            </text>
+          </g>
+        )}
+        {!domestic && (
+          <>
+            <circle className="flowmap__hub" cx={hx} cy={hy} r={6} />
+            <text className="flowmap__label flowmap__label--hub" x={hx + 10} y={hy + 18}>Abu Dhabi</text>
+          </>
+        )}
       </svg>
       {dots && (
         <FlowDots arcs={arcs} mode={dots.mode} perDot={dots.perDot} playing={dots.playing}

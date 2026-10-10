@@ -10,6 +10,7 @@ interface SliderRowProps {
   step?: number;
   format?: (value: number) => string;
   onChange: (value: number) => void;
+  disabled?: boolean;
 }
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
@@ -17,13 +18,15 @@ const roundTo = (v: number, step: number) => Number((Math.round(v / step) * step
 
 /** One controlled slider: label and value on top, -/+ steppers either side of the track, the
  *  default marked on the track, min/max below. A changed value shows a dot and its own reset. */
-export function SliderRow({ label, hint, value, defaultValue, min, max, step = 1, format = String, onChange }: SliderRowProps) {
+export function SliderRow({ label, hint, value, defaultValue, min, max, step = 1, format = String, onChange, disabled }: SliderRowProps) {
   const id = useId();
-  const changed = value !== defaultValue;
-  const set = (v: number) => onChange(roundTo(clamp(v, min, max), step));
+  const changed = value !== defaultValue && !disabled;
+  const set = (v: number) => {
+    if (!disabled) onChange(roundTo(clamp(v, min, max), step));
+  };
   const mark = ((defaultValue - min) / (max - min)) * 100;
   return (
-    <div className={`slider-row${changed ? " slider-row--changed" : ""}`}>
+    <div className={`slider-row${changed ? " slider-row--changed" : ""}${disabled ? " slider-row--disabled" : ""}`}>
       <div className="slider-row__head">
         <label htmlFor={id} className="slider-row__label">
           {label}
@@ -35,12 +38,12 @@ export function SliderRow({ label, hint, value, defaultValue, min, max, step = 1
         </span>
       </div>
       <div className="slider-row__control">
-        <button type="button" className="slider-row__step" onClick={() => set(value - step)} disabled={value <= min} aria-label={`Decrease ${label}`}>−</button>
+        <button type="button" className="slider-row__step" onClick={() => set(value - step)} disabled={disabled || value <= min} aria-label={`Decrease ${label}`}>−</button>
         <div className="slider-row__track">
-          <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => set(Number(e.target.value))} />
+          <input id={id} type="range" min={min} max={max} step={step} value={value} disabled={disabled} onChange={(e) => set(Number(e.target.value))} />
           <span className="slider-row__mark" style={{ left: `${mark}%` }} aria-hidden="true" />
         </div>
-        <button type="button" className="slider-row__step" onClick={() => set(value + step)} disabled={value >= max} aria-label={`Increase ${label}`}>+</button>
+        <button type="button" className="slider-row__step" onClick={() => set(value + step)} disabled={disabled || value >= max} aria-label={`Increase ${label}`}>+</button>
       </div>
       <div className="slider-row__scale" aria-hidden="true"><span>{format(min)}</span><span>{format(max)}</span></div>
     </div>

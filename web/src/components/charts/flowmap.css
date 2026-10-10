@@ -16,3 +16,8 @@
 .flowmap__flow--selected .flowmap__label { font-weight: 650; fill: var(--color-accent); }
 .flowmap__label--hub { text-anchor: start; font-weight: 650; }
 .flowmap__flow--event .flowmap__arc { stroke: var(--color-series-check); stroke-opacity: 0.55; }
+.flowmap__hub-group { cursor: pointer; outline: none; }
+.flowmap__hub-group:hover .flowmap__hub-ring, .flowmap__hub-group:focus-visible .flowmap__hub-ring { fill-opacity: 0.35; }
+.flowmap__hub-group.flowmap__flow--selected .flowmap__hub-ring { stroke: var(--color-accent); stroke-width: 2px; fill-opacity: 0.3; }
+.flowmap__hub-group.flowmap__flow--selected .flowmap__hub { fill: var(--color-accent); }
+
