@@ -1,5 +1,6 @@
-"""Deck figures: name → PNG. Planning charts come from reporting/charts.py (one copy); the
-diagrams and the validation chart are drawn here from the deck's numbers."""
+"""Deck figures: name → PNG, in the deck theme. Planning charts come from reporting/charts.py (one
+copy, recoloured); the diagrams and the validation and outlook charts are drawn here from the
+deck's numbers."""
 
 from __future__ import annotations
 
@@ -13,9 +14,17 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Patch
 
-from tourism_twin.reporting.palette import AMBER, BLUE, INK, LINE, MINT, MUTED, NAVY, SKY, TEAL
+from matplotlib import font_manager
+
+from tourism_twin.config import SETTINGS
+from tourism_twin.reporting.deck.theme import CHART_FONT, GREEN, GREEN_DARK, GREEN_LIGHT, GREY, INK, LINE, RED, SAND
 
 DPI = 200
+NAVY, BLUE, TEAL, SKY, MINT, AMBER, MUTED = GREEN_DARK, GREEN, GREEN, GREEN_LIGHT, SAND, RED, GREY
+for _font in (SETTINGS.root / "report" / "deck" / "fonts").glob("*.ttf"):
+    font_manager.fontManager.addfont(str(_font))
+plt.rcParams.update({"font.family": "sans-serif", "font.sans-serif": CHART_FONT, "axes.edgecolor": LINE,
+                     "axes.labelcolor": INK, "xtick.color": GREY, "ytick.color": GREY})
 
 
 def _box(ax, x: float, y: float, w: float, h: float, text: str, face: str = SKY, edge: str = BLUE,
@@ -43,28 +52,6 @@ def _save(fig, path: Path) -> Path:
     fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return path
-
-
-def goal_tree(out: Path, numbers: Dict[str, str]) -> Path:
-    """Goal → three tasks → the layers that deliver them."""
-    fig, ax = _canvas(12, 5.4)
-    _box(ax, 0.06, 0.80, 0.88, 0.15, "Goal: predict hotel guests by market and day, so hotels and DCT\ncan plan capacity, prices and advertising before demand arrives",
-         NAVY, NAVY, "white", 13, True)
-    tasks = [("1. Predict daily guests\nby market and nationality", 0.03),
-             ("2. Forecast the next season\nunder arrivals scenarios", 0.36),
-             ("3. Explain what moves guests\n(flights, calendar, markets)", 0.69)]
-    for text, x in tasks:
-        _box(ax, x, 0.48, 0.28, 0.16, text, SKY, BLUE, NAVY, 11)
-        _arrow(ax, (0.5, 0.80), (x + 0.14, 0.645))
-    layers = ["Data\nhotel + flight data,\ncleaned and joined", "Models\narrivals → guests,\ncalendar effects",
-              "Validation\ntested on unseen\nlater periods", "Simulator\nweb app: what-ifs,\nranges, outlook"]
-    for i, text in enumerate(layers):
-        x = 0.02 + i * 0.25
-        _box(ax, x, 0.06, 0.20, 0.22, text, MINT, TEAL, INK, 10.5)
-        if i:
-            _arrow(ax, (x - 0.05, 0.17), (x, 0.17), TEAL)
-    ax.text(0.5, 0.36, "delivered by four layers", ha="center", fontsize=10, color=MUTED, style="italic")
-    return _save(fig, out)
 
 
 def system_diagram(out: Path, numbers: Dict[str, str]) -> Path:
@@ -209,8 +196,10 @@ def waterfall(out: Path, numbers: Dict[str, str]) -> Path:
 
 def tornado(out: Path, numbers: Dict[str, str]) -> Path:
     from tourism_twin.reporting.charts import plot_tornado
+    from tourism_twin.reporting.deck.numbers import LEVER_NAMES
 
-    return plot_tornado(_reference_report(), out)
+    return plot_tornado(_reference_report(), out, color=GREEN, title=False,
+                        names={k: v[0].upper() + v[1:] for k, v in LEVER_NAMES.items()})
 
 
 def asset(name: str, assets_dir: Path) -> Callable[[Path, Dict[str, str]], Path]:
@@ -226,7 +215,6 @@ def asset(name: str, assets_dir: Path) -> Callable[[Path, Dict[str, str]], Path]
 
 
 FIGURES: Dict[str, Callable[[Path, Dict[str, str]], Path]] = {
-    "goal_tree": goal_tree,
     "system_diagram": system_diagram,
     "conversion_chain": conversion_chain,
     "validation_bars": validation_bars,

@@ -62,8 +62,8 @@ def test_deck_builds_slides_fills_numbers_and_reports_fallbacks(tmp_path):
     deck = pptx.Presentation(str(result.pptx))
     assert result.slides == len(deck.slides) == 3
     texts = [shape.text_frame.text for shape in deck.slides[0].shapes if shape.has_text_frame]
-    assert "Domestic error 9.9%" in texts and "1 / 3" in texts
-    assert any("Parent" in t and "child two" in t and "grandchild" in t for t in texts)
+    assert "Domestic error 9.9%" in texts and "01 / 03" in texts
+    assert {"Parent", "child two", "·  grandchild"} <= set(texts)
     assert deck.slides[0].notes_slide.notes_text_frame.text == "notes 8.8"
     assert "val.twin_daily.domestic" in result.fallback_numbers  # still the deck's own value, flagged
 
@@ -97,6 +97,21 @@ def test_outlook_numbers_and_figure(tmp_path):
                         planning_evaluation=tmp_path / "m.json", outlook=path)
     texts = [s.text_frame.text for s in pptx.Presentation(str(result.pptx)).slides[0].shapes if s.has_text_frame]
     assert "Outlook 2026/27" in texts and any("the UK" in t for t in texts)
+
+
+def test_cover_cards_and_stat_tiles_render_with_numbers(tmp_path):
+    content = {**FIXTURE, "slides": [
+        {"layout": "cover", "kicker": "k", "title": "Cover", "message": "m",
+         "cards": [{"title": "Predict", "lines": ["daily"], "tone": "dark"}, {"title": "Explain", "tone": "red"}]},
+        {"title": "Stats", "stats": [{"value": "{val.twin_daily.domestic}%", "label": "domestic"}], "figure": "validation_bars"},
+        {"title": "Cards only", "cards": [{"title": "Limits", "lines": ["one", "two"], "tone": "sand"}]},
+    ]}
+    result = build_deck(_write(tmp_path, content), out_dir=tmp_path / "o", pdf=False,
+                        validation_summary=tmp_path / "m.json", planning_evaluation=tmp_path / "m.json")
+    deck = pptx.Presentation(str(result.pptx))
+    texts = lambda i: [s.text_frame.text for s in deck.slides[i].shapes if s.has_text_frame]  # noqa: E731
+    assert "Cover" in texts(0) and any("Predict" in t and "daily" in t for t in texts(0))
+    assert "9.9%" in texts(1) and any("Limits" in t and "two" in t for t in texts(2))
 
 
 def test_unresolved_or_unsourced_numbers_fail_loudly(tmp_path):

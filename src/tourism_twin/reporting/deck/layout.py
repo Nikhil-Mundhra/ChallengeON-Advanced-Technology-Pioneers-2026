@@ -1,8 +1,9 @@
-"""Slide primitives on python-pptx: one 16:9 layout family in the repo palette.
+"""Slide primitives on python-pptx: one clean 16:9 family in the deck theme (theme.py).
 
-Every slide has the same frame: a title, a one-line message under it, a body (bullet tree,
-figure, table, or two of these side by side) and a footer with the deck name and page number.
-Bullet trees encode hierarchy by indent: a parent line, then its children one level in.
+Content slides share one frame: a heavy title top-left with a green bar beside it, a one-line
+message, a small green/red corner mark, and a footer. Bodies are composed from: check-icon lists
+(a parent line with its short detail lines), figures, tables, stat tiles (a big number and a
+label) and cards (a heading and a few lines on a solid tile). The cover has its own layout.
 """
 
 from __future__ import annotations
@@ -12,16 +13,18 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Emu, Inches, Pt
 
-from tourism_twin.reporting.palette import BLUE, INK, LINE, MUTED, NAVY, PALE, SKY
+from tourism_twin.reporting.deck.theme import FONT, GREEN, GREEN_DARK, GREEN_LIGHT, GREY, INK, RED, SAND, WHITE
 
 WIDTH, HEIGHT = Inches(13.333), Inches(7.5)
-MARGIN = Inches(0.6)
-BODY_TOP = Inches(1.75)
-BODY_BOTTOM = HEIGHT - Inches(0.6)
-FONT = "Calibri"
+MARGIN = Inches(0.7)
+BODY_TOP = Inches(1.85)
+BODY_BOTTOM = HEIGHT - Inches(0.65)
+GAP = Inches(0.3)
+TONES = {"green": GREEN, "dark": GREEN_DARK, "red": RED, "sand": SAND}
 
 
 def rgb(hex_color: str) -> RGBColor:
@@ -34,71 +37,139 @@ def new_presentation() -> Presentation:
     return prs
 
 
-def _text(frame, text: str, size: float, color: str, bold: bool = False, align=PP_ALIGN.LEFT) -> None:
-    frame.word_wrap = True
-    paragraph = frame.paragraphs[0]
-    paragraph.alignment = align
+def _shape(slide, kind, left, top, width, height, fill: str, rotation: float = 0.0):
+    shape = slide.shapes.add_shape(kind, left, top, width, height)
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = rgb(fill)
+    shape.line.fill.background()
+    shape.shadow.inherit = False
+    shape.rotation = rotation
+    return shape
+
+
+def _run(paragraph, text: str, size: float, color: str, bold: bool = False, heavy: bool = False) -> None:
     run = paragraph.add_run()
     run.text = text
-    run.font.size, run.font.bold, run.font.name = Pt(size), bold, FONT
+    run.font.size, run.font.bold = Pt(size), bold or heavy
+    run.font.name = FONT
     run.font.color.rgb = rgb(color)
+
+
+def _text(frame, text: str, size: float, color: str, bold: bool = False, align=PP_ALIGN.LEFT,
+          heavy: bool = False, anchor=MSO_ANCHOR.TOP) -> None:
+    frame.word_wrap = True
+    frame.vertical_anchor = anchor
+    frame.margin_left = frame.margin_right = Inches(0.05)
+    paragraph = frame.paragraphs[0]
+    paragraph.alignment = align
+    _run(paragraph, text, size, color, bold, heavy)
+
+
+def _box(slide, left, top, width, height, text: str, size: float, color: str, **kw):
+    box = slide.shapes.add_textbox(left, top, width, height)
+    _text(box.text_frame, text, size, color, **kw)
+    return box
+
+
+def _lines(text: str, size: float, width: Emu) -> int:
+    """Rough wrapped line count: Open Sans averages about 0.55 em per character."""
+    per_line = max(1, int(width / 914400 * 72 / (size * 0.55)))
+    return max(1, -(-len(text) // per_line))
 
 
 def frame_slide(prs: Presentation, title: str, message: str, page: int, total: int, footer: str):
     """A blank slide with the shared frame; returns the slide."""
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
-    band = slide.shapes.add_shape(1, 0, 0, WIDTH, Inches(0.12))
-    band.fill.solid()
-    band.fill.fore_color.rgb = rgb(BLUE)
-    band.line.fill.background()
-
-    title_box = slide.shapes.add_textbox(MARGIN, Inches(0.35), WIDTH - 2 * MARGIN, Inches(0.7))
-    _text(title_box.text_frame, title, 30, NAVY, bold=True)
+    _shape(slide, MSO_SHAPE.RECTANGLE, MARGIN - Inches(0.25), Inches(0.42), Inches(0.09), Inches(0.62), GREEN)
+    _box(slide, MARGIN, Inches(0.32), WIDTH - 2 * MARGIN - Inches(1.2), Inches(0.8), title, 30, GREEN_DARK, heavy=True)
     if message:
-        message_box = slide.shapes.add_textbox(MARGIN, Inches(1.0), WIDTH - 2 * MARGIN, Inches(0.6))
-        _text(message_box.text_frame, message, 17, BLUE)
-
-    rule = slide.shapes.add_connector(1, MARGIN, Inches(1.6), WIDTH - MARGIN, Inches(1.6))
-    rule.line.color.rgb = rgb(LINE)
-
-    foot = slide.shapes.add_textbox(MARGIN, HEIGHT - Inches(0.45), WIDTH - 2 * MARGIN, Inches(0.3))
-    _text(foot.text_frame, footer, 10, MUTED)
-    number = slide.shapes.add_textbox(WIDTH - MARGIN - Inches(1.0), HEIGHT - Inches(0.45), Inches(1.0), Inches(0.3))
-    _text(number.text_frame, f"{page} / {total}", 10, MUTED, align=PP_ALIGN.RIGHT)
+        _box(slide, MARGIN, Inches(1.1), WIDTH - 2 * MARGIN - Inches(0.6), Inches(0.6), message, 16, GREY)
+    _shape(slide, MSO_SHAPE.RIGHT_TRIANGLE, WIDTH - Inches(1.1), 0, Inches(1.1), Inches(1.1), GREEN, rotation=180)
+    _shape(slide, MSO_SHAPE.RIGHT_TRIANGLE, WIDTH - Inches(0.55), 0, Inches(0.55), Inches(0.55), RED, rotation=180)
+    _box(slide, MARGIN, HEIGHT - Inches(0.45), WIDTH - 2 * MARGIN, Inches(0.3), footer, 9, GREY)
+    _box(slide, WIDTH - MARGIN - Inches(1.0), HEIGHT - Inches(0.45), Inches(1.0), Inches(0.3), f"{page:02d} / {total:02d}", 9,
+         GREY, align=PP_ALIGN.RIGHT)
     return slide
 
 
-def bullet_tree(slide, items: Sequence[Dict[str, Any] | str], left: Emu, top: Emu, width: Emu, height: Emu) -> None:
-    """Parent lines bold in navy; children one indent level in, ink; grandchildren muted."""
-    box = slide.shapes.add_textbox(left, top, width, height)
-    frame = box.text_frame
-    frame.word_wrap = True
-    frame.vertical_anchor = MSO_ANCHOR.TOP
-    first = True
+def cover_slide(prs: Presentation, title: str, message: str, kicker: str, footer: str):
+    """Title slide: layered triangles on the left, a heavy title on the right."""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _shape(slide, MSO_SHAPE.RIGHT_TRIANGLE, 0, 0, Inches(5.6), HEIGHT, GREEN_DARK)
+    _shape(slide, MSO_SHAPE.ISOSCELES_TRIANGLE, Inches(1.2), Inches(1.9), Inches(3.2), Inches(2.6), GREEN, rotation=90)
+    _shape(slide, MSO_SHAPE.ISOSCELES_TRIANGLE, Inches(0.2), Inches(0.35), Inches(1.0), Inches(0.8), RED, rotation=90)
+    _shape(slide, MSO_SHAPE.RIGHT_TRIANGLE, WIDTH - Inches(1.6), 0, Inches(1.6), Inches(1.6), SAND, rotation=180)
+    left = Inches(5.9)
+    width = WIDTH - left - MARGIN
+    _box(slide, left, Inches(0.9), width, Inches(0.5), kicker, 18, RED, bold=True, align=PP_ALIGN.RIGHT)
+    _box(slide, left, Inches(1.35), width, Inches(1.9), title, 44, GREEN_DARK, heavy=True, align=PP_ALIGN.RIGHT)
+    _box(slide, left + Inches(1.2), Inches(3.35), width - Inches(1.2), Inches(0.9), message, 15, INK, align=PP_ALIGN.RIGHT)
+    _box(slide, left, HEIGHT - Inches(0.6), width, Inches(0.3), footer, 9, GREY, align=PP_ALIGN.RIGHT)
+    return slide
 
-    def add(text: str, level: int) -> None:
-        nonlocal first
-        paragraph = frame.paragraphs[0] if first else frame.add_paragraph()
-        first = False
-        paragraph.level = min(level, 2)
-        paragraph.space_before = Pt(10 if level == 0 else 3)
-        marker = "" if level == 0 else ("–  " if level == 1 else "·  ")
-        run = paragraph.add_run()
-        run.text = marker + text
-        run.font.name = FONT
-        run.font.size = Pt((19, 16, 14)[min(level, 2)])
-        run.font.bold = level == 0
-        run.font.color.rgb = rgb((NAVY, INK, MUTED)[min(level, 2)])
 
-    def walk(nodes: Sequence[Dict[str, Any] | str], level: int) -> None:
-        for node in nodes:
-            if isinstance(node, str):
-                add(node, level)
-            else:
-                add(node["text"], level)
-                walk(node.get("children", []), level + 1)
+def _flatten(nodes, prefix: str = "") -> List[str]:
+    """Detail lines in order; a grandchild line is prefixed with '· '."""
+    out: List[str] = []
+    for node in nodes:
+        text, children = (node, []) if isinstance(node, str) else (node["text"], node.get("children", []))
+        out.append(prefix + text)
+        out.extend(_flatten(children, "·  "))
+    return out
 
-    walk(items, 0)
+
+def check_list(slide, items: Sequence[Dict[str, Any] | str], left: Emu, top: Emu, width: Emu, height: Emu) -> None:
+    """Each top item: a green check disc and a bold line; its children as short grey lines under it."""
+    icon, indent = Inches(0.34), Inches(0.52)
+    y = top
+    for node in items:
+        text, children = (node, []) if isinstance(node, str) else (node["text"], node.get("children", []))
+        disc = _shape(slide, MSO_SHAPE.OVAL, left, y + Inches(0.04), icon, icon, GREEN)
+        _text(disc.text_frame, "✓", 12, WHITE, bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+        disc.text_frame.margin_top = disc.text_frame.margin_bottom = 0
+        head_h = Inches(0.36) * _lines(text, 17, width - indent)
+        _box(slide, left + indent, y, width - indent, head_h, text, 17, INK, bold=True)
+        y += head_h
+        for child_text in _flatten(children):
+            child_h = Inches(0.29) * _lines(child_text, 14, width - indent)
+            _box(slide, left + indent, y, width - indent, child_h, child_text, 14, GREY)
+            y += child_h
+        y += Inches(0.2)
+    if y - Inches(0.2) > top + height:
+        raise ValueError(f"List overflows its region by {(y - Inches(0.2) - top - height) / 914400:.2f} in: shorten it")
+
+
+def stat_tiles(slide, stats: Sequence[Dict[str, str]], left: Emu, top: Emu, width: Emu, height: Emu) -> None:
+    """A row of tiles: a big number over a short label; tone green (default), dark, red or sand."""
+    n = len(stats)
+    w = int((width - GAP * (n - 1)) / n)
+    for i, stat in enumerate(stats):
+        tone = TONES[stat.get("tone", "green")]
+        ink = INK if tone == SAND else WHITE
+        x = left + i * (w + GAP)
+        _shape(slide, MSO_SHAPE.RECTANGLE, x, top, w, height, tone)
+        _box(slide, x + Inches(0.2), top + Inches(0.1), w - Inches(0.4), int(height * 0.52), stat["value"], 30, ink,
+             heavy=True, anchor=MSO_ANCHOR.BOTTOM)
+        _box(slide, x + Inches(0.2), top + int(height * 0.6), w - Inches(0.4), int(height * 0.38), stat["label"], 12.5, ink)
+
+
+def cards(slide, items: Sequence[Dict[str, Any]], left: Emu, top: Emu, width: Emu, height: Emu) -> None:
+    """Solid tiles in a row: a heading and a few short lines each; tone as in stat_tiles."""
+    n = len(items)
+    w = int((width - GAP * (n - 1)) / n)
+    for i, card in enumerate(items):
+        tone = TONES[card.get("tone", "green")]
+        ink = INK if tone == SAND else WHITE
+        x = left + i * (w + GAP)
+        _shape(slide, MSO_SHAPE.RECTANGLE, x, top, w, height, tone)
+        _shape(slide, MSO_SHAPE.RECTANGLE, x, top, w, Inches(0.07), RED if tone != RED else GREEN_DARK)
+        box = slide.shapes.add_textbox(x + Inches(0.22), top + Inches(0.22), w - Inches(0.44), height - Inches(0.35))
+        frame = box.text_frame
+        _text(frame, card["title"], 17, ink, bold=True)
+        for line in card.get("lines", []):
+            paragraph = frame.add_paragraph()
+            paragraph.space_before = Pt(7)
+            _run(paragraph, line, 13, ink)
 
 
 def picture(slide, path: Path, left: Emu, top: Emu, width: Emu, height: Emu) -> None:
@@ -113,22 +184,29 @@ def picture(slide, path: Path, left: Emu, top: Emu, width: Emu, height: Emu) -> 
 
 
 def table(slide, header: List[str], rows: List[List[str]], left: Emu, top: Emu, width: Emu,
-          highlight_row: Optional[int] = None) -> None:
-    shape = slide.shapes.add_table(len(rows) + 1, len(header), left, top, width, Inches(0.42) * (len(rows) + 1))
+          highlight_row: Optional[int] = None, widths: Optional[Sequence[float]] = None) -> None:
+    """Dark-green header, sand banding, no borders; `widths` are column fractions."""
+    shape = slide.shapes.add_table(len(rows) + 1, len(header), left, top, width, Inches(0.5) * (len(rows) + 1))
     grid = shape.table
+    grid.first_row = False
+    grid.horz_banding = False
+    if widths:
+        for col, fraction in enumerate(widths):
+            grid.columns[col].width = int(width * fraction)
     for col, label in enumerate(header):
         cell = grid.cell(0, col)
         cell.fill.solid()
-        cell.fill.fore_color.rgb = rgb(NAVY)
+        cell.fill.fore_color.rgb = rgb(GREEN_DARK)
         cell.text_frame.text = ""
-        _text(cell.text_frame, label, 14, "#FFFFFF", bold=True)
+        _text(cell.text_frame, label, 14, WHITE, bold=True)
     for r, row in enumerate(rows, start=1):
+        highlighted = r - 1 == highlight_row
         for col, value in enumerate(row):
             cell = grid.cell(r, col)
             cell.fill.solid()
-            cell.fill.fore_color.rgb = rgb(SKY if r - 1 == highlight_row else (PALE if r % 2 else "#FFFFFF"))
+            cell.fill.fore_color.rgb = rgb(GREEN_LIGHT if highlighted else (SAND if r % 2 == 0 else WHITE))
             cell.text_frame.text = ""
-            _text(cell.text_frame, value, 14, NAVY if r - 1 == highlight_row else INK, bold=r - 1 == highlight_row)
+            _text(cell.text_frame, value, 13.5, GREEN_DARK if highlighted else INK, bold=highlighted or col == 0)
 
 
 def notes(slide, text: str) -> None:
@@ -136,12 +214,11 @@ def notes(slide, text: str) -> None:
         slide.notes_slide.notes_text_frame.text = text
 
 
-def body_box(split: Optional[str] = None):
-    """Body regions: full width, or (left, right) for 'left' text / 'right' figure layouts."""
+def body_box(split: Optional[str] = None, top: Emu = BODY_TOP, bottom: Emu = BODY_BOTTOM):
+    """Body regions: full width, or (left, right) for a list beside a figure or table."""
     width = WIDTH - 2 * MARGIN
-    height = BODY_BOTTOM - BODY_TOP
+    height = bottom - top
     if split is None:
-        return (MARGIN, BODY_TOP, width, height)
-    left_w = int(width * 0.46)
-    gap = Inches(0.3)
-    return (MARGIN, BODY_TOP, left_w, height), (MARGIN + left_w + gap, BODY_TOP, width - left_w - gap, height)
+        return (MARGIN, top, width, height)
+    left_w = int(width * 0.44)
+    return (MARGIN, top, left_w, height), (MARGIN + left_w + GAP, top, width - left_w - GAP, height)

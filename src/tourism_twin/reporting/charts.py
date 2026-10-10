@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -88,23 +89,26 @@ def plot_waterfall(report, out_path: Path) -> Path:
     return out_path
 
 
-def plot_tornado(report, out_path: Path) -> Path:
+def plot_tornado(report, out_path: Path, color: str = TEAL, title: bool = True,
+                 names: Optional[Dict[str, str]] = None) -> Path:
+    """`names` maps a lever's short name to the label shown (default: the short name)."""
     tornado = report.tornado_sensitivity
-    labels = [r["lever_name"].split(" (")[0] for r in reversed(tornado)]
+    labels = [(names or {}).get(r["lever_name"].split(" (")[0], r["lever_name"].split(" (")[0]) for r in reversed(tornado)]
     spreads = [r["swing_spread"] for r in reversed(tornado)]
     elasticities = [r["relative_sensitivity"] * 100 for r in reversed(tornado)]
 
     fig, ax = plt.subplots(figsize=(9, 4.8))
-    bars = ax.barh(labels, spreads, color=TEAL, height=0.5, edgecolor="none")
+    bars = ax.barh(labels, spreads, color=color, height=0.5, edgecolor="none")
 
     ax.set_xlabel("Change in weekly hotel guests between the low and high lever setting")
-    ax.set_title(
-        f"Sensitivity by lever: {report.market}\n"
-        f"Which levers move weekly hotel guests most",
-        pad=15,
-        fontweight="bold",
-        color=NAVY,
-    )
+    if title:
+        ax.set_title(
+            f"Sensitivity by lever: {report.market}\n"
+            f"Which levers move weekly hotel guests most",
+            pad=15,
+            fontweight="bold",
+            color=NAVY,
+        )
 
     for bar, el in zip(bars, elasticities):
         w = bar.get_width()
