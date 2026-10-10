@@ -2,7 +2,7 @@
 export const CHAPTERS = [
   { id: "months", number: "01", label: "Month by month", kicker: "The coming months" },
   { id: "markets", number: "02", label: "Where visitors come from", kicker: "Source markets" },
-  { id: "flights", number: "03", label: "What more flights do", kicker: "Flight scenarios" },
+  { id: "questions", number: "03", label: "What if…?", kicker: "Five planning questions" },
   { id: "trust", number: "04", label: "How sure we are", kicker: "Accuracy" },
 ] as const;
 

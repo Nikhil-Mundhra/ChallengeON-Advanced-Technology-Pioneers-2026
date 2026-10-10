@@ -183,3 +183,18 @@ describe("period totals", () => {
     totals.forEach((p, i) => expect(p.model).toBeCloseTo(Object.keys(weekly.markets).reduce((t, m) => t + timeline(planning, weekly, m, NO_CHANGE, opts)[i].model, 0), 6));
   });
 });
+
+describe("five questions", () => {
+  it("answers come from the simulator and the weekly forecast, and season shares are proper shares", async () => {
+    const { answerQuestions, seasonMix } = await import("./questions");
+    const weekly = read<Weekly>(manifest.files.weekly);
+    const planning = read<Planning>(manifest.files.planning);
+    const a = answerQuestions(planning, weekly);
+    expect(a.frequency.perWeek).toBeCloseTo(simulate(planning, "UNITED KINGDOM", "Winter_Peak", a.frequency.lever).delta_guests, 6);
+    expect(a.frequency.perYear).toBeGreaterThan(0);
+    expect(a.newRoute.perYear).toBeNull();            // no weekly history for a new route
+    expect(a.newRoute.perWeek).toBeGreaterThan(0);
+    const all = seasonMix(planning, "Winter_Peak", 99).top.reduce((t, r) => t + r.share, 0);
+    expect(all).toBeCloseTo(1, 9);
+  });
+});

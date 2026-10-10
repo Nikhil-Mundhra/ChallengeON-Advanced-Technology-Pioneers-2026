@@ -43,6 +43,10 @@ export const SECTIONS: ReportSection[] = [
     ],
   },
   {
+    id: "questions", kicker: "Planning questions", title: "What if…?",
+    body: ["The five questions from the challenge, answered from the model with the same numbers as the simulator."],
+  },
+  {
     id: "sensitivity", kicker: "Sensitivity analysis", title: "Which lever moves demand most",
     body: ["Each lever is moved up and down around the current service; the swing in weekly guests ranks the levers. The simulation page shows this live for any market and season."],
   },

@@ -24,7 +24,7 @@ export const ROUTES: RouteDef[] = [
   { path: "/nowcast", label: "Daily forecast", title: "Daily hotel guests", search: true, needsBundle: true,
     Page: page(() => import("../features/nowcast/Dashboard"), (m) => m.Dashboard) },
   { path: "/report", label: "How it works", title: "How it works", bleed: true, needsBundle: false,
-    Page: page(() => import("../features/report/ReportPage"), (m) => ({ bundle }) => <m.ReportPage manifest={bundle?.manifest ?? null} />) },
+    Page: page(() => import("../features/report/ReportPage"), (m) => ({ bundle }) => <m.ReportPage manifest={bundle?.manifest ?? null} bundle={bundle} />) },
 ];
 
 export const PRIMARY_ACTION = { to: "/simulate", label: "Try a scenario" };

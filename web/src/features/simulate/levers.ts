@@ -85,9 +85,9 @@ export function sliderAvailability(market: string, input: LeverInput, key: keyof
 export const presetAvailable = (market: string, id: PresetId) =>
   market !== ALL_MARKETS && !(market === "DOMESTIC" && id === "more_flights");
 
-/** Markets with flight history first, then countries without direct flights (estimated from similar markets). */
+/** Calibrated markets first, then countries with no data of their own (estimated from similar markets). */
 export function marketOptions(planning: Planning): Array<{ value: string; label: string }> {
   const calibrated = Object.keys(planning.calibration).sort();
   const cold = Object.keys(planning.archetypes.country).filter((c) => !(c in planning.calibration)).sort();
-  return [...calibrated.map((m) => ({ value: m, label: m })), ...cold.map((m) => ({ value: m, label: `${m} (no direct flights)` }))];
+  return [...calibrated.map((m) => ({ value: m, label: m })), ...cold.map((m) => ({ value: m, label: `${m} (estimated from similar markets)` }))];
 }

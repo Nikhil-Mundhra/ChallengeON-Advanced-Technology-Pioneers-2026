@@ -1,7 +1,8 @@
 import { Link } from "react-router";
 import { LIMITATIONS, NOWCAST_VALIDATION, PLANNING_HOLDOUT, QUESTION, SECTIONS, SUCCESS_CRITERIA, type ReportSection } from "../../content/report";
 import { formatSigned } from "../../data/format";
-import type { Manifest } from "../../engine/types";
+import type { Bundle, Manifest } from "../../engine/types";
+import { QuestionAnswers } from "../questions/QuestionAnswers";
 import { useActiveSection } from "./useActiveSection";
 import "./report.css";
 
@@ -9,7 +10,7 @@ const IDS = SECTIONS.map((s) => s.id);
 
 /** Long-form, scrollable report: a hero band, then a raised sheet (its own layer) holding a sticky
  *  contents rail and the article. Static copy from content/report.ts; renders without the bundle. */
-export function ReportPage({ manifest }: { manifest: Manifest | null }) {
+export function ReportPage({ manifest, bundle }: { manifest: Manifest | null; bundle?: Bundle | null }) {
   const active = useActiveSection(IDS);
   return (
     <div className="report">
@@ -33,7 +34,7 @@ export function ReportPage({ manifest }: { manifest: Manifest | null }) {
           </ol>
         </nav>
         <article className="report__article">
-          {SECTIONS.map((s) => <Section key={s.id} section={s} />)}
+          {SECTIONS.map((s) => <Section key={s.id} section={s} bundle={bundle ?? null} />)}
           <footer className="report__footer">
             {manifest ? `Numbers from model bundle ${manifest.version} (spec ${manifest.spec}).` : "Loading the model bundle…"}
           </footer>
@@ -47,7 +48,7 @@ function Figure({ value, label }: { value: string; label: string }) {
   return <div className="report__figure"><dt>{label}</dt><dd>{value}</dd></div>;
 }
 
-function Section({ section }: { section: ReportSection }) {
+function Section({ section, bundle }: { section: ReportSection; bundle: Bundle | null }) {
   return (
     <section id={section.id} className="report__section" aria-labelledby={`${section.id}-title`}>
       <p className="report__kicker">{section.kicker}</p>
@@ -55,6 +56,7 @@ function Section({ section }: { section: ReportSection }) {
       {section.body.map((paragraph) => <p key={paragraph.slice(0, 32)}>{paragraph}</p>)}
       {section.id === "question" && <Criteria />}
       {section.id === "chain" && <ChainDiagram />}
+      {section.id === "questions" && (bundle ? <QuestionAnswers planning={bundle.planning} weekly={bundle.weekly} /> : <p className="note">Loading the answers…</p>)}
       {section.id === "validation" && <ValidationTables />}
       {section.id === "sensitivity" && <Link className="pill pill--dark" to="/simulate">Run a scenario</Link>}
       {section.id === "limits" && (

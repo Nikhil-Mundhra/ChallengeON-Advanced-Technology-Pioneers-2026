@@ -21,9 +21,9 @@ export function LeverPanel(p: LeverPanelProps) {
     <Card>
       <ControlSection title="Market">
         <Select label="Market" value={p.market} onChange={p.onMarket}
-                options={[{ value: ALL_MARKETS, label: "All markets" }, ...p.markets.map((m) => ({ value: m.value, label: m.label.endsWith("(no direct flights)") ? `${marketName(m.value)} (no direct flights)` : marketName(m.value) }))]} />
+                options={[{ value: ALL_MARKETS, label: "All markets" }, ...p.markets.map((m) => ({ value: m.value, label: m.label.endsWith("(estimated from similar markets)") ? `${marketName(m.value)} (estimated from similar markets)` : marketName(m.value) }))]} />
         {all && <p className="note">Pick a market here or on the map to try flight changes.</p>}
-        {p.coldStart && <Badge tone="neutral">No direct flights today, estimated from similar markets</Badge>}
+        {p.coldStart && <Badge tone="neutral">No data of its own; estimated from similar markets</Badge>}
       </ControlSection>
       {!all && (
         <ControlSection title="Start from">

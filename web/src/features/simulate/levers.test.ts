@@ -21,7 +21,7 @@ describe("lever state", () => {
     const options = marketOptions(mockPlanning);
     expect(options).toEqual([
       { value: "UNITED KINGDOM", label: "UNITED KINGDOM" },
-      { value: "ARMENIA", label: "ARMENIA (no direct flights)" },
+      { value: "ARMENIA", label: "ARMENIA (estimated from similar markets)" },
     ]);
   });
 });

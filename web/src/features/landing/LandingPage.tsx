@@ -3,12 +3,11 @@ import { useMemo } from "react";
 import { Link } from "react-router";
 import { useActiveId, useReveal } from "../../components/layout/useInView";
 import { CHAPTERS, DAILY_ERROR } from "../../content/landing";
-import { formatCount, formatFull, formatMonthName, formatPercent, formatSigned } from "../../data/format";
+import { formatCount, formatMonthName, formatPercent } from "../../data/format";
 import { headlineMonth, marketMoves, monthlyOutlook, type MonthOutlook } from "../../engine/insights";
-import { weeklyHeadline } from "../../engine/planning";
 import type { Bundle } from "../../engine/types";
 import { overallHoldoutWmape } from "../../engine/weekly";
-import { DEFAULT_INPUT, toLever } from "../simulate/levers";
+import { QuestionAnswers } from "../questions/QuestionAnswers";
 import "./landing.css";
 
 const IDS = CHAPTERS.map((c) => c.id);
@@ -22,11 +21,9 @@ export function LandingPage({ bundle }: { bundle: Bundle }) {
     const residents = monthlyOutlook(nowcast, "DOMESTIC", manifest.coverage);
     const total = monthlyOutlook(nowcast, "TOTAL", manifest.coverage);
     const moves = marketMoves(nowcast, manifest.coverage).filter((m) => m.market !== "DOMESTIC");
-    const lever = toLever({ ...DEFAULT_INPUT, frequency: 2, gauge: 290 });  // exactly the sentence: two more weekly flights of 290 seats
     return {
       international, residents, total, lead: headlineMonth(international),
       risers: moves.slice(0, 5), fallers: moves.slice(-3).reverse(),
-      flight: weeklyHeadline(planning, "UNITED KINGDOM", "Winter_Peak", lever),
       weeklyError: overallHoldoutWmape(planning, weekly),
     };
   }, [nowcast, planning, weekly, manifest]);
@@ -89,14 +86,7 @@ export function LandingPage({ bundle }: { bundle: Bundle }) {
       </Chapter>
 
       <Chapter index={2}>
-        <div className="flight reveal">
-          <p className="flight__number">{formatSigned(data.flight.change)}</p>
-          <div>
-            <p className="flight__sentence">hotel guests a week from the United Kingdom in winter, with two more weekly flights of 290 seats.</p>
-            <p className="chapter__note">From {formatFull(data.flight.base)} to {formatFull(data.flight.sim)} a week, ±{pct(data.flight.errorPct)} error.</p>
-            <Link to="/simulate" className="pill pill--dark pill--lg">Try your own</Link>
-          </div>
-        </div>
+        <QuestionAnswers planning={planning} weekly={weekly} />
       </Chapter>
 
       <Chapter index={3}>
