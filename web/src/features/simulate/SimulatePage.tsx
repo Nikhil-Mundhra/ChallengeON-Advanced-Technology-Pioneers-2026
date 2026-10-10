@@ -66,11 +66,15 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
             </div>
           )}
           {view === "time" && <TimelinePanel weekly={weekly} points={points} error={holdoutWmape(points)} start={start} />}
-          {(view === "chain" || view === "levers") && (all
-            ? <p className="note">Pick a market on the left or on the map to see how its flights turn into hotel nights.</p>
-            : view === "chain"
-              ? <ChainView planning={planning} market={market} lever={lever} season={season} seasons={seasons} onSeason={setSeason} />
-              : <LeversView planning={planning} market={market} lever={lever} season={season} seasons={seasons} onSeason={setSeason} />)}
+          {(view === "chain" || view === "levers") && (all ? (
+            <div className="canvas__body">
+              <p className="note">Pick a market on the left or on the map to see how its flights turn into hotel nights.</p>
+            </div>
+          ) : view === "chain" ? (
+            <ChainView planning={planning} market={market} lever={lever} season={season} seasons={seasons} onSeason={setSeason} />
+          ) : (
+            <LeversView planning={planning} market={market} lever={lever} season={season} seasons={seasons} onSeason={setSeason} />
+          ))}
         </Card>
       </section>
 

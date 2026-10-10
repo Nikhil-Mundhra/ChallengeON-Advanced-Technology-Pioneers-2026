@@ -13,7 +13,15 @@ export const LEVER_NAMES: Record<string, string> = {
   "Response Multiplier": "Visitors who book a hotel",
   "Guests-per-arrival factor": "Hotel nights per visitor",
 };
+export const LEVER_STEPS: Record<string, string> = {
+  "Seat Capacity": "Seats (±15%)",
+  "Load Factor": "How full flights are (±4%)",
+  "P2P Share": "Passengers who stop in Abu Dhabi (±5%)",
+  "Response Multiplier": "Visitors who book a hotel (±10%)",
+  "Guests-per-arrival factor": "Hotel nights per visitor (±0.5)",
+};
 export const leverName = (engineName: string) => LEVER_NAMES[engineName.replace(/ \(.*\)$/, "")] ?? engineName;
+export const leverNameWithStep = (engineName: string) => LEVER_STEPS[engineName.replace(/ \(.*\)$/, "")] ?? leverName(engineName);
 
 /** Plain names for event types in domain/events.csv (weekly.json `event`). */
 export const EVENT_NAMES: Record<string, string> = {

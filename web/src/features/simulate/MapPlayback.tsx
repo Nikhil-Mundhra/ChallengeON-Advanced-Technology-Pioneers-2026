@@ -37,9 +37,10 @@ export function MapPlayback({ pb, selected, week: w, onWeek: setW, onSelect }: {
     return Math.max(1, Math.round(arrivals.reduce((a, b) => a + b, 0) / arrivals.length / 60 / 10) * 10);
   }, [pb]);
 
-  const frame = frameAt(pb, Math.min(w, last), selected);
+  const safeW = Math.min(Math.max(0, w), last);
+  const frame = frameAt(pb, safeW, selected);
   const flows = Object.entries(pb.markets).filter(([m]) => MARKET_POSITIONS[m]).map(([market, s]) => ({
-    market, ...MARKET_POSITIONS[market], base: s.guests[w] - s.extra[w], sim: s.guests[w], checkIns: s.checkIns[w], checkOuts: s.checkOuts[w],
+    market, ...MARKET_POSITIONS[market], base: s.guests[safeW] - s.extra[safeW], sim: s.guests[safeW], checkIns: s.checkIns[safeW], checkOuts: s.checkOuts[safeW],
   }));
   const home = pb.markets.DOMESTIC;
   const eventMarkets = new Set(frame.events.flatMap((e) => e.markets));
@@ -57,7 +58,7 @@ export function MapPlayback({ pb, selected, week: w, onWeek: setW, onSelect }: {
         <span className="playback__legend"><i className="playback__swatch playback__swatch--in" />arriving <i className="playback__swatch playback__swatch--out" />leaving · 1 plane ≈ {formatCount(perDot)} people a week</span>
       </div>
 
-      <FlowMap flows={flows} hub={ABU_DHABI} domestic={home ? { base: home.guests[w] - home.extra[w], sim: home.guests[w] } : null}
+      <FlowMap flows={flows} hub={ABU_DHABI} domestic={home ? { base: home.guests[safeW] - home.extra[safeW], sim: home.guests[safeW] } : null}
                selected={selected} onSelect={onSelect} dots={{ mode, perDot, playing }} highlight={eventMarkets} />
       <p className="playback__event" aria-live="polite">
         {frame.events.length ? `★ This week: ${frame.events.map((e) => eventName(e.code)).join(", ")}` : "\u00a0"}

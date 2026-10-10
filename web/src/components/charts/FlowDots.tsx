@@ -30,6 +30,11 @@ export function FlowDots({ arcs, rates, mode, perDot, playing }: {
   const canvas = useRef<HTMLCanvasElement>(null);
   const live = useRef({ rates, mode, perDot, playing, arcs });
   live.current = { rates, mode, perDot, playing, arcs };
+  const startRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (playing) startRef.current?.();
+  }, [playing]);
 
   useEffect(() => {
     const node = canvas.current;
@@ -40,7 +45,7 @@ export function FlowDots({ arcs, rates, mode, perDot, playing }: {
     const colourOut = styles.getPropertyValue("--color-series-check").trim() || "#f77860";
     const dots: Dot[] = [];
     const owed: Record<string, { in: number; out: number }> = {};
-    let last = performance.now(), frame = 0;
+    let last = performance.now(), frame = 0, isRunning = false;
 
     const resize = () => {
       const ratio = window.devicePixelRatio || 1;
@@ -89,10 +94,26 @@ export function FlowDots({ arcs, rates, mode, perDot, playing }: {
         }
       }
       ctx.globalAlpha = 1;
-      frame = requestAnimationFrame(tick);
+      if (on || dots.length > 0) {
+        frame = requestAnimationFrame(tick);
+      } else {
+        isRunning = false;
+      }
     };
-    frame = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+
+    const startAnimation = () => {
+      if (!isRunning) {
+        isRunning = true;
+        last = performance.now();
+        frame = requestAnimationFrame(tick);
+      }
+    };
+    startRef.current = startAnimation;
+    if (live.current.playing) {
+      startAnimation();
+    }
+
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); isRunning = false; };
   }, []);
 
 
