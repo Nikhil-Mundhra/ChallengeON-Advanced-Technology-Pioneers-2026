@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "version": "20261010-110523-00c86b3",
-  "created": "2026-10-10T11:05:23+00:00",
-  "git_sha": "00c86b3",
+  "version": "20261010-113130-d07401d",
+  "created": "2026-10-10T11:31:30+00:00",
+  "git_sha": "d07401d",
   "spec": "twin_daily",
   "coverage": 0.8,
   "predicted_period": {
@@ -10,17 +10,17 @@
     "end": "2026-02-28"
   },
   "files": {
-    "nowcast": "20261010-110523-00c86b3/nowcast.json",
-    "whatif": "20261010-110523-00c86b3/whatif.json",
-    "planning": "20261010-110523-00c86b3/planning.json",
-    "weekly": "20261010-110523-00c86b3/weekly.json",
-    "golden": "20261010-110523-00c86b3/golden.json"
+    "nowcast": "20261010-113130-d07401d/nowcast.json",
+    "whatif": "20261010-113130-d07401d/whatif.json",
+    "planning": "20261010-113130-d07401d/planning.json",
+    "weekly": "20261010-113130-d07401d/weekly.json",
+    "golden": "20261010-113130-d07401d/golden.json"
   },
   "sha256": {
-    "nowcast": "8db257b405c3f989f1fbfde4cfe3788466408be7842743450cbb3999f1d8d67b",
-    "whatif": "fb0365b1bcf107b8eb99a1a6239c31b8bb73cc118a1b8d645806b24cb362b89e",
+    "nowcast": "5f95e855a9667893e80498616a9614a19bc682ae560c5f979a78dc18b1483a4f",
+    "whatif": "76f28e5202a1f47ed9aac9855192946bc1c076d3f09343acf41c964f9b91c899",
     "planning": "c5eb0bec3e521c58c3be9928ae6cd21a355b714deba4f693591c7698db57b6c4",
-    "weekly": "08240456bd41e707e23e5a814b4091afc782303f4613dd96b359c4ef061c1031",
-    "golden": "fc57eaa4b48a86715f97b604d7c64fc79a9cbb34f1c58bd48a801dd2192f9894"
+    "weekly": "e2d7798f11bbedfc949f37f74d9794141d2856b7e390f647d104d80f04889dba",
+    "golden": "970b7143342fde8d763e3941ed08d3c3d95a9c9e245c4cb92a7c3c57f6519b87"
   }
 }
