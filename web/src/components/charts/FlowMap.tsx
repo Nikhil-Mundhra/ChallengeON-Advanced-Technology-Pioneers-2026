@@ -10,9 +10,10 @@ export type { DotMode };
 /** Source markets to Abu Dhabi: arc width and dot size grow with weekly guests; the selected
  *  market's arc shows today (dashed) and with the changes. Optional moving dots show people
  *  arriving and leaving. Click a market to select it. */
-export function FlowMap({ flows, hub, domestic, selected, onSelect, dots }: {
+export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highlight }: {
   flows: Flow[]; hub: [number, number]; domestic: { base: number; sim: number } | null; selected: string; onSelect: (market: string) => void;
   dots?: { mode: DotMode; perDot: number; playing: boolean };
+  highlight?: ReadonlySet<string>;   // markets with an event this week
 }) {
   const [hx, hy] = projection(hub)!;
   const max = useMemo(() => Math.max(...flows.map((f) => Math.max(f.base, f.sim)), domestic?.base ?? 0), [flows, domestic]);
@@ -29,7 +30,7 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots }: {
           const isSelected = f.market === selected;
           const delta = f.sim - f.base;
           return (
-            <g key={f.market} className={`flowmap__flow${isSelected ? " flowmap__flow--selected" : ""}`} onClick={() => onSelect(f.market)}
+            <g key={f.market} className={`flowmap__flow${isSelected ? " flowmap__flow--selected" : ""}${highlight?.has(f.market) ? " flowmap__flow--event" : ""}`} onClick={() => onSelect(f.market)}
                role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(f.market); }}
                aria-label={`${titleCase(f.market)}: ${formatCount(f.sim)} guests a week`}>
               <title>{`${titleCase(f.market)}: ${formatCount(f.sim)} guests a week${isSelected && delta ? ` (${formatSigned(delta, formatCount)} from your changes)` : ""}`}</title>

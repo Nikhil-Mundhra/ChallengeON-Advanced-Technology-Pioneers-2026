@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pickle
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -17,13 +17,16 @@ from sklearn.linear_model import RidgeCV
 
 from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import SimulationResult
-from tourism_twin.planning.calendar_features import calendar_feature_matrix
+from tourism_twin.planning.calendar_features import residual_event_types, residual_feature_matrix
 from tourism_twin.planning.structural import StructuralEngine
 
 class ResidualMLEngine:
     """Monotonic ML residual correction engine."""
 
-    def __init__(self):
+    def __init__(self, events: Optional[Sequence[str]] = None):
+        """`events`: event types whose weekly exposure enters the residual (default: every type in
+        domain/events.csv except one-off periods); () for the calendar-only residual."""
+        self.events = tuple(residual_event_types() if events is None else events)
         self.models: Dict[str, RidgeCV] = {}
         self.residual_history: Dict[str, np.ndarray] = {}
         self.residual_std: Dict[str, float] = {}
@@ -54,7 +57,7 @@ class ResidualMLEngine:
             if len(m_df) < 5:
                 continue
 
-            X = calendar_feature_matrix(m_df)
+            X = residual_feature_matrix(m_df, self.events)
             y = m_df["residual"].values
 
             model = RidgeCV(alphas=alphas)
@@ -75,7 +78,7 @@ class ResidualMLEngine:
         out = pd.Series(0.0, index=frame.index)
         for market, rows in frame.groupby(frame["market"].str.upper().str.strip()):
             if market in self.models:
-                out.loc[rows.index] = self.models[market].predict(calendar_feature_matrix(rows))
+                out.loc[rows.index] = self.models[market].predict(residual_feature_matrix(rows, self.events))
         return out
 
     def season_residual(self, market: str, season: str) -> float:
@@ -119,6 +122,7 @@ class ResidualMLEngine:
             "residual_history": self.residual_history,
             "residual_std": self.residual_std,
             "season_residual": self.season_residual_,
+            "events": list(self.events),
         }
         with open(model_path, "wb") as f:
             pickle.dump(state, f)
@@ -129,7 +133,7 @@ class ResidualMLEngine:
         """Load fitted residual models from disk."""
         with open(model_path, "rb") as f:
             state = pickle.load(f)
-        engine = cls()
+        engine = cls(events=state.get("events", ()))  # artifacts saved before events: calendar only
         engine.models = state["models"]
         engine.residual_history = state["residual_history"]
         engine.residual_std = state["residual_std"]

@@ -4,6 +4,7 @@ import { FlowMap, type DotMode } from "../../components/charts/FlowMap";
 import { SERIES } from "../../components/charts/theme";
 import { Badge, Segmented } from "../../components/ui";
 import { ABU_DHABI, MARKET_POSITIONS } from "../../content/geo";
+import { eventName } from "../../content/labels";
 import { formatCount, formatDate, formatMonth, formatPercent, formatSigned, titleCase, toneOf } from "../../data/format";
 import { frameAt, type Playback } from "../../engine/playback";
 
@@ -38,6 +39,7 @@ export function MapPlayback({ pb, selected, startWeek, onSelect }: { pb: Playbac
     market, ...MARKET_POSITIONS[market], base: s.guests[w] - s.extra[w], sim: s.guests[w], checkIns: s.checkIns[w], checkOuts: s.checkOuts[w],
   }));
   const home = pb.markets.DOMESTIC;
+  const eventMarkets = new Set(frame.events.flatMap((e) => e.markets));
   const series = useMemo(() => pb.weeks.map((week, i) => ({ week, total: pb.total[i] })), [pb]);
   const firstForecast = pb.weeks[pb.kind.indexOf("projected")] ?? pb.weeks[last];
 
@@ -53,7 +55,10 @@ export function MapPlayback({ pb, selected, startWeek, onSelect }: { pb: Playbac
       </div>
 
       <FlowMap flows={flows} hub={ABU_DHABI} domestic={home ? { base: home.guests[w] - home.extra[w], sim: home.guests[w] } : null}
-               selected={selected} onSelect={onSelect} dots={{ mode, perDot, playing }} />
+               selected={selected} onSelect={onSelect} dots={{ mode, perDot, playing }} highlight={eventMarkets} />
+      <p className="playback__event" aria-live="polite">
+        {frame.events.length ? `★ This week: ${frame.events.map((e) => eventName(e.code)).join(", ")}` : "\u00a0"}
+      </p>
 
       <div className="playback__scrub">
         <ResponsiveContainer width="100%" height={56}>

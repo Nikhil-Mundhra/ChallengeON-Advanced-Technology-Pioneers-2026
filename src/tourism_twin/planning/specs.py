@@ -19,6 +19,7 @@ WEEKLY_SPECS: Dict[str, Callable[[], Model]] = {
     "calendar_ridge": CalendarRidge,
     "structural_planning": StructuralPlanning,
     "hybrid_legacy": LegacyHybrid,
+    "hybrid_calendar_only": lambda: LegacyHybrid(events=()),
 }
 
 # Diagnostics that read realized test-period data (oracle covariates); never rank them with

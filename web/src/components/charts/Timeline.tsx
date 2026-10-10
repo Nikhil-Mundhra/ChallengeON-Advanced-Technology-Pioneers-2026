@@ -8,6 +8,7 @@ interface TimelineProps {
   checked: [string, string];      // weeks the model was checked against, fitted before them
   forecastFrom: string | null;    // first week with no flight schedule
   changesFrom: string;
+  flags?: Array<{ week: string; label: string }>;   // event starts to mark
 }
 
 const short = (week: string) => formatMonth(week, "short");
@@ -17,7 +18,7 @@ const NAMES: Record<string, string> = {
 
 /** Weekly hotel guests over time: real weeks, the model's check against weeks it had not seen, and
  *  the forecast without and with the changes. Shaded: the checked weeks and the forecast years. */
-export function Timeline({ data, checked, forecastFrom, changesFrom }: TimelineProps) {
+export function Timeline({ data, checked, forecastFrom, changesFrom, flags = [] }: TimelineProps) {
   const last = data[data.length - 1]?.week;
   return (
     <ResponsiveContainer width="100%" height={340}>
@@ -35,6 +36,10 @@ export function Timeline({ data, checked, forecastFrom, changesFrom }: TimelineP
                          label={{ value: "Forecast", position: "insideTop", fill: "var(--color-text-muted)", fontSize: 11 }} />
         )}
         <ReferenceLine x={changesFrom} stroke={SERIES.scenario} strokeDasharray="4 4" />
+        {flags.map((f, i) => (
+          <ReferenceLine key={f.week} x={f.week} stroke="var(--color-series-check)" strokeOpacity={0.5}
+                         label={{ value: `▲ ${f.label}`, position: "insideTopLeft", fill: "var(--color-text-muted)", fontSize: 10, dy: (i % 3) * 12 }} />
+        ))}
         <Area dataKey="band" name="band" stroke="none" fill={SERIES.scenario} fillOpacity={0.12} isAnimationActive={false} legendType="square" />
         <Line dataKey="model" name="model" stroke={SERIES.forecast} strokeDasharray="5 4" dot={false} strokeWidth={1.5} isAnimationActive={false} />
         <Line dataKey="holdout" name="holdout" stroke={SERIES.check} dot={false} strokeWidth={2} connectNulls={false} isAnimationActive={false} />

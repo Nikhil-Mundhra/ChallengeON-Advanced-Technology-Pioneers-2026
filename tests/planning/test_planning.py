@@ -81,7 +81,7 @@ def test_a_served_route_that_converts_nobody_brings_no_aviation_arrivals():
 
 def test_scenario_residual_is_the_mean_fit_over_the_season_training_weeks():
     from tourism_twin.domain.scenario import SimulationResult
-    from tourism_twin.planning.calendar_features import calendar_feature_matrix
+    from tourism_twin.planning.calendar_features import residual_feature_matrix
     from tourism_twin.planning.residual import ResidualMLEngine
 
     class NoStructure:
@@ -95,7 +95,7 @@ def test_scenario_residual_is_the_mean_fit_over_the_season_training_weeks():
                           "is_holiday_week": holiday, "is_major_event_week": 0,
                           "guests": 1000.0 * holiday + 50.0 * np.sin(2 * np.pi * weeks.dayofyear / 365.25)})
     engine = ResidualMLEngine().fit(frame, NoStructure())
-    fitted = engine.models["M"].predict(calendar_feature_matrix(frame))
+    fitted = engine.models["M"].predict(residual_feature_matrix(frame, engine.events))
     for season in SEASONS:
         expected = fitted[(frame["season"] == season).to_numpy()].mean()  # holidays included, as in the baseline
         assert engine.season_residual("M", season) == pytest.approx(expected)
@@ -103,3 +103,14 @@ def test_scenario_residual_is_the_mean_fit_over_the_season_training_weeks():
     zeros = {name: 0.0 for name in SimulationResult.__dataclass_fields__ if name not in ("market", "season", "is_cold_start")}
     result = SimulationResult(market="M", season="Summer_Trough", is_cold_start=False, **zeros)
     assert engine.predict_hybrid(result)["residual_correction"] == pytest.approx(engine.season_residual("M", "Summer_Trough"))
+
+
+def test_event_exposure_is_the_share_of_the_week_in_a_window_that_covers_the_market():
+    from tourism_twin.domain.events import load_event_calendar
+    from tourism_twin.planning.calendar_features import event_exposure_matrix
+
+    cny = load_event_calendar().query("event == 'chinese_new_year'").iloc[0]  # scope CHINA
+    week = pd.Timestamp(cny.window_start) - pd.Timedelta(days=3)  # the window covers the last 4 days
+    frame = pd.DataFrame({"market": ["CHINA", "INDIA"], "week_start": [week, week]})
+    exposure = event_exposure_matrix(frame, ["chinese_new_year"])
+    assert exposure[0, 0] == pytest.approx(4 / 7) and exposure[1, 0] == 0.0

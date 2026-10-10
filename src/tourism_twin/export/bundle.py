@@ -14,7 +14,7 @@
   weekly.json     weekly scenario model over time, per market: actual weekly guests (training
                   weeks), the shipped model's structural part and calendar residual for every
                   panel week and PROJECTION_YEARS beyond it, and the forward-holdout back-test
-                  prediction (fitted before HOLDOUT_START). Scenario weeks are
+                  prediction (fitted before HOLDOUT_START), and the event type covering most of each week. Scenario weeks are
                   max(0, structural_w + residual_w + scenario change for the week's season)
   golden.json     input -> expected output cases computed here, for parity tests of any port
 
@@ -182,6 +182,7 @@ def weekly_part(weekly_panel: pd.DataFrame) -> Dict[str, Any]:
     from tourism_twin.data.panel import training_window
     from tourism_twin.domain.events import HOLIDAY_WEEKS, MAJOR_EVENT_WEEKS
     from tourism_twin.planning.baselines import LegacyHybrid
+    from tourism_twin.planning.calendar_features import event_exposure_matrix
     from tourism_twin.planning.evaluation import HOLDOUT_START
     from tourism_twin.planning.simulator import TourismDigitalTwin
 
@@ -208,12 +209,20 @@ def weekly_part(weekly_panel: pd.DataFrame) -> Dict[str, Any]:
     def nullable(values) -> List[Any]:
         return [None if pd.isna(v) else float(f"{float(v):.12g}") for v in values]
 
+    def _week_events(rows, events):
+        """The event type (domain/events.csv code) covering most of each week for this market, else None."""
+        if not events:
+            return [None] * len(rows)
+        exposure = event_exposure_matrix(rows, events)
+        return [events[int(i)] if row.max() > 0 else None for i, row in zip(exposure.argmax(axis=1), exposure)]
+
     series = {}
     for market, rows in frame.sort_values("week_start").groupby("market"):
         series[market] = {"week": _dates(rows["week_start"]), "season": rows["season"].tolist(),
                           "kind": rows["dataset_split"].map({"train": "history", "test": "scheduled", "projected": "projected"}).tolist(),
                           "actual": nullable(rows["guests"]), "structural": _round(rows["structural"]), "residual": _round(rows["residual"]),
-                          "holdout": nullable(rows["holdout"])}
+                          "holdout": nullable(rows["holdout"]),
+                          "event": _week_events(rows, residual.events)}
     return {"holdout_start": HOLDOUT_START, "last_actual_week": str(complete["week_start"].max().date()),
             "calendar_flags_until": max(max(HOLIDAY_WEEKS), max(MAJOR_EVENT_WEEKS)),
             "formula": "guests_w = max(0, structural_w + residual_w + delta_season(w))", "markets": series}

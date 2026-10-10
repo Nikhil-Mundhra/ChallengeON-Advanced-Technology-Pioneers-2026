@@ -281,7 +281,7 @@ Seven archetypes assigned per market in `domain/archetypes.py`: Direct Leisure, 
 | 1. Historical seasonal prior | 23.00% | −6.60% | 3,172.8 | 6,156.5 |
 | 2. Pure ML / calendar | 22.00% | −8.50% | 3,035.6 | 5,839.0 |
 | 3. Structural only | 23.14% | +5.93% | 3,192.1 | 6,007.8 |
-| 4. Hybrid digital twin | **21.74%** | **+5.36%** | **2,999.2** | **5,673.6** |
+| 4. Hybrid digital twin | **20.62%** | **+5.55%** | **2,845.4** | **5,298.1** |
 
 Combined planning mode by season (structural prediction):
 

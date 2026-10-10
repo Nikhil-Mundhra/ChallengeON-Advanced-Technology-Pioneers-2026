@@ -16,6 +16,7 @@ export interface WeeklyMarket {
   structural: number[];
   residual: number[];
   holdout: Array<number | null>;
+  event?: Array<string | null>;   // event type covering most of the week (domain/events.csv code)
 }
 
 export interface Weekly {
@@ -34,6 +35,7 @@ export interface WeekPoint {
   holdout: number | null;      // fitted before the holdout start: out of sample
   scenario: number | null;     // from `start` on
   band: [number, number] | null;
+  event: string | null;
 }
 
 const YEAR_MS = 365.25 * 86_400_000;
@@ -56,7 +58,7 @@ export function timeline(planning: Planning, weekly: Weekly, market: string, lev
     const scenario = inScenario ? Math.max(0, base + delta[m.season[w]]) * scale : null;
     const spread = inScenario ? margin * Math.max(0, m.structural[w] + delta[m.season[w]]) * scale : 0;
     return { week, kind: m.kind[w], actual: m.actual[w], model, holdout: m.holdout[w], scenario,
-             band: scenario === null ? null : [Math.max(0, scenario - spread), scenario + spread] };
+             band: scenario === null ? null : [Math.max(0, scenario - spread), scenario + spread], event: m.event?.[w] ?? null };
   });
 }
 

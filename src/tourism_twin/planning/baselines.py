@@ -84,11 +84,15 @@ class RealizedChain:
 
 
 class LegacyHybrid:
-    """The shipped hybrid: structural planning prediction plus the residual ridge, floored at 0."""
+    """The shipped hybrid: structural planning prediction plus the residual ridge (calendar and
+    event exposure), floored at 0. `events=()` is the calendar-only residual it replaced."""
+
+    def __init__(self, events=None) -> None:
+        self.events = events
 
     def fit(self, panel: pd.DataFrame) -> "LegacyHybrid":
         self.structural_ = StructuralEngine.calibrate(panel)
-        self.residual_ = ResidualMLEngine().fit(panel, self.structural_)
+        self.residual_ = ResidualMLEngine(events=self.events).fit(panel, self.structural_)
         return self
 
     def predict(self, panel: pd.DataFrame) -> pd.Series:

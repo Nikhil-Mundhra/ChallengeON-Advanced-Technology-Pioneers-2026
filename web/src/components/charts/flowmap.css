@@ -15,3 +15,4 @@
 .flowmap__label { font-size: 12px; fill: var(--color-text); paint-order: stroke; stroke: var(--color-surface); stroke-width: 3px; text-anchor: middle; pointer-events: none; }
 .flowmap__flow--selected .flowmap__label { font-weight: 650; fill: var(--color-accent); }
 .flowmap__label--hub { text-anchor: start; font-weight: 650; }
+.flowmap__flow--event .flowmap__arc { stroke: var(--color-series-check); stroke-opacity: 0.55; }

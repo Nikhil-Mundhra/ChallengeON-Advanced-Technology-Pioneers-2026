@@ -150,9 +150,9 @@ Calibration: 104 complete weeks (2023-01-02 to 2024-12-23 week starts, 2,132 mar
 | 1. Historical seasonal prior (market-season mean) | 23.00% | −6.60% | 3,172.8 | 6,156.5 |
 | 2. Pure ML / calendar (per-market ridge, no aviation) | 22.00% | −8.50% | 3,035.6 | 5,839.0 |
 | 3. Structural only (planning mode) | 23.14% | +5.93% | 3,192.1 | 6,007.8 |
-| 4. Hybrid digital twin (structural + residual) | **21.74%** | **+5.36%** | **2,999.2** | **5,673.6** |
+| 4. Hybrid digital twin (structural + residual) | **20.62%** | **+5.55%** | **2,845.4** | **5,298.1** |
 
-The hybrid is lowest on all four metrics; its WMAPE margin over the calendar model is 0.26 pp. Interval coverage: 65.2% of holdout market-weeks fall inside structural prediction × (1 ± per-market conformal margin), against a nominal 80%. The two tables are not comparable: the nowcast uses the predicted period's new arrivals, the planning model does not.
+The hybrid is lowest on all four metrics; its WMAPE margin over the calendar model is 1.38 pp. Its residual uses the calendar and each `events.csv` event's share of the week (calendar only: 21.74%; on the validation origins the events lower WAPE by 0.7 pp, 90% interval [−1.55, −0.16], 7/7 origins). Interval coverage: 65.2% of holdout market-weeks fall inside structural prediction × (1 ± per-market conformal margin), against a nominal 80%. The two tables are not comparable: the nowcast uses the predicted period's new arrivals, the planning model does not.
 
 ---
 

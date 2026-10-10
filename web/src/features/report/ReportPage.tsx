@@ -18,7 +18,7 @@ export function ReportPage({ manifest }: { manifest: Manifest | null }) {
         <h1 className="report__question">{QUESTION}</h1>
         <dl className="report__figures">
           <Figure value="4.2% / 4.6%" label="daily guests error (WAPE), domestic / international" />
-          <Figure value="21.7%" label="weekly scenario model error (WMAPE), 30 holdout weeks" />
+          <Figure value="20.6%" label="weekly scenario model error (WMAPE), 30 holdout weeks" />
           <Figure value="21" label="markets: 15 countries, 5 regional groups, domestic" />
         </dl>
         <Link className="pill pill--accent report__cta" to="/simulate">Open the simulator</Link>

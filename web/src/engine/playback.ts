@@ -17,6 +17,7 @@ export interface Playback {
   kind: Array<"history" | "scheduled" | "projected">;
   markets: Record<string, MarketSeries>;
   total: number[];            // all markets' guests per week
+  events: Array<Array<{ code: string; markets: string[] }>>;  // events covering each week, with the markets they touch
 }
 
 export function playback(planning: Planning, weekly: Weekly, selected: string, lever: Lever,
@@ -34,7 +35,12 @@ export function playback(planning: Planning, weekly: Weekly, selected: string, l
     markets[m] = { guests, checkIns, checkOuts, extra };
   }
   const total = first.week.map((_, w) => names.reduce((s, m) => s + markets[m].guests[w], 0));
-  return { weeks: first.week, kind: first.kind, markets, total };
+  const events = first.week.map((_, w) => {
+    const byCode = new Map<string, string[]>();
+    for (const m of names) { const code = weekly.markets[m].event?.[w]; if (code) byCode.set(code, [...(byCode.get(code) ?? []), m]); }
+    return [...byCode.entries()].map(([code, markets]) => ({ code, markets }));
+  });
+  return { weeks: first.week, kind: first.kind, markets, total, events };
 }
 
 export interface Frame {
@@ -44,6 +50,7 @@ export interface Frame {
   vsLastYear: number | null;      // change against the same week 52 weeks earlier
   topArrivals: Array<{ market: string; checkIns: number }>;
   extraSoFar: number;             // guests added by the changes, from their start to this week
+  events: Playback["events"][number];
 }
 
 export function frameAt(pb: Playback, w: number, selected: string): Frame {
@@ -54,5 +61,5 @@ export function frameAt(pb: Playback, w: number, selected: string): Frame {
   const extra = pb.markets[selected]?.extra ?? [];
   let extraSoFar = 0;
   for (let i = 0; i <= w; i += 1) extraSoFar += extra[i] ?? 0;
-  return { week: pb.weeks[w], kind: pb.kind[w], total, vsLastYear: before ? total / before - 1 : null, topArrivals, extraSoFar };
+  return { week: pb.weeks[w], kind: pb.kind[w], events: pb.events[w], total, vsLastYear: before ? total / before - 1 : null, topArrivals, extraSoFar };
 }

@@ -74,7 +74,8 @@ export const PLANNING_HOLDOUT = {
     { model: "Historical seasonal prior", wmape: 23.0, bias: -6.6 },
     { model: "Calendar ridge (no aviation)", wmape: 22.0, bias: -8.5 },
     { model: "Structural chain only", wmape: 23.14, bias: 5.93 },
-    { model: "Structural + calendar residual", wmape: 21.74, bias: 5.36, shipped: true },
+    { model: "Structural + calendar residual (before events)", wmape: 21.74, bias: 5.36 },
+    { model: "Structural + calendar and event residual", wmape: 20.62, bias: 5.55, shipped: true },
   ],
 };
 

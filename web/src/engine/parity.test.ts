@@ -93,9 +93,9 @@ describe("weekly timeline", () => {
   const weekly = read<Weekly>(manifest.files.weekly);
   const planning = read<Planning>(manifest.files.planning);
 
-  it("reproduces the published 30-week holdout WMAPE (README §3.2: 21.74%)", () => {
+  it("reproduces the published 30-week holdout WMAPE (README §3.2: 20.62%)", () => {
     const points = Object.keys(weekly.markets).flatMap((m) => timeline(planning, weekly, m, NO_CHANGE, { start: "9999" }));
-    expect(holdoutWmape(points)).toBeCloseTo(21.74, 2);
+    expect(holdoutWmape(points)).toBeCloseTo(20.62, 2);
   });
 
   it("moves each week by the simulator's change for its season, from the start week on", () => {
