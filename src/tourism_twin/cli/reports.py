@@ -41,6 +41,8 @@ def outlook(args: argparse.Namespace) -> None:
     print(f"{document['window']} vs {document['previous']['window']} ({document['previous']['guest_nights']:,.0f} guest-nights)")
     for name, scenario in document["scenarios"].items():
         print(f"  {name:6} {scenario['guest_nights']:,.0f} ({scenario['change_pct']:+.1f}%)")
+    if not document["backtest"]:
+        print("  back-test: none (the comparable past window has under a year of training guests)")
     for row in document["backtest"]:
         print(f"  back-test {row['window']} {row['scenario']} {row['segment']}: season error {row['season_error_pct']:+.1f}%")
     print(f"written {path}")
@@ -62,5 +64,5 @@ def report(args: argparse.Namespace) -> None:
         print(f"Deck: {result.pptx} ({result.slides} slides)")
         print(f"PDF: {result.pdf}" if result.pdf else "PDF: skipped (LibreOffice `soffice` not found, or --no-pdf)")
         if result.fallback_numbers:
-            print("Numbers still from the deck's fallback block (run `twin validate` to source them from artifacts):")
+            print("Numbers still from the deck's fallback block (run `twin validate` and `twin outlook` to source them from artifacts):")
             print("  " + ", ".join(result.fallback_numbers))

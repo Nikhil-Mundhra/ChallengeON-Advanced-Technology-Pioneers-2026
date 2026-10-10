@@ -27,6 +27,7 @@ from tourism_twin.nowcast.specs import DAILY_SPECS
 SHIFT_DAYS = 364  # same weekday one year earlier
 BASE_COLUMNS = ["market", "date", "dataset_split", "guests", "new_arrivals_filled"]
 FROZEN_TEST = (pd.Timestamp("2025-02-01"), pd.Timestamp("2025-07-31"))
+MIN_BACKTEST_HISTORY_DAYS = 365
 
 
 @dataclass(frozen=True)
@@ -158,14 +159,23 @@ def backtest_outlook(
 
 def outlook_document(window: Window, spec: str = "twin_daily", repository: Optional[LakeRepository] = None) -> Dict:
     """Both arrivals scenarios for `window`, and the procedure's back-test on the latest past window
-    of the same calendar span that lies before the frozen test, at the live outlook's distances."""
+    of the same calendar span (at least two years earlier) that starts before the frozen test and is
+    cut at its start, at the live outlook's distances. The back-test is empty when that window would
+    train on less than MIN_BACKTEST_HISTORY_DAYS of guests."""
     outlooks = {scenario: seasonal_outlook(window, spec, scenario, repository) for scenario in SCENARIOS}
     panel = build_daily_panel(repository)
     train_end = panel.loc[panel["dataset_split"] == "train", "date"].max()
     gaps = ((window.start - train_end).days, (window.start - panel["date"].max()).days)
-    start, end = window.start - pd.DateOffset(years=2), min(window.end - pd.DateOffset(years=2), FROZEN_TEST[0] - pd.Timedelta(days=1))
+    years = 2
+    while window.start - pd.DateOffset(years=years) >= FROZEN_TEST[0]:
+        years += 1
+    start, end = window.start - pd.DateOffset(years=years), min(window.end - pd.DateOffset(years=years), FROZEN_TEST[0] - pd.Timedelta(days=1))
     past = Window(f"winter {start.year}/{str(start.year + 1)[-2:]} ({start:%b}–{end:%b})", start, end)
-    scores = pd.concat([backtest_outlook([past], *gaps, spec=spec, scenario=s, repository=repository) for s in SCENARIOS])
+    history_days = (start - pd.Timedelta(days=gaps[0]) - panel["date"].min()).days
+    if history_days >= MIN_BACKTEST_HISTORY_DAYS:
+        scores = pd.concat([backtest_outlook([past], *gaps, spec=spec, scenario=s, repository=repository) for s in SCENARIOS])
+    else:  # the past window's training data would be shorter than a year
+        scores = pd.DataFrame()
     flat = outlooks["flat"]
     previous_total = float(flat.previous["pred"].sum())
 
