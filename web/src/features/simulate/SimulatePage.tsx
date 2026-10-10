@@ -36,6 +36,7 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
   const years = useMemo(() => yearTotals(points), [points]);
   const ranking = useMemo(() => tornado(planning, market, season, lever), [planning, market, season, lever]);
   const seasonName = SEASON_NAMES[season]?.toLowerCase();
+  const untouched = activePreset(input) === "today";
   const marketName = titleCase(market);
 
   const starts = points.filter((p) => p.week > weekly.last_actual_week && Number(p.week.slice(5, 7)) % 3 === 1 && Number(p.week.slice(8, 10)) <= 7);
@@ -114,11 +115,15 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
         <StatCard title="Hotel guests per week today" tone="neutral" value={formatFull(headline.base)} caption={`${marketName}, ${seasonName} average`} />
         <StatCard title="With your changes" tone="accent" value={formatFull(headline.sim)} caption={`Estimate, ±${Math.round(headline.errorPct * 100)}% error`} />
         <StatCard title="Difference" tone="secondary" value={<span className={toneOf(headline.change)}>{formatSigned(headline.change)}</span>}
-                  caption={headline.changePct === null ? "No flights today to compare with" : `${formatPercent(headline.changePct)} guests per week`} />
-        {years.length > 0 && (
-          <Card title="Guests per year" subtitle="From the week the changes start">
+                  caption={untouched ? "Nothing changed yet" : headline.changePct === null ? "No flights today to compare with" : `${formatPercent(headline.changePct)} guests per week`} />
+        {untouched ? (
+          <Card title="Your scenario">
+            <p className="note">Move a slider or pick a starting point on the left. The numbers here show what your changes add, week by week and year by year.</p>
+          </Card>
+        ) : years.length > 0 && (
+          <Card title="Extra guests per year" subtitle={`From ${formatMonth(start)}, when your changes start`}>
             <table className="table">
-              <thead><tr><th scope="col">Year</th><th scope="col">Change</th></tr></thead>
+              <thead><tr><th scope="col">Year</th><th scope="col">Extra guests</th></tr></thead>
               <tbody>
                 {years.map((y) => (
                   <tr key={y.year}>
