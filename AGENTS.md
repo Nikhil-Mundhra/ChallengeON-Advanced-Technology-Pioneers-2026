@@ -129,12 +129,13 @@ cli/        the `twin` command
 
 ## Web app (`web/`)
 
-- Layout: `src/app/routes.tsx` (every route, once), `src/engine/` (pure TS: ports `planning`, `weekly`, `whatif`, `noise`, `range`; page arithmetic `insights`, `nowcastViews`; `parity.test.ts`), `src/data/` (bundle loader, `format.ts`), `src/components/{ui,layout,charts}`, `src/features/{landing,simulate,nowcast,report}`, `src/theme/tokens.css`, `src/content/{labels,landing,geo,report}.ts`.
+- Layout: `src/app/routes.tsx` (every route, once), `src/engine/` (pure TS: ports `planning`, `weekly`, `whatif`, `noise`, `range`; page arithmetic `insights`, `nowcastViews`, `playback`; `parity.test.ts`), `src/data/` (bundle loader, `format.ts`), `src/components/{ui,layout,charts}`, `src/features/{landing,simulate,nowcast,report}`, `src/theme/tokens.css`, `src/content/{labels,landing,geo,report}.ts`.
 - After any model or artifact change, run `make export` and commit `web/public/data` with the change; never hand-edit bundle files.
 - Static site, no request-time backend: never add an API or BFF for model numbers (the bundle is the store). Compute model numbers only in `src/engine/`; components and features contain no model arithmetic, only call it and format. Every new engine function gets a vitest case.
 - Define routes only in `src/app/routes.tsx`. Format numbers and dates only through `src/data/format.ts`; style charts only through `components/charts/theme.ts`. Sliders use `SliderRow` with a `defaultValue`.
 - CSS used by more than one feature lives in `components/*` or `theme/`, never in a lazy-loaded feature's CSS. Colours only via the semantic tokens in `theme/tokens.css`: no hex outside it, no `--brand-*` outside the brand surfaces (top nav, pills, landing, report hero); every new colour token gets a dark-mode value.
 - UI copy is plain language: no statistical terms beyond "±X% error", no em dashes. A landing statement calls a change up or down only when it exceeds the forecast's own error (`engine/insights.ts`); otherwise "about the same".
+- "Leaving" on the moving map is check-ins minus the change in guests staying (`engine/playback.ts`), never a stay-length model.
 - Every engine port needs golden cases in `export/bundle.golden_part` (or `planning_golden`) and a parity test; keep tolerances at 1e-9 where the maths is exact.
 - The bundle exports derived terms (what-if base/pre/in/floor/multiplier), never raw arrivals (licensed data).
 - Report copy lives in `web/src/content/report.ts`, each number with its source (README §3, solution documentation §11); keep those section numbers stable.
