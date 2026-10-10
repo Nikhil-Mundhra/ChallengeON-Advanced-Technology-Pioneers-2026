@@ -69,22 +69,28 @@ export function holdoutWmape(points: Array<Pick<WeekPoint, "actual" | "holdout">
   return total > 0 ? (100 * error) / total : null;
 }
 
-export interface YearTotal { year: string; weeks: number; model: number; scenario: number }
-
-/** Guests per calendar year over the weeks the scenario covers: without and with the changes. */
-export function yearTotals(points: WeekPoint[]): YearTotal[] {
-  const byYear = new Map<string, YearTotal>();
-  for (const p of points) {
-    if (p.scenario === null) continue;
-    const year = p.week.slice(0, 4);
-    const row = byYear.get(year) ?? { year, weeks: 0, model: 0, scenario: 0 };
-    row.weeks += 1; row.model += p.model; row.scenario += p.scenario;
-    byYear.set(year, row);
-  }
-  return [...byYear.values()];
-}
-
 /** Out-of-sample weekly error (WMAPE, %) over every market's held-out weeks. */
 export function overallHoldoutWmape(planning: Planning, weekly: Weekly): number | null {
   return holdoutWmape(Object.keys(weekly.markets).flatMap((m) => timeline(planning, weekly, m, NO_CHANGE, { start: "9999" })));
+}
+
+/** All markets summed: each market's timeline, with the changes on `selected` only. A total is
+ *  real (actual, holdout) only when every market has it that week. */
+export function totalTimeline(planning: Planning, weekly: Weekly, selected: string, lever: Lever,
+                              options: { start: string; growthPct?: number }): WeekPoint[] {
+  const all = Object.keys(weekly.markets).map((m) => timeline(planning, weekly, m, m === selected ? lever : NO_CHANGE, options));
+  return all[0].map((first, w) => {
+    const pick = (f: (p: WeekPoint) => number | null) => {
+      let total = 0;
+      for (const series of all) { const v = f(series[w]); if (v === null) return null; total += v; }
+      return total;
+    };
+    const model = all.reduce((t, s) => t + s[w].model, 0);
+    const changed = all.some((s) => s[w].scenario !== null);
+    const scenario = changed ? all.reduce((t, s) => t + (s[w].scenario ?? s[w].model), 0) : null;
+    const own = all.find((s) => s[w].band !== null && s[w].scenario !== null)?.[w];
+    const spread = own && own.band ? (own.band[1] - own.band[0]) / 2 : 0;
+    return { week: first.week, kind: first.kind, actual: pick((p) => p.actual), model, holdout: pick((p) => p.holdout), scenario,
+             band: scenario === null ? null : [Math.max(0, scenario - spread), scenario + spread], event: null };
+  });
 }

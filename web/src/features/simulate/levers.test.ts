@@ -25,3 +25,17 @@ describe("lever state", () => {
     ]);
   });
 });
+
+describe("slider availability", () => {
+  it("matches each market: all markets locks levers, residents have no flights, aircraft size needs extra flights", async () => {
+    const { ALL_MARKETS, DEFAULT_INPUT, presetAvailable, sliderAvailability } = await import("./levers");
+    expect(sliderAvailability(ALL_MARKETS, DEFAULT_INPUT, "multiplierPct").disabled).toBe(true);
+    expect(sliderAvailability("DOMESTIC", DEFAULT_INPUT, "frequency").disabled).toBe(true);
+    expect(sliderAvailability("DOMESTIC", DEFAULT_INPUT, "p2pPts").disabled).toBe(true);
+    expect(sliderAvailability("DOMESTIC", DEFAULT_INPUT, "multiplierPct").disabled).toBe(false);
+    expect(sliderAvailability("UNITED KINGDOM", DEFAULT_INPUT, "gauge").disabled).toBe(true);
+    expect(sliderAvailability("UNITED KINGDOM", { ...DEFAULT_INPUT, frequency: 2 }, "gauge").disabled).toBe(false);
+    expect(presetAvailable("DOMESTIC", "more_flights")).toBe(false);
+    expect(presetAvailable(ALL_MARKETS, "stopover")).toBe(false);
+  });
+});

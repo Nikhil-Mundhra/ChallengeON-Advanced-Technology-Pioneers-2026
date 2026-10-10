@@ -11,7 +11,7 @@
 import { NO_CHANGE, paramsFor, type Lever, type Planning } from "./planning";
 import { timeline, type Weekly } from "./weekly";
 
-export interface MarketSeries { guests: number[]; checkIns: number[]; checkOuts: number[]; extra: number[] }
+export interface MarketSeries { guests: number[]; checkIns: number[]; checkOuts: number[]; extra: number[]; checkInsBase: number[] }
 export interface Playback {
   weeks: string[];
   kind: Array<"history" | "scheduled" | "projected">;
@@ -31,8 +31,9 @@ export function playback(planning: Planning, weekly: Weekly, selected: string, l
     const guests = points.map((p) => p.actual ?? p.scenario ?? p.model);
     const checkIns = guests.map((g, w) => g / paramsFor(planning, m, season[w]).baseline_los);
     const checkOuts = checkIns.map((c, w) => (w === 0 ? c : Math.max(0, c - (guests[w] - guests[w - 1]) / 7)));
-    const extra = points.map((p) => (p.scenario === null ? 0 : p.scenario - p.model));
-    markets[m] = { guests, checkIns, checkOuts, extra };
+    const extra = points.map((p) => (p.actual !== null || p.scenario === null ? 0 : p.scenario - p.model));  // real weeks stay real
+    const checkInsBase = guests.map((g, w) => (g - extra[w]) / paramsFor(planning, m, season[w]).baseline_los);
+    markets[m] = { guests, checkIns, checkOuts, extra, checkInsBase };
   }
   const total = first.week.map((_, w) => names.reduce((s, m) => s + markets[m].guests[w], 0));
   const events = first.week.map((_, w) => {

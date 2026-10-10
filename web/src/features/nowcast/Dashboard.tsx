@@ -1,9 +1,10 @@
+import { marketName } from "../../content/labels";
 import { useMemo, useState } from "react";
 import { BarCompare } from "../../components/charts/BarCompare";
 import { TrendBand } from "../../components/charts/TrendBand";
 import { PageLayout } from "../../components/layout/PageLayout";
 import { Card, Segmented } from "../../components/ui";
-import { formatPercent, titleCase, toneOf } from "../../data/format";
+import { formatPercent, toneOf } from "../../data/format";
 import { AGGREGATES, bucketBars, changeVsLastYear, nowcastView, type NowcastInput } from "../../engine/nowcastViews";
 import type { Bundle } from "../../engine/types";
 import { ControlsPanel } from "./ControlsPanel";
@@ -29,7 +30,7 @@ export function Dashboard({ bundle, search }: { bundle: Bundle; search: string }
                   days={to - from + 1} start={view.dates[from]} end={view.dates[to]} />
       <div className="page__row">
         <Card title="Compared with last year"
-              subtitle={yoy === null ? `${titleCase(input.series)}: no data a year earlier` : <><strong className={toneOf(yoy)}>{formatPercent(yoy)}</strong> vs the same days last year</>}
+              subtitle={yoy === null ? `${marketName(input.series)}: no data a year earlier` : <><strong className={toneOf(yoy)}>{formatPercent(yoy)}</strong> vs the same days last year</>}
               actions={<Segmented label="Show by" options={[{ value: "day", label: "Days" }, { value: "week", label: "Weeks" }]} value={grain} onChange={setGrain} />}>
           <BarCompare data={bars} currentLabel={view.changed ? "With your changes" : "Forecast"} comparisonLabel="Last year" />
         </Card>

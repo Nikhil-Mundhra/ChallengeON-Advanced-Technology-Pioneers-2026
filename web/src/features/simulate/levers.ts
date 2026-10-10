@@ -63,6 +63,28 @@ export function toLever(input: LeverInput): Lever {
            delta_multiplier_pct: input.multiplierPct / 100, delta_los: input.factor };
 }
 
+/** The market picker's first option: every market together; flight changes need one market. */
+export const ALL_MARKETS = "ALL";
+
+export interface SliderAvailability { disabled: boolean; hint?: string }
+
+/** Whether a slider applies to the chosen market, and why not. UAE residents have no flight
+ *  route, so flight levers and the stopover share do not apply; aircraft size only matters once
+ *  extra flights are added; with all markets, flight changes need a market first. */
+export function sliderAvailability(market: string, input: LeverInput, key: keyof LeverInput): SliderAvailability {
+  if (market === ALL_MARKETS) return { disabled: true };
+  const flightKeys = LEVER_GROUPS.find((g) => g.id === "flights")!.sliders.map((s) => s.key);
+  if (market === "DOMESTIC" && (flightKeys.includes(key) || key === "p2pPts")) {
+    return { disabled: true, hint: key === "p2pPts" ? "Not applicable to UAE residents" : undefined };
+  }
+  if (key === "gauge" && input.frequency === 0) return { disabled: true, hint: "Applies when extra flights are added" };
+  return { disabled: false };
+}
+
+/** Presets that do something for the chosen market. */
+export const presetAvailable = (market: string, id: PresetId) =>
+  market !== ALL_MARKETS && !(market === "DOMESTIC" && id === "more_flights");
+
 /** Markets with flight history first, then countries without direct flights (estimated from similar markets). */
 export function marketOptions(planning: Planning): Array<{ value: string; label: string }> {
   const calibrated = Object.keys(planning.calibration).sort();

@@ -1,5 +1,6 @@
+import { marketName } from "../../content/labels";
 import { useMemo } from "react";
-import { formatCount, formatSigned, titleCase } from "../../data/format";
+import { formatCount, formatSigned } from "../../data/format";
 import { FlowDots, type DotMode } from "./FlowDots";
 import { arcBetween, LAND, MAP_HEIGHT, MAP_WIDTH, projection } from "./mapGeometry";
 import "./flowmap.css";
@@ -32,14 +33,14 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highli
           return (
             <g key={f.market} className={`flowmap__flow${isSelected ? " flowmap__flow--selected" : ""}${highlight?.has(f.market) ? " flowmap__flow--event" : ""}`} onClick={() => onSelect(f.market)}
                role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(f.market); }}
-               aria-label={`${titleCase(f.market)}: ${formatCount(f.sim)} guests a week`}>
-              <title>{`${titleCase(f.market)}: ${formatCount(f.sim)} guests a week${isSelected && delta ? ` (${formatSigned(delta, formatCount)} from your changes)` : ""}`}</title>
+               aria-label={`${marketName(f.market)}: ${formatCount(f.sim)} guests a week`}>
+              <title>{`${marketName(f.market)}: ${formatCount(f.sim)} guests a week${isSelected && delta ? ` (${formatSigned(delta, formatCount)} from your changes)` : ""}`}</title>
               <path className="flowmap__arc" d={d} style={{ strokeWidth: width(isSelected ? f.sim : f.base) }} />
               {isSelected && Math.abs(delta) >= 1 && <path className="flowmap__arc flowmap__arc--today" d={d} style={{ strokeWidth: width(f.base) }} />}
               <circle className={f.region ? "flowmap__dot flowmap__dot--region" : "flowmap__dot"} cx={x} cy={y} r={2 + width(f.sim) / 2} />
               {(isSelected || f.base / max > 0.25) && (
                 <text className="flowmap__label" x={x} y={y - 8 - width(f.sim) / 2}>
-                  {titleCase(f.market.replace(/^OTHER_/, ""))}{isSelected && Math.abs(delta) >= 1 ? ` ${formatSigned(delta, formatCount)}` : ""}
+                  {marketName(f.market).replace(/^Other /, "")}{isSelected && Math.abs(delta) >= 1 ? ` ${formatSigned(delta, formatCount)}` : ""}
                 </text>
               )}
             </g>

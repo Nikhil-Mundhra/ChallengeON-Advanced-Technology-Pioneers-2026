@@ -154,8 +154,31 @@ describe("moving map", () => {
     for (let w = 1; w < uk.guests.length; w += 1) {
       if (uk.checkOuts[w] > 0) expect(uk.checkIns[w] - uk.checkOuts[w]).toBeCloseTo((uk.guests[w] - uk.guests[w - 1]) / 7, 6);
     }
+    points.forEach((p, w) => { if (p.actual !== null) expect(uk.extra[w]).toBe(0); });   // changes never alter real weeks
     const last = frameAt(pb, pb.weeks.length - 1, "UNITED KINGDOM");
     expect(last.extraSoFar).toBeGreaterThan(0);
     expect(last.topArrivals).toHaveLength(3);
+  });
+});
+
+describe("period totals", () => {
+  it("week, month and since periods add up, and all-market totals match the sum of markets", async () => {
+    const { playback } = await import("./playback");
+    const { periodAt, summarise } = await import("./periods");
+    const { totalTimeline } = await import("./weekly");
+    const weekly = read<Weekly>(manifest.files.weekly);
+    const planning = read<Planning>(manifest.files.planning);
+    const opts = { start: weekly.last_actual_week };
+    const pb = playback(planning, weekly, "ALL", NO_CHANGE, opts);
+    const w = pb.weeks.indexOf("2025-12-01");
+    const month = periodAt(pb.weeks, w, "month");
+    expect(pb.weeks.slice(month.from, month.to + 1).every((d) => d.startsWith("2025-12"))).toBe(true);
+    const weekSum = summarise(pb, periodAt(pb.weeks, w, "week"));
+    expect(weekSum.guests).toBeCloseTo(pb.total[w], 6);
+    expect(weekSum.visitorsBase).toBeCloseTo(weekSum.visitors, 6);   // no changes
+    const since = summarise(pb, periodAt(pb.weeks, w, "since", w - 3));
+    expect(since.weeks).toBe(4);
+    const totals = totalTimeline(planning, weekly, "ALL", NO_CHANGE, opts);
+    totals.forEach((p, i) => expect(p.model).toBeCloseTo(Object.keys(weekly.markets).reduce((t, m) => t + timeline(planning, weekly, m, NO_CHANGE, opts)[i].model, 0), 6));
   });
 });

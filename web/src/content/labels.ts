@@ -23,3 +23,12 @@ export const EVENT_NAMES: Record<string, string> = {
   new_years_eve: "New Year's Eve", prophets_birthday: "Prophet's Birthday", ramadan: "Ramadan",
 };
 export const eventName = (code: string | null | undefined) => (code ? EVENT_NAMES[code] ?? code.replace(/_/g, " ") : null);
+
+/** Plain market names (model codes in the bundle); anything not listed is title-cased. */
+const MARKET_NAMES: Record<string, string> = {
+  DOMESTIC: "UAE residents", "RUSSIAN FEDERATION": "Russia", "UNITED STATES OF AMERICA": "United States",
+  OTHER_EUROPE: "Other Europe", OTHER_MENA: "Other Middle East and North Africa", OTHER_ASIA_PACIFIC: "Other Asia Pacific",
+  OTHER_AMERICAS_AFRICA: "Other Americas and Africa", OTHER_EURASIA: "Other Eurasia", ALL: "All markets",
+};
+export const marketName = (code: string) =>
+  MARKET_NAMES[code] ?? code.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).replace(/_/g, " ");

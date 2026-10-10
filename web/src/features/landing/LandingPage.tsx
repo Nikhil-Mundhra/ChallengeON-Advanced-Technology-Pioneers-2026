@@ -1,8 +1,9 @@
+import { marketName } from "../../content/labels";
 import { useMemo } from "react";
 import { Link } from "react-router";
 import { useActiveId, useReveal } from "../../components/layout/useInView";
 import { CHAPTERS, DAILY_ERROR } from "../../content/landing";
-import { formatCount, formatFull, formatMonthName, formatPercent, formatSigned, titleCase } from "../../data/format";
+import { formatCount, formatFull, formatMonthName, formatPercent, formatSigned } from "../../data/format";
 import { headlineMonth, marketMoves, monthlyOutlook, type MonthOutlook } from "../../engine/insights";
 import { weeklyHeadline } from "../../engine/planning";
 import type { Bundle } from "../../engine/types";
@@ -157,7 +158,7 @@ function MonthCard({ month, residents, total }: { month: MonthOutlook; residents
 function MarketBar({ name, change, max }: { name: string; change: number; max: number }) {
   return (
     <div className="market">
-      <span className="market__name">{titleCase(name.replace(/^OTHER_/, "Other "))}</span>
+      <span className="market__name">{marketName(name)}</span>
       <span className="market__bar"><span className={change >= 0 ? "market__fill" : "market__fill market__fill--down"} style={{ width: `${Math.min(100, (Math.abs(change) / Math.abs(max)) * 100)}%` }} /></span>
       <span className="market__value">{formatPercent(change, 0)}</span>
     </div>
