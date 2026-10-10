@@ -355,7 +355,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 
 ## 10. Tests
 
-98 Python tests, in folders that mirror the packages (74 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, deck, API, architecture; 24 for the audit tool), and 11 web tests (8 engine parity, 3 for formatting and lever state); all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
+98 Python tests, in folders that mirror the packages (74 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, deck, API, architecture; 24 for the audit tool), and 17 web tests (12 engine parity, 5 for formatting, lever state and slider rules); all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
 
 ## 11. Limitations
 
