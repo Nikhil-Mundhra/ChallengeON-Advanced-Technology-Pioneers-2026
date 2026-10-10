@@ -23,3 +23,12 @@ export function pointOn({ from, control, to }: Arc, t: number): [number, number]
   const u = 1 - t;
   return [u * u * from[0] + 2 * u * t * control[0] + t * t * to[0], u * u * from[1] + 2 * u * t * control[1] + t * t * to[1]];
 }
+
+/** Velocity vector [dx, dy] at t (0..1) along an arc. */
+export function tangentOn({ from, control, to }: Arc, t: number): [number, number] {
+  const u = 1 - t;
+  return [
+    2 * u * (control[0] - from[0]) + 2 * t * (to[0] - control[0]),
+    2 * u * (control[1] - from[1]) + 2 * t * (to[1] - control[1]),
+  ];
+}

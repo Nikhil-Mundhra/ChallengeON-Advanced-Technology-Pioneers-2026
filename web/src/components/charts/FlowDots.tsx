@@ -1,13 +1,28 @@
 import { useEffect, useRef } from "react";
-import { MAP_HEIGHT, MAP_WIDTH, pointOn, type Arc } from "./mapGeometry";
+import { MAP_HEIGHT, MAP_WIDTH, pointOn, tangentOn, type Arc } from "./mapGeometry";
 
 export type DotMode = "in" | "out" | "both";
 interface Dot { arc: Arc; t: number; out: boolean; speed: number }
 
 const TRAVEL_SECONDS = 1.8;
 const MAX_DOTS = 1600;
-/** Moving dots along the arcs, drawn on a canvas over the map: arriving dots travel to Abu Dhabi,
- *  leaving dots travel back. Each market sends one dot per `perDot` people per week, per second.
+
+/** Solid airplane silhouette oriented along +x (0°), centered at wing-fuselage pivot (0, 0).
+ *  Length ~12px, wingspan ~10.8px. */
+const PLANE_D =
+  "M 5.93,0.0 L 5.61,-0.42 L 4.78,-1.14 L 1.64,-1.21 L -1.91,-5.4 L -2.97,-5.43 " +
+  "L -3.27,-4.94 L -1.56,-1.14 L -4.09,-1.09 L -5.31,-2.45 L -6.42,-2.46 L -6.62,-2.08 " +
+  "L -6.07,0.0 L -6.62,2.08 L -6.42,2.46 L -5.31,2.45 L -4.09,1.09 L -1.56,1.14 " +
+  "L -3.27,4.94 L -2.97,5.43 L -1.91,5.4 L 1.64,1.21 L 4.78,1.14 L 5.61,0.42 Z";
+
+let cachedPlanePath: Path2D | null = null;
+function getPlanePath(): Path2D | null {
+  if (typeof Path2D === "undefined") return null;
+  return (cachedPlanePath ??= new Path2D(PLANE_D));
+}
+
+/** Moving airplanes along the arcs, drawn on a canvas over the map: arriving planes travel to Abu Dhabi,
+ *  leaving planes travel back. Each market sends one plane per `perDot` people per week, per second.
  *  Nothing moves when the reader prefers reduced motion or the tab is hidden. */
 export function FlowDots({ arcs, rates, mode, perDot, playing }: {
   arcs: Record<string, Arc>; rates: Record<string, { in: number; out: number }>; mode: DotMode; perDot: number; playing: boolean;
@@ -50,14 +65,28 @@ export function FlowDots({ arcs, rates, mode, perDot, playing }: {
         }
       }
       ctx.clearRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+      const plane = getPlanePath();
       for (let i = dots.length - 1; i >= 0; i -= 1) {
         const d = dots[i];
         d.t += d.speed * dt;
         if (d.t >= 1 || (d.out ? m === "in" : m === "out")) { dots.splice(i, 1); continue; }
-        const [x, y] = pointOn(d.arc, d.out ? 1 - d.t : d.t);
+        const s = d.out ? 1 - d.t : d.t;
+        const [x, y] = pointOn(d.arc, s);
+        const [dx, dy] = tangentOn(d.arc, s);
+        const angle = d.out ? Math.atan2(-dy, -dx) : Math.atan2(dy, dx);
         ctx.globalAlpha = Math.sin(Math.PI * d.t) * 0.75 + 0.25;
         ctx.fillStyle = d.out ? colourOut : colourIn;
-        ctx.beginPath(); ctx.arc(x, y, 2.4, 0, Math.PI * 2); ctx.fill();
+        if (plane) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(angle);
+          ctx.fill(plane);
+          ctx.restore();
+        } else {
+          ctx.beginPath();
+          ctx.arc(x, y, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       ctx.globalAlpha = 1;
       frame = requestAnimationFrame(tick);
@@ -65,6 +94,7 @@ export function FlowDots({ arcs, rates, mode, perDot, playing }: {
     frame = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(frame); observer.disconnect(); };
   }, []);
+
 
   return <canvas ref={canvas} className="flowmap__dots" aria-hidden="true" />;
 }

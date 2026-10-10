@@ -54,7 +54,7 @@ export function MapPlayback({ pb, selected, week: w, onWeek: setW, onSelect }: {
         </button>
         <Segmented label="Speed" value={speed} onChange={setSpeed} options={SPEEDS} />
         <Segmented label="Show people" value={mode} onChange={setMode} options={MODES} />
-        <span className="playback__legend"><i className="playback__swatch playback__swatch--in" />arriving <i className="playback__swatch playback__swatch--out" />leaving · 1 dot ≈ {formatCount(perDot)} people a week</span>
+        <span className="playback__legend"><i className="playback__swatch playback__swatch--in" />arriving <i className="playback__swatch playback__swatch--out" />leaving · 1 plane ≈ {formatCount(perDot)} people a week</span>
       </div>
 
       <FlowMap flows={flows} hub={ABU_DHABI} domestic={home ? { base: home.guests[w] - home.extra[w], sim: home.guests[w] } : null}
