@@ -19,7 +19,8 @@ export function ResultsPanel({ pb, week, market }: { pb: Playback; week: number;
   const period = periodAt(pb.weeks, week, mode, since);
   const sum = summarise(pb, period, markets);
   const world = summarise(pb, period);
-  const added = sum.visitors - sum.visitorsBase;
+  const addedNights = sum.guests - sum.guestsBase;
+  const addedVisitors = sum.visitors - sum.visitorsBase;
   const top = world.byMarket.filter((m) => m.market !== "DOMESTIC").slice(0, 8);
   const max = top[0]?.visitors || 1;
   const sinceOptions = pb.weeks.map((w, i) => ({ w, i })).filter(({ w }) => w.slice(8, 10) <= "07").map(({ w, i }) => ({ value: String(i), label: formatMonth(w) }));
@@ -35,7 +36,27 @@ export function ResultsPanel({ pb, week, market }: { pb: Playback; week: number;
         <dl className="totals">
           <div><dt>Visitors arriving</dt><dd>{formatCount(sum.visitors)}</dd></div>
           <div><dt>Hotel nights</dt><dd>{formatCount(sum.guests)}</dd></div>
-          {Math.abs(added) >= 1 && <div><dt>From your changes</dt><dd className={toneOf(added)}>{formatSigned(added, formatCount)} visitors</dd></div>}
+          {Math.abs(addedNights) >= 1 && (
+            <div>
+              <dt>From your changes</dt>
+              <dd className={toneOf(addedNights)}>
+                {formatSigned(addedNights, formatCount)} hotel nights
+                {Math.abs(addedVisitors) >= 1 && (
+                  <span style={{ fontSize: "var(--text-sm)", marginLeft: "6px", color: "var(--color-text-muted)" }}>
+                    ({formatSigned(addedVisitors, formatCount)} visitors)
+                  </span>
+                )}
+              </dd>
+            </div>
+          )}
+          {Math.abs(addedNights) < 1 && Math.abs(addedVisitors) >= 1 && (
+            <div>
+              <dt>From your changes</dt>
+              <dd className={toneOf(addedVisitors)}>
+                {formatSigned(addedVisitors, formatCount)} visitors
+              </dd>
+            </div>
+          )}
         </dl>
         {!sum.covered && <p className="note">Only part of this period has data, so the totals cover the weeks we have.</p>}
         <p className="note">{known || market === ALL_MARKETS ? marketName(market) : `All markets (${marketName(market)} has no hotel history yet)`}. Follows the week on the map; press play and it moves.</p>

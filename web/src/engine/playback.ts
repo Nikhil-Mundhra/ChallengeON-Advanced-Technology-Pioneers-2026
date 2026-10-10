@@ -29,7 +29,13 @@ export function playback(planning: Planning, weekly: Weekly, selected: string, l
     const points = timeline(planning, weekly, m, m === selected ? lever : NO_CHANGE, options);
     const season = weekly.markets[m].season;
     const guests = points.map((p) => p.actual ?? p.scenario ?? p.model);
-    const checkIns = guests.map((g, w) => g / paramsFor(planning, m, season[w]).baseline_los);
+    const checkIns = guests.map((g, w) => {
+      const baseLos = paramsFor(planning, m, season[w]).baseline_los;
+      const effectiveLos = (m === selected && points[w].scenario !== null && lever.delta_los !== 0)
+        ? Math.max(1, baseLos + lever.delta_los)
+        : baseLos;
+      return g / effectiveLos;
+    });
     const checkOuts = checkIns.map((c, w) => (w === 0 ? c : Math.max(0, c - (guests[w] - guests[w - 1]) / 7)));
     const extra = points.map((p) => (p.actual !== null || p.scenario === null ? 0 : p.scenario - p.model));  // real weeks stay real
     const checkInsBase = guests.map((g, w) => (g - extra[w]) / paramsFor(planning, m, season[w]).baseline_los);

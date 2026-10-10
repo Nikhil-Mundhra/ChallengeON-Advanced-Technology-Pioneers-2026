@@ -37,6 +37,7 @@ export function ChainView(props: SeasonViewProps) {
         { label: "With changes", value: headline.sim, total: true },
       ];
   const hasChanges = Math.abs(headline.change) > 1e-4;
+  const activeSteps = steps.filter((s) => s.total || Math.abs(s.value) >= 0.5);
 
   return (
     <div className="canvas__body">
@@ -44,7 +45,7 @@ export function ChainView(props: SeasonViewProps) {
       <div className="canvas__split">
         <ChainTable headline={headline} />
         <div>
-          <Waterfall steps={steps} />
+          <Waterfall steps={activeSteps} />
           {!hasChanges && (
             <p className="note" style={{ textAlign: "center", marginTop: 4 }}>
               Baseline: adjust sliders on the left (e.g. flights, booking rate) to see the waterfall steps.
@@ -89,7 +90,7 @@ const INTERNATIONAL_ROWS: ReadonlyArray<{ label: string; key: keyof SimulationRe
   { label: "= passengers", key: "pax", kind: "count" },
   { label: "× share who stop in Abu Dhabi", key: "p2pShare", kind: "share" },
   { label: "= visitors arriving", key: "p2p", kind: "count" },
-  { label: "× hotel booking rate", key: "multiplier", kind: "ratio" },
+  { label: "× hotel arrival multiplier", key: "multiplier", kind: "ratio" },
   { label: "= hotel check-ins", key: "arrivals", kind: "count" },
   { label: "× hotel nights per visitor", key: "los", kind: "ratio" },
   { label: "= hotel nights from flights", key: "guests", kind: "count" },
