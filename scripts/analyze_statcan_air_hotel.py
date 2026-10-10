@@ -17,7 +17,7 @@ import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "research" / "real_world_validation"
+OUT = ROOT / "meta" / "research" / "real_world_validation"
 ZIP = OUT / "sources" / "statcan_vts_2024_air_exit_csv.zip"
 URL = "https://www150.statcan.gc.ca/n1/pub/24-25-0002/2021001/2024/CSV.zip"
 CSV_PATH = "CSV/Data_Données/aes_2024_pumf.csv"

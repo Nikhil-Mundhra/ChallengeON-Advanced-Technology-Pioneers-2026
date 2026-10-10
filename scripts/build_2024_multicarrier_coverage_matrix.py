@@ -15,7 +15,7 @@ from tourism_twin.config import SETTINGS
 
 
 ROOT = SETTINGS.root
-OUTPUT = ROOT / "research/real_world_validation/multicarrier_2024_coverage_matrix.csv"
+OUTPUT = ROOT / "meta/research/real_world_validation/multicarrier_2024_coverage_matrix.csv"
 AIR_ARABIA_SOURCE = "https://press.airarabia.com/air-arabia-abu-dhabi-takes-off-to-yekaterinburg/"
 INDIGO_SOUTH = "https://www.goindigo.in/press-releases/indigo-brings-abu-dhabi-closer-to-southern-india.html"
 

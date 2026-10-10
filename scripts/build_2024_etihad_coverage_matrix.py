@@ -14,7 +14,7 @@ from tourism_twin.config import SETTINGS
 
 
 ROOT = SETTINGS.root
-OUTPUT = ROOT / "research/real_world_validation/etihad_2024_coverage_matrix.csv"
+OUTPUT = ROOT / "meta/research/real_world_validation/etihad_2024_coverage_matrix.csv"
 SUMMER = "https://www.etihad.com/en-us/news/etihad-airways-celebrates-launch-flights-to-eight-more-destinations-this-june"
 SCHEDULE = "https://www.etihad.com/en-us/news/etihad-unleashes-sizzling-summer-schedule"
 ROUTES = [

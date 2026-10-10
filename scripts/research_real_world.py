@@ -22,7 +22,7 @@ from audit_agent.local_model import OpenAICompatibleClient, parse_json_response
 from tourism_twin.config import SETTINGS
 
 ROOT = SETTINGS.root
-OUT = ROOT / "research" / "real_world_validation"
+OUT = ROOT / "meta" / "research" / "real_world_validation"
 MODEL = "mlx-community/Qwen3.5-4B-MLX-4bit"
 MAX_BYTES = 20_000_000
 

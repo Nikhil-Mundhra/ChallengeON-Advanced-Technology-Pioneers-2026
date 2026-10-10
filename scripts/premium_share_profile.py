@@ -12,7 +12,7 @@ differences in aircraft, routes, season, or passenger purpose.
 All shares are ratios of summed counts, never averages of daily percentages:
 each passenger gets equal weight, not each day.
 
-Outputs (research/premium_share_by_origin/):
+Outputs (meta/research/premium_share_by_origin/):
   premium_share_country.csv         origin x reporting period
   premium_share_country_monthly.csv origin x month
   premium_share_city.csv            origin x departure city, main period
@@ -46,7 +46,7 @@ import duckdb
 from tourism_twin.config import SETTINGS
 
 ROOT = SETTINGS.root
-OUT_DIR = ROOT / "research" / "premium_share_by_origin"
+OUT_DIR = ROOT / "meta" / "research" / "premium_share_by_origin"
 MAIN_END = "2025-07-31"
 
 ETIHAD_DAILY = f"""

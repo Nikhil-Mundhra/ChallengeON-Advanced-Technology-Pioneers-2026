@@ -15,7 +15,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     outlook_parser.set_defaults(func=outlook)
     report_parser = subparsers.add_parser("report", help="Build a PDF report or the slide deck (needs the 'report' extra)")
     report_parser.add_argument("kind", choices=["solution", "database", "deck"])
-    report_parser.add_argument("--content", help="deck only: content YAML (default report/deck/deck.yaml)")
+    report_parser.add_argument("--content", help="deck only: content YAML (default meta/deck/deck.yaml)")
     report_parser.add_argument("--no-pdf", action="store_true", help="deck only: skip the LibreOffice PDF export")
     report_parser.set_defaults(func=report)
 

@@ -1,4 +1,4 @@
-"""Presentation deck: report/deck/deck.yaml (content) → output/deck/deck.pptx (+ deck.pdf).
+"""Presentation deck: meta/deck/deck.yaml (content) → output/deck/deck.pptx (+ deck.pdf).
 
 Teammates edit only the YAML: slide titles, one-line messages, check-icon lists (parent →
 detail lines), stat tiles, cards, figure and table names, speaker notes; `layout: cover` for the
@@ -20,7 +20,7 @@ from pptx.util import Inches
 from tourism_twin.config import SETTINGS
 from tourism_twin.reporting.deck import figures, layout, numbers
 
-DEFAULT_CONTENT = SETTINGS.root / "report" / "deck" / "deck.yaml"
+DEFAULT_CONTENT = SETTINGS.root / "meta" / "deck" / "deck.yaml"
 
 
 @dataclass

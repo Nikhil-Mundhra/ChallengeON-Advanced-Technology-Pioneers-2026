@@ -21,7 +21,7 @@ from tourism_twin.config import SETTINGS
 
 
 ROOT = SETTINGS.root
-OUT = ROOT / "research" / "real_world_validation"
+OUT = ROOT / "meta" / "research" / "real_world_validation"
 SOURCES = OUT / "sources"
 BASE = "https://scad.gov.ae"
 HOTEL_PATHS = {

@@ -542,7 +542,7 @@ class ReadOnlyTools:
             return "configuration"
         if text.startswith("audit/"):
             return "audit state"
-        if text.startswith("audits/"):
+        if text.startswith("meta/audits/"):
             return "audit record"
         return "unknown"
 

@@ -13,7 +13,7 @@ Discriminators (all computed on the train split only):
   same_day_guest_pct         same-day guests / guests (heavy suppression;
                              reported with its missing share, not imputed)
 
-Outputs in research/nationality_groups/:
+Outputs in meta/research/nationality_groups/:
   nationality_group_evidence.csv  all measured discriminators
   nationality_group_table.csv     nationality -> group proposal with basis
 """
@@ -28,7 +28,7 @@ import duckdb
 from tourism_twin.config import SETTINGS
 
 ROOT = SETTINGS.root
-OUT_DIR = ROOT / "research" / "nationality_groups"
+OUT_DIR = ROOT / "meta" / "research" / "nationality_groups"
 
 EVIDENCE_QUERY = """
 SELECT

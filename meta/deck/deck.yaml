@@ -3,7 +3,7 @@
 # Each slide: title, message (one line under the title), bullets (check-icon list: text + short
 # detail lines), stats (big-number tiles: value, label, tone), cards (title, lines, tone), with
 # band_position: top|bottom; layout: cover (title slide: kicker, title, message, cards);
-# figure (a name from reporting/deck/figures.py, or asset:<file> in report/deck/assets/),
+# figure (a name from reporting/deck/figures.py, or asset:<file> in meta/deck/assets/),
 # table (header + rows), notes (speaker notes).
 # Numbers: write {name}. They are filled from artifacts (output/validation_summary.json,
 # output/outlook.json, lake/curated/evaluation_results.json); the `numbers:` block below is the fallback and must name

@@ -1,7 +1,7 @@
 # Local agentic data-audit loop
 
 Driven by `scripts/run_data_issues_audit.py`. The controller parses the checklist
-(`audits/data_issues/checklist.json` by default) locally and sends one bounded task at a time to
+(`meta/audits/data_issues/checklist.json` by default) locally and sends one bounded task at a time to
 the configured finder. It owns scheduling, retries, issue deduplication, durable state,
 and Markdown rendering. No model receives the complete checklist or issue register.
 
@@ -105,7 +105,7 @@ timestamps, backend ownership, escalation metadata, and controller PID.
 ## State
 
 Canonical state is under `audit/` (gitignored). `audit/issues.md` (`--output`) is
-generated from `audit/issues.json`; do not edit it. `audits/data_issues/issues_2026-10-01.md` is a
+generated from `audit/issues.json`; do not edit it. `meta/audits/data_issues/issues_2026-10-01.md` is a
 dated snapshot of the 2026-10-01 run; several of its issues are fixed in current code. Finder transcripts, task reports,
 and manager decisions are kept separately.
 

@@ -2,7 +2,7 @@
 set -eu
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-output_dir="$repo_dir/research/real_world_validation"
+output_dir="$repo_dir/meta/research/real_world_validation"
 mkdir -p "$output_dir"
 
 mlx_pid=$(lsof -nP -iTCP:8000 -sTCP:LISTEN -t | head -1)

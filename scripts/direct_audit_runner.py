@@ -893,7 +893,7 @@ def run_pipeline() -> None:
     results_dir = audit_dir / "task_results"
     decisions_dir = audit_dir / "manager_decisions"
     output_path = ROOT_DIR / "audit" / "issues.md"
-    checklist_path = ROOT_DIR / "audits" / "data_issues" / "checklist.json"
+    checklist_path = ROOT_DIR / "meta" / "audits" / "data_issues" / "checklist.json"
 
     results_dir.mkdir(parents=True, exist_ok=True)
     decisions_dir.mkdir(parents=True, exist_ok=True)

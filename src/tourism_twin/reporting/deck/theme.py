@@ -1,7 +1,7 @@
 """Deck look: UAE flag colours (green, red, black, white) with a sand neutral, Open Sans.
 
 Deck only; the PDF reports and `twin charts` keep reporting/palette.py. Font files and their
-licence are in report/deck/fonts/ (install them for the PDF export to use Open Sans).
+licence are in meta/deck/fonts/ (install them for the PDF export to use Open Sans).
 """
 
 GREEN_DARK = "#005A2B"  # titles, headers

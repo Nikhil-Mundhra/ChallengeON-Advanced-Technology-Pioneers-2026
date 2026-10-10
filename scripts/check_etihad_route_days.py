@@ -14,7 +14,7 @@ from tourism_twin.config import SETTINGS
 
 
 ROOT = SETTINGS.root
-OUT = ROOT / "research" / "real_world_validation" / "etihad_2024_route_checks.json"
+OUT = ROOT / "meta" / "research" / "real_world_validation" / "etihad_2024_route_checks.json"
 CHECKS = [
     {"city": "Gassim", "airport": "ELQ", "flight": "EY0628", "start": "2024-06-24", "end": "2024-10-26", "weekdays": [0, 2, 4, 5], "local_arrival": "13:20", "source": "https://www.etihad.com/en-us/news/etihad-airways-explores-new-horizons-in-the-middle-east-with-the-launch-of-its-newest-destination"},
     {"city": "Jaipur", "airport": "JAI", "flight": "EY0367", "start": "2024-06-16", "end": "2024-07-26", "weekdays": [0, 2, 4, 6], "local_arrival": "13:00", "source": "https://www.etihad.com/en-in/news/etihad-airways-adds-new-route-to-northwest-india-with-four-weekly-flights-to-jaipur"},

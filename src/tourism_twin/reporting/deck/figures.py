@@ -21,7 +21,7 @@ from tourism_twin.reporting.deck.theme import CHART_FONT, GREEN, GREEN_DARK, GRE
 
 DPI = 200
 NAVY, BLUE, TEAL, SKY, MINT, AMBER, MUTED = GREEN_DARK, GREEN, GREEN, GREEN_LIGHT, SAND, RED, GREY
-for _font in (SETTINGS.root / "report" / "deck" / "fonts").glob("*.ttf"):
+for _font in (SETTINGS.root / "meta" / "deck" / "fonts").glob("*.ttf"):
     font_manager.fontManager.addfont(str(_font))
 plt.rcParams.update({"font.family": "sans-serif", "font.sans-serif": CHART_FONT, "axes.edgecolor": LINE,
                      "axes.labelcolor": INK, "xtick.color": GREY, "ytick.color": GREY})
@@ -209,7 +209,7 @@ def asset(name: str, assets_dir: Path) -> Callable[[Path, Dict[str, str]], Path]
         if source.exists():
             return source
         fig, ax = _canvas(8, 4.5)
-        _box(ax, 0.05, 0.1, 0.9, 0.8, f"Screenshot goes here:\nreport/deck/assets/{name}", "#F5F7FA", LINE, MUTED, 13)
+        _box(ax, 0.05, 0.1, 0.9, 0.8, f"Screenshot goes here:\nmeta/deck/assets/{name}", "#F5F7FA", LINE, MUTED, 13)
         return _save(fig, out)
     return build
 
