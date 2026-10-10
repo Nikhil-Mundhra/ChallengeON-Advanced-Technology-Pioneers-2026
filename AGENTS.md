@@ -30,7 +30,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin simulate --market M --season S [levers]` | Print a scenario briefing | — |
 | `twin charts` | Waterfall, tornado, benchmark figures | output |
 | `twin report {solution,database}` | PDF report (needs `report` extra) | output |
-| `twin report deck [--content P] [--no-pdf]` | 10-slide presentation from `report/deck/deck.yaml` → `deck/deck.pptx` (+ PDF via LibreOffice); reads `validation_summary.json` and `outlook.json` (run `twin validate` and `twin outlook` first); needs `report` extra | output |
+| `twin report deck [--content P] [--no-pdf]` | 10-slide presentation from `meta/deck/deck.yaml` → `deck/deck.pptx` (+ PDF via LibreOffice); reads `validation_summary.json` and `outlook.json` (run `twin validate` and `twin outlook` first); needs `report` extra | output |
 | `twin serve [--port 8080]` | Earlier web UI + JSON API (`python -m app.server` reads `PORT`) | — |
 | `twin query "SQL" [--database P] [--limit N]` | Read-only SQL on `analytics.duckdb` | — |
 
@@ -49,6 +49,8 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 - `test_benchmarks_through_the_harness_reproduce_the_committed_evaluation` pins `evaluation_results.json`; a diff there is a metric change.
 
 ## Layout and layering
+
+Non-code material lives under `meta/`: `meta/deck/` (slide content, fonts, assets), `meta/research/` (research outputs written by `scripts/`), `meta/audits/` (audit checklist and dated records). Code, `lake/`, `docs/`, `scripts/`, `sql/` and `web/` stay at the root.
 
 Packages under `src/`: `tourism_twin` (pipeline and model), `app` (`server.py` + `static/index.html`, the earlier UI), `audit_agent` (LLM data-audit tool, run via `scripts/run_data_issues_audit.py`; input `audits/data_issues/checklist.json`, output `audit/issues.md`). Committed audit inputs and dated snapshots live in `audits/`, never in the repo root; run state and fresh output go to `audit/` (gitignored).
 
@@ -136,7 +138,7 @@ cli/        the `twin` command
 
 ## Presentation deck
 
-- Edit slide content only in `report/deck/deck.yaml`; colours and font in `reporting/deck/theme.py` (deck only; `reporting/palette.py` stays for the PDF reports), layout in `reporting/deck/layout.py`, figures in `reporting/deck/figures.py` (planning charts reused from `reporting/charts.py`).
+- Edit slide content only in `meta/deck/deck.yaml`; colours and font in `reporting/deck/theme.py` (deck only; `reporting/palette.py` stays for the PDF reports), layout in `reporting/deck/layout.py`, figures in `reporting/deck/figures.py` (planning charts reused from `reporting/charts.py`).
 - Result numbers on slides (errors, gains, shares, effects) are `{name}` placeholders filled from artifacts (`validation_summary.json`, `outlook.json`, `evaluation_results.json`; `reporting/deck/numbers.py`); never type a result into slide text, and every fallback entry names its `source`. Design facts (e.g. 7 validation origins, a 21-day lag window) may be written directly.
 - Plain language: a technical term only with its job; a detail always under its parent bullet.
 
@@ -156,7 +158,7 @@ cli/        the `twin` command
 
 - Refactors must prove unchanged outputs: rebuild into a scratch dir and compare against the committed artifacts.
 - Ship metric or behaviour changes as a separate change and report them explicitly; never silently.
-- Dated records keep historical paths; do not "fix" them: `audits/data_issues/` (checklist and the dated issues snapshot), `research/real_world_validation/*.md`, evidence strings in `scripts/direct_audit_runner.py`.
+- Dated records keep historical paths; do not "fix" them: `meta/audits/data_issues/` (checklist and the dated issues snapshot), `meta/research/real_world_validation/*.md`, evidence strings in `scripts/direct_audit_runner.py`.
 
 ## Agent skills (`.agents/skills/`)
 

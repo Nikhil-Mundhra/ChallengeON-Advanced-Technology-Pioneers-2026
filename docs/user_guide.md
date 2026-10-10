@@ -311,7 +311,7 @@ twin charts              # output/figures/{waterfall_attribution,tornado_sensiti
 twin report solution     # output/pdf/challengeon_solution_report.pdf (3 pages; needs the 'report' extra)
 twin report database     # output/pdf/challengeon_schema_database_report.pdf (needs lake/analytics.duckdb)
 twin validate && twin outlook  # numbers the deck reads (outlook.json is required)
-twin report deck         # output/deck/deck.pptx + deck.pdf from report/deck/deck.yaml (PDF needs LibreOffice; see report/deck/README.md)
+twin report deck         # output/deck/deck.pptx + deck.pdf from meta/deck/deck.yaml (PDF needs LibreOffice; see meta/deck/README.md)
 ```
 
 `model_benchmark.png` reads `lake/curated/evaluation_results.json`.
