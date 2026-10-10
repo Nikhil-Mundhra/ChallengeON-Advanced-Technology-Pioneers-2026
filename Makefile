@@ -6,7 +6,7 @@ LAKE_DIR   := $(or $(TWIN_LAKE_DIR),lake)
 OUTPUT_DIR := $(or $(TWIN_OUTPUT_DIR),output)
 
 .PHONY: all install lake panel evaluate train charts report test clean \
-        backend export validate frontend web-install web-dev web-build web-test \
+        backend export validate frontend web-install web-dev web-build web-test deploy \
         up down status logs api-up api-down web-up web-down
 
 ## Rebuild every metric and artifact from the raw workbooks (one-command reproducibility).
@@ -81,6 +81,10 @@ web-build:
 
 web-test:
 	cd web && npm test
+
+## Deploy web/ to Vercel production (project abu-dhabi-hotel-outlook; needs `vercel login`)
+deploy: web-test
+	cd web && vercel deploy --prod --yes
 
 ## ---- Local servers (background, pid files in .run/) ----
 ## make up        start both: web app http://localhost:$(WEB_PORT), Python API http://127.0.0.1:$(API_PORT)
