@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from tourism_twin.data.daily_panel import build_daily_panel
-from tourism_twin.models.backtest import RollingOrigin, backtest, segment_of
+from tourism_twin.models.backtest import VALIDATION_ORIGINS, RollingOrigin, backtest, compare, segment_of
 from tourism_twin.features.calendar import week_monday
 from tourism_twin.models.noise import NoiseModel
 from tourism_twin.nowcast.specs import BLOCK_ABLATION, DAILY_SPECS
@@ -40,6 +40,43 @@ def block_ablation(panel: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
         "metric": "WAPE % of daily segment totals, mean over folds",
         "wape": table.astype(float).round(2).to_dict("index"),
         "non_converged_fits": int(result.diagnostics["non_converged"].sum()) if len(result.diagnostics) else 0,
+    }
+
+
+VALIDATION_SPECS = ("naive_364", "arrivals_ratio", "time_only", "flow_only", "flow_time", "twin_daily")
+VALIDATION_COMPARISONS = (("naive_364", "twin_daily"), ("time_only", "twin_daily"), ("flow_time", "twin_daily"))
+# Measured once by other scripts; recorded here with their commit so a report reads one file.
+NATIONALITY_RESULTS = {
+    "pooled_nationalities_vs_split": {"grain": "international nationality-day WAPE %", "commit": "26f2059",
+                                      "validation": {"split": 12.79, "pooled": 12.24, "difference_pp": -0.55, "ci_90": [-0.79, -0.32], "folds_same_sign": "7/7"},
+                                      "frozen_test": {"split": 11.38, "pooled": 11.16, "difference_pp": -0.22, "ci_90": [-0.45, 0.02]}},
+    "pooled_recency_365_vs_unweighted": {"grain": "guest-weighted WAPE %, 30 pooled-market nationalities", "commit": "4a3468b",
+                                         "validation": {"unweighted": 14.23, "recency_365": 13.83, "difference_pp": -0.40, "ci_90": [-0.64, -0.19], "folds_same_sign": "7/7"}},
+}
+
+
+def validation_summary(panel: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
+    """The headline validation numbers (issue #11 protocol): WAPE of daily segment totals per spec,
+    and market-grain compare() of twin_daily against its baselines, per segment."""
+    panel = build_daily_panel() if panel is None else panel
+    predictions = backtest({name: DAILY_SPECS[name] for name in VALIDATION_SPECS}, panel, VALIDATION_ORIGINS).predictions
+    table = segment_wape(predictions).reindex(list(VALIDATION_SPECS))
+    comparisons = []
+    for segment in ("domestic", "international"):
+        part = predictions[segment_of(predictions["market"]) == segment]
+        for baseline, candidate in VALIDATION_COMPARISONS:
+            result = compare(part, baseline, candidate)
+            comparisons.append({"segment": segment, "baseline": baseline, "candidate": candidate,
+                                **{key: (round(value, 3) if isinstance(value, float) else value) for key, value in result.items()}})
+    folds = sorted(predictions["fold"].unique())
+    return {
+        "protocol": "issue #11: monthly origins 2024-02-01..2024-08-01, horizon to 2025-01-31, 21-day gap, expanding window",
+        "folds": folds,
+        "segment_wape": {"grain": "WAPE % of daily segment totals, mean over folds",
+                         "values": table.astype(float).round(2).to_dict("index")},
+        "compare": {"grain": "market-day rows, candidate - baseline WAPE pp, 90% moving-block bootstrap (28-day blocks)",
+                    "rows": comparisons},
+        "nationalities": NATIONALITY_RESULTS,
     }
 
 

@@ -27,6 +27,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     subparsers.add_parser("evaluate", help="Run the forward-holdout back-test and write evaluation results").set_defaults(func=evaluate)
 
+    subparsers.add_parser("validate", help="Headline validation numbers (#11 protocol) -> output/validation_summary.json").set_defaults(func=validate)
     subparsers.add_parser("ablate-blocks", help="Score the nowcast block ablation on 13 rolling origins").set_defaults(func=ablate_blocks)
     predict_parser = subparsers.add_parser("predict", help="Write test-split Guests predictions and intervals (competition output)")
     predict_parser.add_argument("--spec", default="twin_daily", help="Daily model spec (default twin_daily)")
@@ -170,6 +171,18 @@ def _print_evaluation(payload: dict) -> None:
     for season, m in payload["season_breakdown"].items():
         print(f"{season:<25} {m['observations']:>12} {m['wmape']:>9.2%} {m['bias']:>+11.2%}")
     print("-" * 75)
+
+
+def validate(args: argparse.Namespace) -> None:
+    from tourism_twin.nowcast.evaluation import validation_summary
+
+    summary = validation_summary()
+    path = SETTINGS.output_dir / "validation_summary.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    for name, row in summary["segment_wape"]["values"].items():
+        print(f"{name:<15} domestic {row['domestic']:6.2f}  international {row['international']:6.2f}")
+    print(f"written {path}")
 
 
 def ablate_blocks(args: argparse.Namespace) -> None:
