@@ -4,9 +4,22 @@
 html, body, #root { height: 100%; margin: 0; }
 body {
   font-family: var(--font-sans); font-size: var(--text-md); color: var(--color-text);
-  background: linear-gradient(135deg, var(--color-backdrop-from), var(--color-backdrop-to));
+  background: var(--color-backdrop);
   -webkit-font-smoothing: antialiased;
 }
 button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Shared utilities: tone of a change, the standard number table. */
+.tone-up { color: var(--color-up); }
+.tone-down { color: var(--color-down); }
+.table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.table caption { text-align: left; color: var(--color-text-muted); padding-bottom: var(--space-2); }
+.table th, .table td { padding: var(--space-2) var(--space-3); text-align: right; border-bottom: 1px solid var(--color-border); }
+.table th[scope="row"], .table thead th:first-child { text-align: left; font-weight: var(--weight-regular); color: var(--color-text-muted); }
+.table__row--emphasis th[scope="row"], .table__row--emphasis td { color: var(--color-text); font-weight: var(--weight-medium); }
+.table__row--highlight { background: var(--color-accent-soft); }
+.table__row--highlight th[scope="row"] { color: var(--color-text); font-weight: var(--weight-bold); }
+.table__row--total th, .table__row--total td { border-top: 2px solid var(--color-text); border-bottom: 0; }
+.note { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); }

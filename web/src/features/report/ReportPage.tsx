@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { LIMITATIONS, NOWCAST_VALIDATION, PLANNING_HOLDOUT, QUESTION, SECTIONS, SUCCESS_CRITERIA, type ReportSection } from "../../content/report";
+import { formatSigned } from "../../data/format";
 import type { Manifest } from "../../engine/types";
 import { useActiveSection } from "./useActiveSection";
 import "./report.css";
@@ -20,7 +21,7 @@ export function ReportPage({ manifest }: { manifest: Manifest | null }) {
           <Figure value="21.7%" label="weekly scenario model error (WMAPE), 30 holdout weeks" />
           <Figure value="21" label="markets: 15 countries, 5 regional groups, domestic" />
         </dl>
-        <Link className="button button--primary report__cta" to="/simulate">Open the simulator</Link>
+        <Link className="pill pill--accent report__cta" to="/simulate">Open the simulator</Link>
       </header>
 
       <div className="report__sheet">
@@ -55,7 +56,7 @@ function Section({ section }: { section: ReportSection }) {
       {section.id === "question" && <Criteria />}
       {section.id === "chain" && <ChainDiagram />}
       {section.id === "validation" && <ValidationTables />}
-      {section.id === "sensitivity" && <Link className="button" to="/simulate">Run a scenario →</Link>}
+      {section.id === "sensitivity" && <Link className="pill pill--dark" to="/simulate">Run a scenario</Link>}
       {section.id === "limits" && (
         <ul className="report__callouts">{LIMITATIONS.map((text) => <li key={text}>{text}</li>)}</ul>
       )}
@@ -99,24 +100,24 @@ function ChainDiagram() {
 function ValidationTables() {
   return (
     <div className="report__tables">
-      <table>
+      <table className="table">
         <caption>Daily nowcast · {NOWCAST_VALIDATION.grain}</caption>
         <thead><tr><th scope="col">Model</th><th scope="col">Domestic</th><th scope="col">International</th></tr></thead>
         <tbody>
           {NOWCAST_VALIDATION.rows.map((r) => (
-            <tr key={r.spec} className={r.shipped ? "is-shipped" : undefined}>
+            <tr key={r.spec} className={r.shipped ? "table__row--highlight" : undefined}>
               <th scope="row">{r.spec}</th><td>{r.domestic.toFixed(2)}</td><td>{r.international.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <table>
+      <table className="table">
         <caption>Weekly scenario model · {PLANNING_HOLDOUT.grain}</caption>
         <thead><tr><th scope="col">Model</th><th scope="col">WMAPE %</th><th scope="col">Bias %</th></tr></thead>
         <tbody>
           {PLANNING_HOLDOUT.rows.map((r) => (
-            <tr key={r.model} className={r.shipped ? "is-shipped" : undefined}>
-              <th scope="row">{r.model}</th><td>{r.wmape.toFixed(2)}</td><td>{r.bias > 0 ? "+" : ""}{r.bias.toFixed(2)}</td>
+            <tr key={r.model} className={r.shipped ? "table__row--highlight" : undefined}>
+              <th scope="row">{r.model}</th><td>{r.wmape.toFixed(2)}</td><td>{formatSigned(r.bias, (v) => v.toFixed(2))}</td>
             </tr>
           ))}
         </tbody>

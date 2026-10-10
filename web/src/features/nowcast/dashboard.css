@@ -1,21 +1,9 @@
-.dashboard { display: grid; grid-template-columns: 300px 1fr; gap: var(--space-5); align-items: start; }
-.controls { display: flex; flex-direction: column; gap: var(--space-4); position: sticky; top: var(--space-5); }
-.controls__hint { margin: 0 0 var(--space-2); font-size: var(--text-sm); color: var(--color-text-muted); }
-.dashboard__main { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
-.dashboard__row { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--space-5); }
-.dashboard .up { color: var(--color-up); } .dashboard .down { color: var(--color-down); }
-.range-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
-.range-card { border-top: 4px solid; gap: var(--space-2); }
-.range-card--accent { border-top-color: var(--color-accent); }
-.range-card--secondary { border-top-color: var(--color-secondary); }
-.range-card--neutral { border-top-color: var(--color-comparison); }
 .nationality-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3) var(--space-6); }
 .nationality-list__row { display: flex; align-items: center; gap: var(--space-3); }
-.nationality-list__text { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.nationality-list__text { flex: 1; display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .nationality-list__name { font-weight: var(--weight-medium); font-size: var(--text-sm); }
 .nationality-list__bar { height: 6px; background: var(--color-surface-muted); border-radius: var(--radius-full); overflow: hidden; }
 .nationality-list__bar > span { display: block; height: 100%; background: var(--color-accent); border-radius: var(--radius-full); }
 .nationality-list__value { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; font-size: var(--text-sm); }
 .nationality-list__share { color: var(--color-text-muted); font-size: var(--text-xs); }
-@media (max-width: 1100px) { .dashboard__row { grid-template-columns: 1fr; } }
-@media (max-width: 900px) { .dashboard { grid-template-columns: 1fr; } .controls { position: static; } .range-cards { grid-template-columns: 1fr; } .nationality-list { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .nationality-list { grid-template-columns: 1fr; } }

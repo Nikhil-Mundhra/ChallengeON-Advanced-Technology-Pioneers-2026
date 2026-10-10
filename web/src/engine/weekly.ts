@@ -6,7 +6,7 @@
  * The model has no growth term; `growthPct` is a stated assumption, compounded per year after the
  * last actual week and applied to projected weeks only.
  */
-import { conformalBands, simulate, type Lever, type Planning } from "./planning";
+import { conformalBands, NO_CHANGE, simulate, type Lever, type Planning } from "./planning";
 
 export interface WeeklyMarket {
   week: string[];
@@ -65,4 +65,24 @@ export function holdoutWmape(points: Array<Pick<WeekPoint, "actual" | "holdout">
   let error = 0, total = 0;
   for (const p of points) if (p.actual !== null && p.holdout !== null) { error += Math.abs(p.actual - p.holdout); total += p.actual; }
   return total > 0 ? (100 * error) / total : null;
+}
+
+export interface YearTotal { year: string; weeks: number; model: number; scenario: number }
+
+/** Guests per calendar year over the weeks the scenario covers: without and with the changes. */
+export function yearTotals(points: WeekPoint[]): YearTotal[] {
+  const byYear = new Map<string, YearTotal>();
+  for (const p of points) {
+    if (p.scenario === null) continue;
+    const year = p.week.slice(0, 4);
+    const row = byYear.get(year) ?? { year, weeks: 0, model: 0, scenario: 0 };
+    row.weeks += 1; row.model += p.model; row.scenario += p.scenario;
+    byYear.set(year, row);
+  }
+  return [...byYear.values()];
+}
+
+/** Out-of-sample weekly error (WMAPE, %) over every market's held-out weeks. */
+export function overallHoldoutWmape(planning: Planning, weekly: Weekly): number | null {
+  return holdoutWmape(Object.keys(weekly.markets).flatMap((m) => timeline(planning, weekly, m, NO_CHANGE, { start: "9999" })));
 }

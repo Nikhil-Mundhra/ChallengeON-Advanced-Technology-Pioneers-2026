@@ -109,3 +109,15 @@ describe("weekly timeline", () => {
     });
   });
 });
+
+describe("landing page statements", () => {
+  it("monthly totals and year-earlier comparisons add up from the bundle", async () => {
+    const { monthlyOutlook } = await import("./insights");
+    const months = monthlyOutlook(nowcast, "TOTAL", manifest.coverage);
+    const december = months.find((m) => m.month.endsWith("-12"))!;
+    const series = nowcast.series.TOTAL;
+    const sum = series.date.reduce((s, d, i) => (d.slice(0, 7) === december.month ? s + series.pred[i] : s), 0);
+    expect(december.guests).toBeCloseTo(sum, 6);
+    for (const m of months) if (m.trend === "same") expect(Math.abs(m.change!)).toBeLessThanOrEqual(m.error);
+  });
+});

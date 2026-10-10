@@ -1,4 +1,4 @@
-const PALETTE = ["#3d9b8f", "#ee6c4d", "#4d7c97", "#8a6fb3", "#d4a03a", "#5b8c5a", "#c25b7a", "#3f6f8f"];
+const PALETTE = [1, 2, 3, 4, 5, 6].map((i) => `var(--avatar-${i})`);  // tokens.css
 
 function initials(name: string): string {
   const words = name.replace(/[^A-Za-z ]/g, " ").split(/\s+/).filter(Boolean);

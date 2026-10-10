@@ -1,48 +1,46 @@
 import { Area, Brush, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatCount } from "../../data/format";
-
-export interface TimelinePoint {
-  week: string;
-  actual: number | null;
-  model: number;
-  holdout: number | null;
-  scenario: number | null;
-  band: [number, number] | null;
-}
+import { formatMonth } from "../../data/format";
+import type { WeekPoint } from "../../engine/weekly";
+import { formatTooltipValue, gridProps, MARGIN, SERIES, xAxisProps, yAxisProps } from "./theme";
 
 interface TimelineProps {
-  data: TimelinePoint[];
-  holdout: [string, string];      // back-test window
-  projectedFrom: string | null;   // first week with no schedule
-  scenarioFrom: string;
+  data: WeekPoint[];
+  checked: [string, string];      // weeks the model was checked against, fitted before them
+  forecastFrom: string | null;    // first week with no flight schedule
+  changesFrom: string;
 }
 
-/** Weekly series over time: actual weeks, the out-of-sample back-test, the model at current
- *  service, and the scenario with its band. Shaded: back-test window, projected (unscheduled) weeks. */
-export function Timeline({ data, holdout, projectedFrom, scenarioFrom }: TimelineProps) {
+const short = (week: string) => formatMonth(week, "short");
+const NAMES: Record<string, string> = {
+  actual: "Real guests", holdout: "Model check", model: "Forecast without changes", scenario: "Forecast with your changes", band: "Likely range",
+};
+
+/** Weekly hotel guests over time: real weeks, the model's check against weeks it had not seen, and
+ *  the forecast without and with the changes. Shaded: the checked weeks and the forecast years. */
+export function Timeline({ data, checked, forecastFrom, changesFrom }: TimelineProps) {
   const last = data[data.length - 1]?.week;
   return (
     <ResponsiveContainer width="100%" height={340}>
-      <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid vertical={false} stroke="var(--color-border)" />
-        <XAxis dataKey="week" type="category" allowDuplicatedCategory={false} tickLine={false} axisLine={false} minTickGap={48} tickFormatter={(w: string) => w.slice(0, 7)}
-               tick={{ fill: "var(--color-text-muted)", fontSize: 12 }} />
-        <YAxis tickFormatter={formatCount} tickLine={false} axisLine={false} width={56} tick={{ fill: "var(--color-text-muted)", fontSize: 12 }} />
-        <Tooltip formatter={(value) => Array.isArray(value) ? value.map((v) => formatCount(Number(v))).join(" – ") : formatCount(Number(value))} />
-        <Legend verticalAlign="top" height={28} iconType="plainline" />
-        <ReferenceArea x1={holdout[0]} x2={holdout[1]} fill="var(--color-secondary)" fillOpacity={0.12}
-                       label={{ value: "back-test", position: "insideTop", fill: "var(--color-text-muted)", fontSize: 11 }} />
-        {projectedFrom && last && (
-          <ReferenceArea x1={projectedFrom} x2={last} fill="var(--color-text-muted)" fillOpacity={0.08}
-                         label={{ value: "projection (no flight schedule)", position: "insideTop", fill: "var(--color-text-muted)", fontSize: 11 }} />
+      <ComposedChart data={data} margin={MARGIN}>
+        <CartesianGrid {...gridProps} />
+        <XAxis dataKey="week" type="category" allowDuplicatedCategory={false} {...xAxisProps} minTickGap={56} tickFormatter={short} />
+        <YAxis {...yAxisProps} />
+        <Tooltip labelFormatter={(w) => `Week of ${w}`}
+                 formatter={(value, name) => [formatTooltipValue(value), NAMES[String(name)] ?? name]} />
+        <Legend verticalAlign="top" height={28} iconType="plainline" formatter={(name) => NAMES[String(name)] ?? name} />
+        <ReferenceArea x1={checked[0]} x2={checked[1]} fill={SERIES.check} fillOpacity={0.1}
+                       label={{ value: "Model check", position: "insideTop", fill: "var(--color-text-muted)", fontSize: 11 }} />
+        {forecastFrom && last && (
+          <ReferenceArea x1={forecastFrom} x2={last} fill="var(--color-band-forecast)" fillOpacity={0.35}
+                         label={{ value: "Forecast", position: "insideTop", fill: "var(--color-text-muted)", fontSize: 11 }} />
         )}
-        <ReferenceLine x={scenarioFrom} stroke="var(--color-accent)" strokeDasharray="4 4" />
-        <Area dataKey="band" name="Scenario band" stroke="none" fill="var(--color-accent-soft)" fillOpacity={0.9} isAnimationActive={false} />
-        <Line dataKey="model" name="Model, current service" stroke="var(--color-text-muted)" strokeDasharray="5 4" dot={false} strokeWidth={1.5} isAnimationActive={false} />
-        <Line dataKey="holdout" name="Back-test (out of sample)" stroke="var(--color-secondary)" dot={false} strokeWidth={2} connectNulls={false} isAnimationActive={false} />
-        <Line dataKey="actual" name="Actual" stroke="var(--color-text)" dot={false} strokeWidth={1.5} connectNulls={false} isAnimationActive={false} />
-        <Line dataKey="scenario" name="Scenario" stroke="var(--color-accent)" dot={false} strokeWidth={2.2} connectNulls={false} isAnimationActive={false} />
-        <Brush dataKey="week" height={22} travellerWidth={8} stroke="var(--color-accent)" tickFormatter={(w: string) => w.slice(0, 7)} />
+        <ReferenceLine x={changesFrom} stroke={SERIES.scenario} strokeDasharray="4 4" />
+        <Area dataKey="band" name="band" stroke="none" fill={SERIES.scenario} fillOpacity={0.12} isAnimationActive={false} legendType="square" />
+        <Line dataKey="model" name="model" stroke={SERIES.forecast} strokeDasharray="5 4" dot={false} strokeWidth={1.5} isAnimationActive={false} />
+        <Line dataKey="holdout" name="holdout" stroke={SERIES.check} dot={false} strokeWidth={2} connectNulls={false} isAnimationActive={false} />
+        <Line dataKey="actual" name="actual" stroke={SERIES.actual} dot={false} strokeWidth={1.5} connectNulls={false} isAnimationActive={false} />
+        <Line dataKey="scenario" name="scenario" stroke={SERIES.scenario} dot={false} strokeWidth={2.2} connectNulls={false} isAnimationActive={false} />
+        <Brush dataKey="week" height={20} travellerWidth={8} stroke="var(--color-comparison)" fill="var(--color-surface)" tickFormatter={short} />
       </ComposedChart>
     </ResponsiveContainer>
   );

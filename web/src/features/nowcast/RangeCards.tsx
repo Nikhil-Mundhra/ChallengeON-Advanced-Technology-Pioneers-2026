@@ -1,36 +1,28 @@
-import { Badge, Card, Stat, type Tone } from "../../components/ui";
+import { Badge, StatCard, type Tone } from "../../components/ui";
 import { formatFull, formatPercent } from "../../data/format";
-import type { Direction, RangeSummary } from "../../engine/range";
+import { rangeError } from "../../engine/nowcastViews";
+import { DIRECTION_THRESHOLD, type Direction, type RangeSummary } from "../../engine/range";
 
 const tone = (direction: Direction | null): Tone => (direction === "up" ? "up" : direction === "down" ? "down" : "neutral");
 
 function DirectionBadge({ summary }: { summary: RangeSummary }) {
-  if (summary.change === null) return <Badge tone="neutral">no comparison</Badge>;
-  return <Badge tone={tone(summary.direction)}>{summary.direction} · {formatPercent(summary.change)}</Badge>;
+  if (summary.change === null) return <Badge tone="neutral">nothing to compare with</Badge>;
+  return <Badge tone={tone(summary.direction)}>{summary.direction === "no clear change" ? "about the same" : summary.direction} {formatPercent(summary.change)} vs the days before</Badge>;
 }
 
-/** The selected range: predicted total with its interval, the what-if total, and each one's change
- *  against the range before it (stated only above the 8% threshold). */
-export function RangeCards({ predicted, scenario, changed, coverage, days }: {
-  predicted: RangeSummary; scenario: RangeSummary; changed: boolean; coverage: string; days: number;
-}) {
-  const label = `${Math.round(Number(coverage) * 100)}% interval`;
+/** The selected days: forecast total with its error, the total with the check-in changes, and each
+ *  one's change against the same number of days before (called flat below DIRECTION_THRESHOLD). */
+export function RangeCards({ predicted, scenario, changed, days }: { predicted: RangeSummary; scenario: RangeSummary; changed: boolean; days: number }) {
   return (
-    <div className="range-cards">
-      <Card title="Predicted guests" subtitle={`${days}-day total`} className="range-card range-card--accent">
-        <Stat value={formatFull(predicted.guests)} caption={`${label}: ${formatFull(predicted.low)} – ${formatFull(predicted.high)}`} />
-        <DirectionBadge summary={predicted} />
-      </Card>
-      <Card title="What-if guests" subtitle={changed ? "with the arrivals sliders" : "move a slider to compare"} className="range-card range-card--secondary">
-        <Stat value={formatFull(scenario.guests)}
-              caption={changed ? `${formatPercent(scenario.guests / predicted.guests - 1)} vs predicted` : "same as predicted"} />
-        <DirectionBadge summary={scenario} />
-      </Card>
-      <Card title="Previous range" subtitle="same length, just before" className="range-card range-card--neutral">
-        <Stat value={predicted.previousGuests === null ? "—" : formatFull(predicted.previousGuests)}
-              caption="actual guests where known, else predicted" />
-        <Badge tone="neutral">threshold ±8%</Badge>
-      </Card>
+    <div className="stat-grid">
+      <StatCard title="Forecast hotel guests" subtitle={`Total over ${days} days`} tone="accent"
+                value={formatFull(predicted.guests)} caption={`±${Math.round(rangeError(predicted) * 100)}% error`} badge={<DirectionBadge summary={predicted} />} />
+      <StatCard title="With your changes" subtitle={changed ? "Using the check-in sliders" : "Move a slider to compare"} tone="secondary"
+                value={formatFull(scenario.guests)} caption={changed ? `${formatPercent(scenario.guests / predicted.guests - 1)} vs the forecast` : "Same as the forecast"}
+                badge={<DirectionBadge summary={scenario} />} />
+      <StatCard title="The days before" subtitle="Same number of days, just before" tone="neutral"
+                value={predicted.previousGuests === null ? "n/a" : formatFull(predicted.previousGuests)} caption="Real guests where known, otherwise forecast"
+                badge={<Badge tone="neutral">changes under ±{Math.round(DIRECTION_THRESHOLD * 100)}% count as flat</Badge>} />
     </div>
   );
 }

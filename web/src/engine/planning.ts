@@ -187,3 +187,36 @@ export function tornado(planning: Planning, market: string, season: string, base
              relative_sensitivity: reference > 0 ? spread / reference : 0 };
   }).sort((a, b) => b.swing_spread - a.swing_spread);
 }
+
+export interface WeeklyHeadline {
+  result: SimulationResult;
+  base: number;              // weekly guests today, calendar adjustment included
+  sim: number;               // with the changes
+  residual: number;          // calendar adjustment for the market and season
+  change: number;
+  changePct: number | null;  // null without current service
+  errorPct: number;          // likely error of the scenario figure, as a share
+}
+
+/** The simulator's headline numbers for one market, season and set of levers. */
+export function weeklyHeadline(planning: Planning, market: string, season: string, lever: Lever): WeeklyHeadline {
+  const result = simulate(planning, market, season, lever);
+  const calendar = hybrid(planning, result);
+  return {
+    result, base: calendar.base, sim: calendar.sim, residual: calendar.residual, change: calendar.delta,
+    changePct: calendar.base > 0 ? calendar.delta / calendar.base : null,
+    errorPct: conformalBands(planning, result).margin,
+  };
+}
+
+export interface MarketFlow { market: string; base: number; sim: number }
+
+/** Weekly guests by source market for a season: today for every market, with the changes for the
+ *  selected one (calendar adjustment included, as on the headline cards). */
+export function marketFlows(planning: Planning, season: string, selected: string, lever: Lever): MarketFlow[] {
+  return Object.keys(planning.calibration).map((market) => {
+    const today = hybrid(planning, simulate(planning, market, season));
+    const sim = market === selected.toUpperCase().trim() ? weeklyHeadline(planning, market, season, lever).sim : today.base;
+    return { market, base: today.base, sim };
+  });
+}
