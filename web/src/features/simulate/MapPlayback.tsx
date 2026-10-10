@@ -4,9 +4,10 @@ import { FlowMap, type DotMode } from "../../components/charts/FlowMap";
 import { SERIES } from "../../components/charts/theme";
 import { Badge, Segmented } from "../../components/ui";
 import { ABU_DHABI, MARKET_POSITIONS } from "../../content/geo";
-import { eventName, marketName } from "../../content/labels";
+import { marketName } from "../../content/labels";
 import { formatCount, formatDate, formatMonth, formatPercent, formatSigned, toneOf } from "../../data/format";
 import { frameAt, type Playback } from "../../engine/playback";
+import { EventStack } from "./EventStack";
 
 const MODES = [{ value: "both", label: "Both" }, { value: "in", label: "Arriving" }, { value: "out", label: "Leaving" }] as const;
 const SPEEDS = [{ value: "1", label: "1×" }, { value: "4", label: "4×" }] as const;
@@ -44,6 +45,7 @@ export function MapPlayback({ pb, selected, week: w, onWeek: setW, onSelect }: {
   }));
   const home = pb.markets.DOMESTIC;
   const eventMarkets = new Set(frame.events.flatMap((e) => e.markets));
+  const eventWeeks = useMemo(() => pb.weeks.map((week, i) => ({ week, events: pb.events[i] })), [pb]);
   const series = useMemo(() => pb.weeks.map((week, i) => ({ week, total: pb.total[i] })), [pb]);
   const lastReal = pb.weeks[Math.max(0, pb.kind.lastIndexOf("history"))];
 
@@ -58,11 +60,11 @@ export function MapPlayback({ pb, selected, week: w, onWeek: setW, onSelect }: {
         <span className="playback__legend"><i className="playback__swatch playback__swatch--in" />arriving <i className="playback__swatch playback__swatch--out" />leaving · 1 plane ≈ {formatCount(perDot)} people a week</span>
       </div>
 
-      <FlowMap flows={flows} hub={ABU_DHABI} domestic={home ? { base: home.guests[safeW] - home.extra[safeW], sim: home.guests[safeW] } : null}
+      <div className="playback__stage">
+        <FlowMap flows={flows} hub={ABU_DHABI} domestic={home ? { base: home.guests[safeW] - home.extra[safeW], sim: home.guests[safeW] } : null}
                selected={selected} onSelect={onSelect} dots={{ mode, perDot, playing }} highlight={eventMarkets} />
-      <p className="playback__event" aria-live="polite">
-        {frame.events.length ? `★ This week: ${frame.events.map((e) => eventName(e.code)).join(", ")}` : "\u00a0"}
-      </p>
+        <EventStack weeks={eventWeeks} index={w} playing={playing} speed={Number(speed)} totalMarkets={Object.keys(pb.markets).length} />
+      </div>
 
       <div className="playback__scrub">
         <ResponsiveContainer width="100%" height={56}>

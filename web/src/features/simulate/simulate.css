@@ -55,7 +55,6 @@
 .playback__top > span { display: flex; justify-content: space-between; gap: var(--space-2); }
 @media (max-width: 1100px) { .playback__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .playback__legend { margin-left: 0; } }
 
-.playback__event { margin: 0; min-height: 1.4em; font-weight: var(--weight-bold); color: var(--color-series-check); font-size: var(--text-sm); }
 .season-picker { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .totals { margin: 0; display: grid; gap: var(--space-3); }
 .totals dt { font-size: var(--text-xs); color: var(--color-text-muted); }
@@ -67,3 +66,18 @@
 .origins__bar > span { display: block; height: 100%; background: var(--color-accent); border-radius: var(--radius-full); transition: width 400ms var(--ease-out); }
 .origins__value { font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
 .playback__facts dd.playback__muted { font-family: var(--font-sans); font-size: var(--text-sm); color: var(--color-text-muted); }
+
+/* Event cards stacked over the map: newest on top, fade out at a speed set by playback speed. */
+.playback__stage { position: relative; }
+.event-stack { position: absolute; top: var(--space-3); left: var(--space-3); z-index: 2; list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: var(--space-2); width: min(280px, 45%); pointer-events: none; }
+.event-stack__card { display: grid; gap: 2px; padding: var(--space-2) var(--space-3); background: var(--color-surface-glass);
+  border: 1px solid var(--color-border); border-left: 3px solid var(--color-series-check); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card); backdrop-filter: blur(6px); animation: event-in 240ms var(--ease-out);
+  transition: opacity 600ms linear, transform 600ms linear; }
+.event-stack__card--leaving { opacity: 0; transform: translateX(-8px); }
+.event-stack__name { font-weight: var(--weight-bold); color: var(--color-text); font-size: var(--text-sm); }
+.event-stack__when, .event-stack__who { font-size: var(--text-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+@keyframes event-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .event-stack__card { animation: none; transition: opacity 300ms linear; } .event-stack__card--leaving { transform: none; } }
+@media (max-width: 900px) { .event-stack { width: min(220px, 60%); } }
