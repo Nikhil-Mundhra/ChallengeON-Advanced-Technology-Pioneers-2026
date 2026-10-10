@@ -71,17 +71,20 @@ def arrivals_growth(panel: pd.DataFrame, scenario: str) -> pd.Series:
 
 
 def _extend_arrivals(panel: pd.DataFrame, until: pd.Timestamp, scenario: str) -> pd.DataFrame:
-    """Append scenario days after the last known arrivals: arrivals of the day SHIFT_DAYS earlier ×
-    the market's growth factor (compounded for each further year)."""
+    """Append scenario days after the last known arrivals: day d takes the known day d − SHIFT_DAYS·k
+    (k ≥ 1, the smallest that reaches known data) × the market's growth factor ** k."""
     growth = arrivals_growth(panel, scenario)
     base = panel[BASE_COLUMNS].copy()
     last = base["date"].max()
-    while last < until:
-        source = base[(base["date"] > last - pd.Timedelta(days=SHIFT_DAYS)) & (base["date"] <= min(last, until - pd.Timedelta(days=SHIFT_DAYS)))]
-        future = source.assign(date=source["date"] + pd.Timedelta(days=SHIFT_DAYS), dataset_split="scenario",
-                               guests=float("nan"), new_arrivals_filled=source["new_arrivals_filled"] * source["market"].map(growth))
+    if until > last:
+        dates = pd.Series(pd.date_range(last + pd.Timedelta(days=1), until), name="date")
+        years = -(-(dates - last).dt.days // SHIFT_DAYS)
+        days = pd.DataFrame({"date": dates, "years": years, "source": dates - pd.to_timedelta(SHIFT_DAYS * years, unit="D")})
+        known = base[["market", "date", "new_arrivals_filled"]].rename(columns={"date": "source"})
+        future = days.merge(known, on="source")
+        future["new_arrivals_filled"] *= future["market"].map(growth) ** future["years"]
+        future = future.assign(dataset_split="scenario", guests=float("nan"))[BASE_COLUMNS]
         base = pd.concat([base, future], ignore_index=True)
-        last = base["date"].max()
     return PANEL_FEATURES.apply(base.sort_values(["market", "date"]).reset_index(drop=True), DAILY_FEATURES, anchor="date")
 
 

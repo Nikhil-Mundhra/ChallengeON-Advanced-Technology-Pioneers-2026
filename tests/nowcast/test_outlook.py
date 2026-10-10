@@ -39,6 +39,8 @@ def test_scenario_days_repeat_the_same_weekday_a_year_earlier_times_growth_and_s
     assert uk[day] == pytest.approx(uk[day - pd.Timedelta(days=364)] * 1.2, rel=1e-3)
     later = last + pd.Timedelta(days=400)
     assert uk[later] == pytest.approx(uk[later - pd.Timedelta(days=728)] * 1.2 ** 2, rel=1e-3)
+    boundary = last + pd.Timedelta(days=365)  # the first day two years out comes from known data, × g²
+    assert uk[boundary] == pytest.approx(uk[boundary - pd.Timedelta(days=728)] * 1.2 ** 2, rel=1e-3)
     assert extended.loc[extended["date"] > last, "guests"].isna().all()
     assert {"arrivals_lag_21", "dow", "is_holiday_week"} <= set(extended.columns)
 
