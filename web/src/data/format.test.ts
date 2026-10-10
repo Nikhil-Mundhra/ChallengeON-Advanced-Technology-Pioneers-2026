@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMonth, formatPercent, formatShare, formatSigned, toneOf } from "./format";
+import { formatDate, formatMonth, formatPercent, formatShare, formatSigned, toneOf } from "./format";
 
 describe("format", () => {
   it("signs values and percentages once", () => {
@@ -13,6 +13,7 @@ describe("format", () => {
   it("names months and tones", () => {
     expect(formatMonth("2025-07-21")).toBe("Jul 2025");
     expect(formatMonth("2026-11-30", "short")).toBe("Nov 26");
+    expect(formatDate("2025-07-21")).toBe("21 Jul 2025");
     expect(toneOf(3)).toBe("tone-up");
     expect(toneOf(-1)).toBe("tone-down");
     expect(toneOf(0)).toBeUndefined();

@@ -16,6 +16,8 @@ export const formatMonth = (iso: string, style: "long" | "short" = "long") =>
   `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${style === "long" ? iso.slice(0, 4) : iso.slice(2, 4)}`;
 /** "2025-12" or "2025-12-01" -> "December". */
 export const formatMonthName = (iso: string) => new Date(Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, 1)).toLocaleString("en", { month: "long", timeZone: "UTC" });
+/** "2025-07-21" -> "21 Jul 2025". */
+export const formatDate = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
 /** "2025-07-21" -> "07-21". */
 export const formatDay = (iso: string) => iso.slice(5);
 export const titleCase = (name: string) => name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).replace(/_/g, " ");

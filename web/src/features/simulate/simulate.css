@@ -23,3 +23,20 @@
   .workbench__bar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; justify-content: space-between; align-items: center;
     padding: var(--space-3) var(--space-4); background: var(--color-surface); border-top: 1px solid var(--color-border); font-size: var(--text-sm); }
 }
+.playback { display: flex; flex-direction: column; gap: var(--space-3); }
+.playback__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.playback__bar .segmented { display: inline-flex; flex-wrap: nowrap; }
+.playback__legend { margin-left: auto; font-size: var(--text-xs); color: var(--color-text-muted); display: inline-flex; align-items: center; gap: var(--space-1); }
+.playback__swatch { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-full); margin-left: var(--space-2); }
+.playback__swatch--in { background: var(--color-accent); }
+.playback__swatch--out { background: var(--color-series-check); }
+.playback__scrub { position: relative; cursor: pointer; }
+.playback__range { width: 100%; margin: 0; accent-color: var(--color-series-check); }
+.playback__ends { display: flex; justify-content: space-between; font-size: var(--text-xs); color: var(--color-text-muted); }
+.playback__facts { margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-3); }
+.playback__facts > div { background: var(--color-surface-muted); border-radius: var(--radius-md); padding: var(--space-3); min-width: 0; }
+.playback__facts dt { font-size: var(--text-xs); color: var(--color-text-muted); }
+.playback__facts dd { margin: var(--space-1) 0 0; font-family: var(--font-display); font-size: 1.35rem; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.playback__facts dd.playback__top { font-family: var(--font-sans); font-size: var(--text-sm); font-weight: var(--weight-medium); flex-direction: column; align-items: stretch; gap: 2px; }
+.playback__top > span { display: flex; justify-content: space-between; gap: var(--space-2); }
+@media (max-width: 1100px) { .playback__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .playback__legend { margin-left: 0; } }

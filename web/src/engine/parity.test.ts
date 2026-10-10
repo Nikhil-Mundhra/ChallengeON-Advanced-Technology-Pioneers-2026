@@ -121,3 +121,26 @@ describe("landing page statements", () => {
     for (const m of months) if (m.trend === "same") expect(Math.abs(m.change!)).toBeLessThanOrEqual(m.error);
   });
 });
+
+describe("moving map", () => {
+  it("guests match the timeline, check-ins rebuild guests, and in minus out equals the change in guests staying", async () => {
+    const { playback, frameAt } = await import("./playback");
+    const { paramsFor } = await import("./planning");
+    const weekly = read<Weekly>(manifest.files.weekly);
+    const planning = read<Planning>(manifest.files.planning);
+    const lever = { ...NO_CHANGE, delta_frequency: 2, aircraft_gauge: 290 };
+    const start = weekly.last_actual_week;
+    const pb = playback(planning, weekly, "UNITED KINGDOM", lever, { start });
+    const uk = pb.markets["UNITED KINGDOM"];
+    const points = timeline(planning, weekly, "UNITED KINGDOM", lever, { start });
+    points.forEach((p, w) => expect(uk.guests[w]).toBeCloseTo(p.actual ?? p.scenario ?? p.model, 6));
+    const season = weekly.markets["UNITED KINGDOM"].season;
+    uk.checkIns.forEach((c, w) => expect(c * paramsFor(planning, "UNITED KINGDOM", season[w]).baseline_los).toBeCloseTo(uk.guests[w], 6));
+    for (let w = 1; w < uk.guests.length; w += 1) {
+      if (uk.checkOuts[w] > 0) expect(uk.checkIns[w] - uk.checkOuts[w]).toBeCloseTo((uk.guests[w] - uk.guests[w - 1]) / 7, 6);
+    }
+    const last = frameAt(pb, pb.weeks.length - 1, "UNITED KINGDOM");
+    expect(last.extraSoFar).toBeGreaterThan(0);
+    expect(last.topArrivals).toHaveLength(3);
+  });
+});

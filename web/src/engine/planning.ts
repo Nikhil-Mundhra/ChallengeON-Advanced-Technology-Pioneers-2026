@@ -208,15 +208,3 @@ export function weeklyHeadline(planning: Planning, market: string, season: strin
     errorPct: conformalBands(planning, result).margin,
   };
 }
-
-export interface MarketFlow { market: string; base: number; sim: number }
-
-/** Weekly guests by source market for a season: today for every market, with the changes for the
- *  selected one (calendar adjustment included, as on the headline cards). */
-export function marketFlows(planning: Planning, season: string, selected: string, lever: Lever): MarketFlow[] {
-  return Object.keys(planning.calibration).map((market) => {
-    const today = hybrid(planning, simulate(planning, market, season));
-    const sim = market === selected.toUpperCase().trim() ? weeklyHeadline(planning, market, season, lever).sim : today.base;
-    return { market, base: today.base, sim };
-  });
-}

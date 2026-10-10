@@ -1,14 +1,14 @@
 import { useMemo, useReducer, useState } from "react";
-import { FlowMap } from "../../components/charts/FlowMap";
 import { Tornado } from "../../components/charts/Tornado";
 import { Waterfall } from "../../components/charts/Waterfall";
 import { Badge, Card, Chips, ControlSection, Segmented, Select, SliderRow, StatCard } from "../../components/ui";
-import { ABU_DHABI, MARKET_POSITIONS } from "../../content/geo";
 import { leverName, SEASON_MONTHS, SEASON_NAMES } from "../../content/labels";
-import { formatFull, formatPercent, formatSigned, titleCase, toneOf } from "../../data/format";
-import { marketFlows, tornado, weeklyHeadline, type Planning, type SimulationResult, type WeeklyHeadline } from "../../engine/planning";
+import { formatFull, formatMonth, formatPercent, formatSigned, titleCase, toneOf } from "../../data/format";
+import { tornado, weeklyHeadline, type Planning, type SimulationResult, type WeeklyHeadline } from "../../engine/planning";
+import { playback } from "../../engine/playback";
 import { holdoutWmape, timeline, yearTotals, type Weekly } from "../../engine/weekly";
 import { activePreset, DEFAULT_INPUT, groupChanged, LEVER_GROUPS, leverReducer, marketOptions, PRESETS, toLever } from "./levers";
+import { MapPlayback } from "./MapPlayback";
 import { TimelinePanel } from "./TimelinePanel";
 import "./simulate.css";
 
@@ -31,15 +31,14 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
 
   const lever = useMemo(() => toLever(input), [input]);
   const headline = weeklyHeadline(planning, market, season, lever);
-  const flows = useMemo(() => marketFlows(planning, season, market, lever), [planning, season, market, lever]);
+  const pb = useMemo(() => playback(planning, weekly, market, lever, { start, growthPct }), [planning, weekly, market, lever, start, growthPct]);
   const points = useMemo(() => timeline(planning, weekly, market, lever, { start, growthPct }), [planning, weekly, market, lever, start, growthPct]);
   const years = useMemo(() => yearTotals(points), [points]);
   const ranking = useMemo(() => tornado(planning, market, season, lever), [planning, market, season, lever]);
   const seasonName = SEASON_NAMES[season]?.toLowerCase();
   const marketName = titleCase(market);
 
-  const mapFlows = flows.filter((f) => MARKET_POSITIONS[f.market]).map((f) => ({ ...f, ...MARKET_POSITIONS[f.market] }));
-  const domestic = flows.find((f) => f.market === "DOMESTIC") ?? null;
+  const starts = points.filter((p) => p.week > weekly.last_actual_week && Number(p.week.slice(5, 7)) % 3 === 1 && Number(p.week.slice(8, 10)) <= 7);
 
   return (
     <div className="workbench">
@@ -62,6 +61,17 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
               ))}
             </ControlSection>
           ))}
+          <ControlSection title="Forecast" onReset={() => { setStart(weekly.last_actual_week); setGrowthPct(0); }}
+                          resetDisabled={start === weekly.last_actual_week && growthPct === 0}>
+            <div className="timeline__field">
+              <span className="timeline__label">Changes start</span>
+              <Select label="Week the changes start" value={start} onChange={setStart}
+                      options={[{ value: weekly.last_actual_week, label: `${formatMonth(weekly.last_actual_week)} (after the latest data)` },
+                                ...starts.map((p) => ({ value: p.week, label: formatMonth(p.week) }))]} />
+            </div>
+            <SliderRow label="Expected yearly growth" hint="Your assumption. Without it the forecast stays flat." value={growthPct} defaultValue={0}
+                       min={-5} max={10} step={0.5} format={(v) => `${formatSigned(v, String)}% a year`} onChange={setGrowthPct} />
+          </ControlSection>
         </Card>
       </aside>
 
@@ -70,13 +80,12 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
               actions={<Segmented label="Visual" value={view} onChange={setView} options={VIEWS} />}>
           {view === "map" && (
             <div className="canvas__body">
-              <p className="note">Weekly hotel guests by where visitors fly from, {seasonName}. Click a market to pick it.</p>
-              <FlowMap flows={mapFlows} hub={ABU_DHABI} domestic={domestic} selected={market} onSelect={setMarket} />
+              <p className="note">Press play to watch the weeks go by, from the past into the forecast. Click a market to pick it.</p>
+              <MapPlayback key={`${start}`} pb={pb} selected={market} startWeek={start} onSelect={setMarket} />
             </div>
           )}
           {view === "time" && (
-            <TimelinePanel weekly={weekly} points={points} error={holdoutWmape(points)} start={start} growthPct={growthPct}
-                           onStart={setStart} onGrowth={setGrowthPct} />
+            <TimelinePanel weekly={weekly} points={points} error={holdoutWmape(points)} start={start} />
           )}
           {view === "chain" && (
             <div className="canvas__split">
