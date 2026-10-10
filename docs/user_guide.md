@@ -8,7 +8,7 @@ How to write the test-split predictions, run scenarios, read the output, retrain
 
 ```bash
 twin predict                       # default spec twin_daily, with intervals
-twin predict --no-intervals        # skip the interval back-test; no intervals file, no market_outputs.json
+twin predict --no-intervals        # skip the interval back-test; no intervals file, market_outputs.json or nowcast_serving.json
 twin predict --spec arrivals_ratio # any name in DAILY_SPECS (nowcast/specs.py)
 ```
 
@@ -55,6 +55,9 @@ direction_backtest:
 
 Blocks: `time` (season, weekday, and for domestic the slope held at its last training value) is relative to the training average; `holiday` (events) to a day outside every event window. The model sees each test week's observed new arrivals, so direction accuracy is a nowcast skill; `arrivals_direction` is the sign of the change in new arrivals. The noise model is fitted on the same back-test folds, so `direction_prob_reliability` and `weekly_band_coverage` are in-sample for the error model. `assumptions` states these in the file.
 
+### 1.2 Scoring a model: `twin evaluate-model`
+
+`twin evaluate-model --spec S --start D --end D` fits a `DAILY_SPECS` name or `pooled_nationalities` on rows dated up to `--start` − (`--gap-days` + 1) days (default gap 21), or loads `--model P`, and scores the window without refitting (`models/evaluate.evaluate_fitted`): WAPE, bias, MAE, RMSE, MSE, log-MSE per segment at day, complete-week and complete-month grain, error by horizon, direction of consecutive totals; `pooled_nationalities` adds a per-nationality table. A window overlapping 2025-02-01..2025-07-31 needs `--frozen-test` (score once, after every choice). Writes `output/models/<spec>_<train_end>.pkl` and `output/evaluations/<spec>_<start>_<end>.json`.
 
 ---
 
@@ -180,6 +183,16 @@ Single page (`src/app/static/index.html`) served by `src/app/server.py`; no fron
 - **Panels:** executive recommendation; KPI cards (baseline weekly guests, structural lift, hybrid lift, conformal range, simulated total); waterfall chart; conversion-chain table; tornado chart.
 - **JSON API:** `GET /api/simulate` with query parameters `market`, `season`, `delta_freq`, `gauge`, `delta_seats_pct`, `delta_lf`, `delta_p2p`, `delta_mult_pct`, `delta_los` (an invalid season returns 400); `GET /api/benchmark`.
 
+### 7.1 Nowcast API
+
+Answers come from `output/predictions/nowcast_serving.json` (written by `twin predict`); nothing is refitted per request. Without the bundle the endpoints return 503; ranges outside the predicted period return 400.
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /api/nowcast/series` | Series names (21 markets, `INTERNATIONAL`, `TOTAL`), the predicted period, interval coverage |
+| `GET /api/nowcast/range?series=TOTAL&start=YYYY-MM-DD&end=YYYY-MM-DD` | `guests` (predicted total), `p10`, `p90` (`NoiseModel.range_interval`: AR(1) covariance across the range; `INTERNATIONAL` and `TOTAL` have their own error series), `previous_guests` for the same-length range just before (actual guests for training days, predictions for test days), `change`, `direction`: `up` / `down` when \|change\| ≥ 0.08, else `no clear change` (over 2-week ranges the size of a change is off by 3–4 pp, docs/model_design.md §4.8) |
+| `GET /api/nowcast/nationalities?start=&end=` | Predicted guests per international nationality and its share of the international total (point predictions, no interval) |
+
 ---
 
 ## 8. Retraining (weekly planning model)
@@ -223,34 +236,32 @@ Results are in the [README](../README.md#32-weekly-planning-model-forward-holdou
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-85 tests, all passing on a fresh clone: 61 product tests in folders that mirror the packages, and 24 for the audit tool. Run one area with `pytest tests/<area>`:
+87 tests: 63 product tests in folders that mirror the packages, and 24 for the audit tool; all pass (the prediction-validator test skips without the raw test workbooks). Run one area with `pytest tests/<area>`:
 
 | Folder | Tests | Covers |
 | :--- | ---: | :--- |
 | `tests/data/` | 9 | lake grain, weekly and daily panels, test-file row rules |
 | `tests/features/` | 4 | feature registry, event registry and offsets, one-off masking |
-| `tests/models/` | 35 | components (known-answer recovery), fitting and weights, specs, back-test harness and noise model, fitted-model evaluation |
+| `tests/models/` | 37 | components (known-answer recovery), fitting and weights, specs, back-test harness and noise model, fitted-model evaluation |
 | `tests/nowcast/` | 6 | baselines, submission validator, outputs, serving, same-day guests |
 | `tests/planning/` | 4 | waterfall identity, planning rules, scenario residual |
 | `tests/app/` | 1 | web API |
 | `tests/test_architecture.py` | 2 | layering, no row loops |
 | `tests/audit/` | 24 | audit tool |
 
-Shared fixtures are in `tests/conftest.py` and synthetic data with a known answer in `tests/synthetic.py`. The daily panel is built in memory by a fixture, so `daily_market_panel.parquet` is not required; the prediction-validator test needs the raw test workbooks; `twin predict` itself is not run by the tests.
-
-Product checks, by area:
+Shared fixtures are in `tests/conftest.py` and synthetic data with a known answer in `tests/synthetic.py`. The daily panel is built in memory by a fixture, so `daily_market_panel.parquet` is not required; the prediction-validator test needs the raw test workbooks; `twin predict` itself is not run by the tests. Product checks, by area:
 
 | Section | Asserts |
 | :--- | :--- |
 | Lake | `flight_daily` is daily from 2023-01-01 (monthly flights only in 2022 when built); `guest_daily` has 69,920 rows and its flag columns |
 | Feature registry | Dependencies resolve first and once; missing inputs and cycles raise |
 | Panels | Exactly 21 markets, unique keys, load factor capped and flagged; the weekly panel rebuilds from the lake exactly; daily lags continue across the train→test boundary; weekly sums of daily guests and arrivals equal the weekly panel |
-| Model components | Each component recovers a known synthetic truth; backfitting matches the joint solution and never raises the penalised objective; the kernel's log gradient matches finite differences and it beats its raw-scale warm start; w₀ ≤ 1 holds when it binds; the knot base is flat beyond training; an arrivals-proportional base follows a 0.55× shock; invalid inputs that would give silent nonsense raise |
+| Model components | Each component recovers a known synthetic truth; backfitting matches the joint solution and never raises the penalised objective; the kernel's log gradient matches finite differences and it beats its raw-scale warm start; w₀ ≤ 1 holds when it binds; the knot base is flat beyond training; an arrivals-proportional base follows a 0.55× shock; `GroupScale` recovers each series' scale; weights follow a favoured regime; least squares falls back to QR when gelsd fails; invalid inputs that would give silent nonsense raise |
 | Event registry | Golden dates; windows do not overlap; Ramadan and Eid al-Fitr never share a day; the one-off 2022 shock is masked |
-| Back-test harness | No fold trains on the future (daily and weekly rows); segment metrics; misindexed or missing predictions raise; skipped folds reported; the harness reproduces `evaluation_results.json` |
+| Back-test harness | No fold trains on the future (daily and weekly rows); segment metrics; misindexed or missing predictions raise; skipped folds reported; the block-bootstrap `compare` detects a real difference and not a null one; the harness reproduces `evaluation_results.json`; a saved model scores identically and refuses its training window |
 | Noise model | AR(1) recovery and its closed-form variance; a fold's own errors never set its own bounds |
 | Architecture | `nowcast` and `planning` never import each other; packages import only lower layers (any import form); no row loops in model packages |
-| Competition predictions | The validator accepts mirrored files and flags bad ones (including Guests below max(New Arrivals, 10)); absent test days get below-threshold arrivals; full weeks with an AR(1)-based direction probability; the direction back-test scores each week once against its baselines; the same-day GLM recovers a weekday effect and reads `*` as 0 |
+| Competition predictions | The validator accepts mirrored files and flags bad ones (including Guests below max(New Arrivals, 10)); absent test days get below-threshold arrivals; full weeks with an AR(1)-based direction probability; the direction back-test scores each week once against its baselines; the serving bundle answers range questions; the same-day GLM recovers a weekday effect and reads `*` as 0 |
 | Simulator and API | The API rejects an invalid season and serves a scenario; waterfall = lift within 1e-9 for every calibrated market + `SWEDEN`, season and 6 lever sets, and relatively for 1e7-guest scenarios; route closure, domestic decoupling, added capacity never lowers demand, cold-start priors (SWEDEN, PAKISTAN) and tornado, deterministic Monte Carlo; planning and simulation share one arrivals rule; the scenario residual is the season's mean fit |
 
 ---
@@ -264,15 +275,3 @@ twin report database     # output/pdf/challengeon_schema_database_report.pdf (ne
 ```
 
 `model_benchmark.png` reads `lake/curated/evaluation_results.json`.
-
-## Nowcast API (`twin serve`)
-
-Answers come from `output/predictions/nowcast_serving.json` (written by `twin predict`); nothing is refitted per request. Without the bundle the endpoints return 503.
-
-| Endpoint | Returns |
-| --- | --- |
-| `GET /api/nowcast/series` | Series names (21 markets, `INTERNATIONAL`, `TOTAL`), the predicted period, interval coverage |
-| `GET /api/nowcast/range?series=TOTAL&start=YYYY-MM-DD&end=YYYY-MM-DD` | `guests` (predicted total), `p10`, `p90` (`NoiseModel.range_interval`: AR(1) covariance across the range; `INTERNATIONAL` and `TOTAL` have their own error series), `previous_guests` for the same-length range just before (actual guests for training days, predictions for test days), `change`, `direction`: `up` / `down` when \|change\| ≥ 0.08, else `no clear change` (over 2-week ranges the size of a change is off by 3–4 pp, docs/model_design.md §4.8) |
-| `GET /api/nowcast/nationalities?start=&end=` | Predicted guests per international nationality and its share of the international total (point predictions, no interval) |
-
-Ranges must lie inside the predicted period (400 otherwise).

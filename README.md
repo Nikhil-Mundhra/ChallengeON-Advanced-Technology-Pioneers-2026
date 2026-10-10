@@ -33,8 +33,9 @@ The raw competition workbooks are not in the repository. Place the organizer-pro
 | 5 | `twin charts` (`make charts`) | `output/figures/*.png` |
 | 6 | `twin report solution` (`make report`) | `output/pdf/challengeon_solution_report.pdf` |
 | 7 | `pytest tests/ -v` (`make test`) | — |
-| — | `twin predict [--spec S] [--no-intervals]` | `output/predictions/`: test-split Guests CSVs, P10/P50/P90 CSV, `market_outputs.json`, `test_predictions.png` |
-| — | `twin ablate-blocks` | `output/nowcast_block_ablation.json`: WAPE of each block combination on 13 rolling origins |
+| — | `twin predict [--spec S] [--no-intervals]` | `output/predictions/` (§5) |
+| — | `twin evaluate-model --spec S --start D --end D [--frozen-test]` | `output/models/*.pkl`, `output/evaluations/*.json`: a spec fitted up to `--start` minus 21 days, scored without refitting |
+| — | `twin ablate-blocks` | `output/nowcast_block_ablation.json`: WAPE of each block combination on 13 origins 2024-02..2025-02 (exploratory: they overlap the frozen test) |
 
 `twin predict` builds the daily panel in memory from `guest_daily.parquet`; it does not need `daily_market_panel.parquet`.
 
@@ -49,7 +50,7 @@ twin report database                                # schema & database PDF (nee
 
 Every command is also available as `python -m tourism_twin <command>`; `twin <command> --help` lists options.
 
-**Tests:** 85 tests in folders that mirror the packages (`tests/{data,features,models,nowcast,planning,app,audit}/`; run one area with `pytest tests/<area>`); all pass on a fresh clone.
+**Tests:** 87 tests in folders that mirror the packages (`tests/{data,features,models,nowcast,planning,app,audit}/`; run one area with `pytest tests/<area>`); all pass, except that the prediction-validator test skips without the raw test workbooks.
 
 ### Configuration
 
@@ -85,25 +86,27 @@ src/tourism_twin/
 ├── data/          raw workbooks → validated lake; LakeRepository; weekly and daily panels; imputation
 ├── models/        shared model kernel
 │   ├── components/   additive log-scale terms: LinearTrend, CentredSlope, LinearRegressors, EventKernel,
-│   │                 AnnualFourier, DayOfWeek, LocalLevel, ArrivalsConvolution, ResidualGBM
-│   ├── composite.py, fitters.py, protocol.py   AdditiveLogModel; JointLinear, Backfitting; Model (fit/predict)
-│   └── backtest.py, noise.py                   harness (HoldoutSplit, RollingOrigin); interval model
+│   │                 AnnualFourier, DayOfWeek, LocalLevel, ArrivalsConvolution, GroupScale, ResidualGBM
+│   ├── spec.py, registry.py, handler.py, weighting.py   ModelSpec; component/fitter names; row rules; weights
+│   ├── composite.py, fitters.py, linear_solve.py         AdditiveLogModel; JointLinear, Backfitting; least squares
+│   └── backtest.py, evaluate.py, noise.py                harness and #11 protocol; scoring a saved model; intervals
 ├── nowcast/       daily competition model: specs (twin_daily), routing, baselines, predict (`twin predict`),
-│                  nationality disaggregation, outputs JSON, same-day guests Poisson GLM
+│                  pooled nationalities, disaggregation, submission, weekly, outputs, serving, same-day GLM
 ├── planning/      weekly scenario model: structural chain, residual, conformal, Monte Carlo, tornado
 │                  sensitivity, simulator, briefing, training, weekly benchmark specs and evaluation
 ├── reporting/     scenario charts, test-prediction plot, solution PDF, schema & database PDF
 └── cli/           the `twin` command
 ```
 
-`src/app/` (`server.py` + `static/index.html`) is the web server; it calls `config`, `domain` and `planning`. `src/audit_agent/` is a separate LLM data-audit tool ([manual](src/audit_agent/README.md)) and does not import `tourism_twin`.
+`src/app/` (`server.py` + `static/index.html`) is the web server; it calls `config`, `domain`, `planning` and `nowcast.serving`. `src/audit_agent/` is a separate LLM data-audit tool ([manual](src/audit_agent/README.md)) and does not import `tourism_twin`.
 
 Model parts:
 
 | Part | Module | What it does |
 | :--- | :--- | :--- |
 | Daily nowcast | `nowcast/specs.py` (`twin_daily`) | Per market, log guests = log(c_t + Σ_{k=0..21} w_k · arrivals_{t−k}) + season + weekday (+ events for international, + centred slope for domestic). `w` is a non-increasing lag-weight curve with w₀ ≤ 1: a fitting device, not a measured stay distribution. |
-| Noise model | `models/noise.py` | AR(1) log errors along the horizon, fitted on rolling-origin back-test errors; Gaussian intervals in log. |
+| Nationality model | `nowcast/pooling.py` (`POOLED_NATIONALITIES`) | The 30 pooled-market nationalities: one fit per stay family on each nationality's own arrivals, shared kernel and calendar, per-nationality scale (`GroupScale`, ridge 100), recency weights (half-life 365 days). |
+| Noise model | `models/noise.py` | AR(1) log errors along the horizon, fitted on rolling-origin back-test errors; Gaussian intervals in log; `range_interval` for sums over days. |
 | Structural chain | `planning/structural.py` | Seats × load factor → passengers × P2P share → P2P × response multiplier $M_{m,s}$ → hotel arrivals × stay factor $L_{m,s}$ (guests ÷ hotel arrivals) → weekly guests, per market $m$ and season $s$. Sequential waterfall over 5 levers; the parts sum to the total lift (tested to < 1e-9). |
 | Residual ML | `planning/residual.py`, `planning/calendar_features.py` | One RidgeCV per market on week-of-year harmonics, quarter, season, holiday-week and major-event-week flags. No aviation inputs. Target: actual guests − planning-mode structural prediction. |
 | Archetypes | `domain/archetypes.py` | 7 archetypes; unmodeled countries (e.g. `SWEDEN`) get their archetype's default parameters (cold start). |
@@ -169,7 +172,7 @@ The two tables are not comparable: the nowcast uses the predicted period's new a
 | `lake/curated/conformal_calibrator.json` | Market | 21 markets | Conformal margins, target alpha 0.2, demonstrated coverage |
 | `lake/curated/evaluation_results.json` | — | — | Weekly back-test metrics, benchmark leaders, market and season breakdowns |
 | `lake/analytics.duckdb` | — | — | Query database with analytical views (built by `build-lake`; not committed) |
-| `src/tourism_twin/domain/events.csv` | Event occurrence | 52 | Event, kind, anchor date, window offsets, market scope, label, source; 2022–2026 |
+| `src/tourism_twin/domain/events.csv` | Event occurrence | 60 | Event, kind, anchor date, window offsets, scope (all, international, a market or a pooled-market nationality), label, source; 2021–2026 |
 
 ---
 
@@ -177,11 +180,8 @@ The two tables are not comparable: the nowcast uses the predicted period's new a
 
 | Output | Command |
 | :--- | :--- |
-| `output/predictions/domestic_test_guests.csv`, `international_test_guests.csv` | `twin predict` (test workbooks row for row + `Guests`) |
-| `output/predictions/test_guests_intervals.csv` | `twin predict` (P10/P50/P90; not written with `--no-intervals`, nor is `market_outputs.json`) |
-| `output/predictions/test_total_guests.csv` | `twin predict` (daily total guests with its own P10/P90) |
-| `output/predictions/nowcast_serving.json` | `twin predict` (read by `/api/nowcast/*`) |
-| `output/predictions/market_outputs.json`, `test_predictions.png` | `twin predict` |
+| `output/predictions/`: `{domestic,international}_test_guests.csv` (test workbooks row for row + `Guests`), `test_total_guests.csv` (daily total with its own P10/P90), `test_predictions.png`; with intervals only: `test_guests_intervals.csv` (P10/P50/P90), `market_outputs.json`, `nowcast_serving.json` (read by `/api/nowcast/*`) | `twin predict` |
+| `output/evaluations/*.json` | `twin evaluate-model` |
 | `output/figures/{waterfall_attribution,tornado_sensitivity,model_benchmark}.png` | `twin charts` |
 | `output/pdf/challengeon_solution_report.pdf` | `twin report solution` |
 | `output/pdf/challengeon_schema_database_report.pdf` | `twin report database` |

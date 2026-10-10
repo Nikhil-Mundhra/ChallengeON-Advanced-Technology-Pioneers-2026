@@ -25,14 +25,14 @@ In the nowcast, arrivals carry most of the level and the event shocks (§4.3). I
 
 | Model | Inputs | Output | Use | Status |
 | --- | --- | --- | --- | --- |
-| International Guests nowcast | Daily new arrivals (lags 0..K), date | Daily guests per market; pooled markets split to nationalities by arrival share | Competition forecast of withheld `Guests` | Implemented: `intl_nowcast` in `nowcast/specs.py` (spec `twin_daily`), `twin predict` |
+| International Guests nowcast | Daily new arrivals (lags 0..K), date | Daily guests per market; pooled-market nationalities from `POOLED_NATIONALITIES` (`nowcast/pooling.py`) | Competition forecast of withheld `Guests` | Implemented: `intl_nowcast` in `nowcast/specs.py` (spec `twin_daily`), `twin predict` |
 | Domestic Guests | Domestic new arrivals (nowcast) or date only (time-only) | Daily guests | Competition forecast; planning baseline | Implemented: `domestic_nowcast` (spec `twin_daily`) and time-only `domestic_time` in `nowcast/specs.py`; planning keeps `StructuralEngine.planning_guests` |
 | Same-day guests | Day of week, holiday week, log new arrivals | Daily same-day guests | Competition field | Implemented: Poisson GLM per market (`nowcast/same_day.py`). Analysis: GBM with Poisson loss 19.4% vs 23.8% naive. Suppressed values, see §6 (#14) |
 | Planning (structural) | Seats, levers, seasonal priors | Weekly guests per market × season, waterfall | Simulator, scenario attribution | Implemented (`planning/structural.py`, `planning/residual.py`) |
-| Direction (derived) | Guests history, calendar | Up/down over +7 days | Briefing | Analysis finding: logistic + spline, 74% accuracy, Brier 0.18 vs 43% majority class (`model_baselines.py`) |
+| Direction (derived) | Guests history, calendar | Up/down over +7 days | `market_outputs.json`, briefing | Implemented: sign of the next-week change with an AR(1) probability (`nowcast/weekly.py`). Analysis: logistic + spline, 74% accuracy, Brier 0.18 vs 43% majority class (`model_baselines.py`) |
 | Intervals (derived) | Out-of-sample back-test errors | P10/P50/P90 | Competition predictions, briefing, simulator | Implemented: `NoiseModel` (`models/noise.py`, AR(1) on log errors by horizon) for daily predictions; Monte Carlo (`planning/uncertainty.py`) and conformal margins (`planning/conformal.py`) for the weekly simulator |
 
-All `model_baselines.py` figures are on a single 6-month holdout, 2025-02 to 2025-07.
+All `model_baselines.py` figures are on a single 6-month holdout, 2025-02 to 2025-07 (the frozen test window; exploratory).
 
 ## 3. Model form — *Implemented (`nowcast/specs.py`); evidence in §4*
 
@@ -48,13 +48,13 @@ m_t        = exp(   Fourier_H(day of year)                     annual season, H 
                                                                event terms are zero outside their windows
 ```
 
-**Trend in the nowcast is per series.** The arrivals kernel owns the level in both series. DOMESTIC adds a centred log-slope to `m_t`: guests per arrival have fallen year on year (−3.9%/yr fitted), which a fixed kernel cannot follow. INTERNATIONAL has no trend: its fitted slope (+7.2%/yr) over-extrapolates and loses on the rolling back-test. Time-only specs (arrivals unknown: domestic forecast, planning) use a level component (`LinearTrend` or a local level) instead of the kernel. Evidence: §4.6.
+**Trend in the nowcast is per series.** The arrivals kernel owns the level in both series. DOMESTIC adds a centred log-slope to `m_t`: guests per arrival have fallen year on year (−3.9%/yr fitted), which a fixed kernel cannot follow. INTERNATIONAL has no slope: adding one gains 0.27 pp on validation in 4/7 folds, under the 0.3 pp gate (§5.4). Time-only specs (arrivals unknown: domestic forecast, planning) use a level component (`LinearTrend` or a local level) instead of the kernel. Evidence: §4.6.
 
 Kernel constraints:
 
 | Constraint | Reason | In `ArrivalsConvolution`? |
 | --- | --- | --- |
-| w_k ≥ 0 and non-increasing | Keeps the lag weights smooth and identifiable; w is a fitting device, not a measured share of arrivals still in a hotel. Fitted by NNLS on increments: w = triu(1) · d, d ≥ 0 | Yes |
+| w_k ≥ 0 and non-increasing | Keeps the lag weights smooth and identifiable; w is a fitting device, not a measured share of arrivals still in a hotel. w = triu(1) · d, d ≥ 0 | Yes |
 | w₀ ≤ 1 | An arrival is counted at most once on its arrival day. An unconstrained fit gave w₀ = 1.15 | Yes (`ArrivalsConvolution`, projected when the solver overshoots) |
 | c ≥ 0 | Base stock of guests cannot be negative | Yes |
 | c_t slowly varying | Base stock: guests not explained by arrivals of the last K days. A constant c cannot drop in Ramadan (domestic keeps a −11.5% Ramadan residual after the kernel) | Yes: piecewise, non-negative (`ArrivalsConvolution`) |
@@ -65,7 +65,7 @@ Kernel constraints:
 
 **Not a CNN.** `flow_t` is one linear filter over one input series: a single constrained kernel, no stacked layers, no non-linearity between layers, no learned feature maps. "Convolution" refers only to the sum Σ w_k · Arrivals_{t−k}. MLPs tested in `model_baselines.py` were often worse than the seasonal naive.
 
-**Independent in code, joint in fitting.** The kernel and the calendar explain overlapping variation (arrivals already carry most of Ramadan for international; season and events overlap in the same weeks). Each part can be its own module, but fitting them one after another on the raw target gives an order-dependent answer (§4.1). The parts are fitted jointly by backfitting: kernel on Guests / m, then calendar on log(Guests / flow), repeated until the calendar coefficients change by < 1e-6.
+**Independent in code, joint in fitting.** The kernel and the calendar explain overlapping variation (arrivals already carry most of Ramadan for international; season and events overlap in the same weeks). Each part can be its own module, but fitting them one after another on the raw target gives an order-dependent answer (§4.1). The parts are fitted jointly by backfitting on one penalised log objective: kernel (raw-scale warm start, refined on the log objective, kept only if not worse), then calendar on log(Guests / flow), until the largest contribution change is < 1e-6. The objective never rises (#13).
 
 ### 3.1 Blocks
 
@@ -78,29 +78,29 @@ The components form four blocks. Blocks are parallel terms of one log-additive m
 | Holiday | `EventKernel` (from `domain/events.csv`) | Dated windows: Ramadan, Eids, National Day, Christmas–New Year, … |
 | Flight | `LinearRegressors` on flight features (transfer share, P2P share, premium share, …) | Proposed. In the nowcast it can only add what changes guests per arrival; expect small gains |
 
-Measured contribution of the blocks (`twin ablate-blocks`: 13 monthly origins 2024-02-01..2025-02-01, 6-month horizon, WAPE % of daily segment totals, mean over folds; all fits converge):
+Measured contribution of the blocks (#11 validation, 7 folds, WAPE % of daily segment totals; `twin ablate-blocks` scores the same specs on 13 exploratory origins, §9.3 of the solution documentation):
 
 | Blocks (spec) | Domestic | International |
 | --- | :---: | :---: |
-| Seasonal naive (`naive_364`) | 18.80 | 19.28 |
-| Time (`time_only`: local level + season + weekday + events) | 9.23 | 9.62 |
-| Flow (`flow_only`: arrivals kernel) | 8.92 | 5.06 |
-| Flow + time (`flow_time`) | 5.97 (5.46 with the slope held flat) | 4.19 |
-| Flow + time + holiday (`twin_daily`; domestic has no holiday block) | 5.97 (5.46 flat slope) | 4.12 |
+| Seasonal naive (`naive_364`) | 16.91 | 22.97 |
+| Time (`time_only`: local level + season + weekday + events) | 10.10 | 10.68 |
+| Flow (`flow_only`: arrivals kernel) | 9.55 | 5.44 |
+| Flow + time (`flow_time`) | 4.18 | 4.42 |
+| Flow + time + holiday (`twin_daily`; domestic has no holiday block) | 4.18 | 4.59 |
 
-Flow carries most of the accuracy; time adds 2.95 pp (domestic) and 0.87 pp (international) on top of it. The holiday block adds 0.07 pp on international daily totals over all folds, below the 0.3 pp gate; events are judged only on folds containing their windows.
+Flow carries most of the accuracy; time adds 5.37 pp (domestic) and 1.02 pp (international) on top of it. On international segment totals events partly cancel across markets; at market-day grain removing them costs 0.37 pp [0.11, 0.67], 7/7 folds.
 
 ### 3.2 Training one part independently
 
 - **Each component is already fitted on its own** inside `Backfitting`: one component at a time, with every other component's contribution held fixed as an offset, cycling until nothing moves. "Independent axis, joint fit" means exactly this.
 - **Refitting only some components** (e.g. updating `EventKernel` while season and weekday stay frozen) is valid as one block step from a converged fit: fit the chosen components on the offset of the frozen ones. Use it for quick experiments. Ship only a fully refitted model, because frozen parts go stale when the data shifts and the refitted part then absorbs their error.
-- **A separate weight per block** (`m = exp(w_time · time + w_holiday · holiday)`) adds nothing when the block's own coefficients are free: the weight is absorbed into them and is not identifiable. It becomes useful only when a block's **shape is fixed**: a season or kernel shape learned on pooled data, with a per-market scale `w_market` (partial pooling across nationalities). That is the proposed route for per-nationality models (§6).
+- **A separate weight per block** (`m = exp(w_time · time + w_holiday · holiday)`) adds nothing when the block's own coefficients are free: the weight is absorbed into them and is not identifiable. It becomes useful only when a block's **shape is fixed**: a season or kernel shape learned on pooled data, with a per-series scale (partial pooling). `POOLED_NATIONALITIES` does this with `GroupScale` (§6).
 
 ### 3.3 Domestic and international
 
-The two series share one model form (blocks above) and differ only in their spec: domestic adds a slope and drops events, international keeps events and has no slope (§4.6). `MarketRouter` (`nowcast/routing.py`) routes `DOMESTIC` rows to one spec and every other market to the other; a new series type is a new spec passed to the router, not a subclass. Each series is fitted and evaluated separately (metrics never pooled). Total guests = domestic + international predictions; its interval is not the sum of the two intervals, because their errors are correlated (shared calendar shocks): estimate it from the back-test errors of the summed series.
+The two series share one model form (blocks above) and differ only in their spec: domestic adds a slope and drops events, international keeps events and has no slope (§4.6). `MarketRouter` (`nowcast/routing.py`) routes `DOMESTIC` rows to one spec and every other market to the other; a new series type is a new spec passed to the router, not a subclass. Each series is fitted and evaluated separately (metrics never pooled). Total guests = domestic + international predictions; its interval is not the sum of the two intervals, because their errors are correlated (shared calendar shocks): it comes from the back-test errors of the summed series (`TOTAL`, `INTERNATIONAL` in `NoiseModel`).
 
-## 4. Evidence — *Analysis finding*
+## 4. Evidence — *Analysis finding; exploratory unless marked #11 validation (single holdouts or origins overlapping the frozen test 2025-02..2025-07)*
 
 ### 4.1 Component order (`analysis/hybrid_order_test.py`)
 
@@ -209,12 +209,12 @@ Holdout checks use simple stand-ins (fit 2023–24, score Jan–Jul 2025): read 
 | --- | --- | --- |
 | Wizz Air Abu Dhabi left AUH in Sep 2025 | Passengers 62.6k (Aug 2025) → 448 (Sep) → 0. Test-period arrivals vs a year earlier: Kazakhstan −49%, Romania −48%, Uzbekistan −47%, Armenia −45%, Azerbaijan −42% (≈ 8.5% of international guests, growing until Jul 2025) | A regime change inside the test period. Guests per arrival is carrier-independent (r −0.2 to +0.05), so the kernel transfers; terms not proportional to arrivals (constant base stock, trend, pooled-market scale) do not. `OTHER_EURASIA` loses 34% of arrivals |
 | Train and test keep rows by different rules | Train: rows only where Guests ≥ 10. Test: rows only where New Arrivals ≥ 10. Blank cells behave as 0 (no zeros in any file) | Finland, Norway, Denmark, Mexico, Azerbaijan lack 29–88 of 212 test days (1.2% of `OTHER_EUROPE` arrivals). Fill absent arrivals with the train mean for such days (≈ 5), not 0; floor predictions at 10 |
-| Morocco winter guest block | Guests above what arrivals explain: Nov 2023–Jan 2024 ≈ +145/day, Dec 2024–Feb 2025 ≈ +217/day (Jan 2025: 425 of the cluster's 1,453) | Expect it in Dec 2025–Feb 2026; needs a market-specific block term; measured: OTHER_AMERICAS_AFRICA daily WAPE 11.28 → 13.42 with a scoped `morocco_winter_block` kernel (peaks a month apart in the two winters), not shipped |
-| Guests per arrival differs by market and drifts | 1.5 (Oman) to 5.5 (Russia); clusters mix extremes (`OTHER_MENA`: Qatar 2.1, Lebanon 4.4). 2023→2025: Egypt +33%, Philippines +43%, US −15%, Netherlands −19% | One shared kernel shape fits long-haul markets (≤ 1.8 pp cost) but not Oman (+8.4) or domestic (+4.3): two shape families, recency weighting |
+| Morocco winter guest block | Guests above what arrivals explain: Nov 2023–Jan 2024 ≈ +145/day, Dec 2024–Feb 2025 ≈ +217/day (Jan 2025: 425 of the cluster's 1,453) | Expect it in Dec 2025–Feb 2026; needs a market-specific block term; measured: OTHER_AMERICAS_AFRICA daily WAPE 11.28 → 13.42 with a market-scoped kernel (peaks a month apart in the two winters); scoped to MOROCCO inside `POOLED_NATIONALITIES`, +0.15 pp on validation; not shipped |
+| Guests per arrival differs by market and drifts | 1.5 (Oman) to 5.5 (Russia); clusters mix extremes (`OTHER_MENA`: Qatar 2.1, Lebanon 4.4). 2023→2025: Egypt +33%, Philippines +43%, US −15%, Netherlands −19% | One shared kernel shape fits long-haul markets (≤ 1.8 pp cost) but not Oman (+8.4) or domestic (+4.3). Implemented for pooled-market nationalities: two stay families, `Recency(365)` |
 | Chinese New Year (added to `events.csv`, scope CHINA) | Arrivals ×3 but fewer guests per arrival (1.5–1.65 vs 2.2–2.4); kernel over-predicts 1–12%. CNY 2026 (17 Feb) is the largest surge in the data (×3.1) | Add CNY to the registry (China scope); measured: CHINA daily WAPE 16.47 → 16.78 with the event (the kernel already follows the surge), not in the default kernel |
-| Large constant base stock | 20–39% of guests for Egypt, Philippines, Lebanon, India, US, Canada | A constant does not follow arrival shifts (+20% or −49% in test): tie it to a 90-day arrivals mean |
+| Large constant base stock | 20–39% of guests for Egypt, Philippines, Lebanon, India, US, Canada | A constant does not follow arrival shifts (+20% or −49% in test). A base tied to 90-day arrivals loses in the market model (validation: international +5.39 pp) and ships only in `POOLED_NATIONALITIES` |
 | Flight data adds little once arrivals are known | Median gain −0.09 pp (Egypt, Germany, Ireland +1.5–3.8; Italy, Azerbaijan −4.6 to −5.9). Departure country ≠ nationality (India 0.17 arrivals per passenger, China 6.0) | Use flights to detect regime changes (as above), not as a guest regressor |
-| Domestic decline flattened in 2025 | The −12% to −23% drop behind the domestic slope levelled off; domestic test arrivals −4% vs a year earlier, same weekday profile | Damp or cap the domestic slope over the 7-month horizon; implemented: the slope is held flat beyond training (13 origins: 5.46 vs 5.97 linear, bias −0.36% vs −2.61%) |
+| Domestic decline flattened in 2025 | The −12% to −23% drop behind the domestic slope levelled off; domestic test arrivals −4% vs a year earlier, same weekday profile | Damp or cap the domestic slope over the 7-month horizon; implemented: the slope is held flat beyond training (13 origins: 5.46 vs 5.97 linear, bias −0.36% vs −2.61%; exploratory) |
 
 ### 4.8 Date-range totals — *Analysis finding (from the rolling back-test predictions)*
 
@@ -229,8 +229,8 @@ Holdout checks use simple stand-ins (fit 2023–24, score Jan–Jul 2025): read 
 
 - Range totals are more accurate than days, but by 20–30%, not the √n of independent errors: daily errors are autocorrelated (§4.4).
 - Direction over 2-week ranges is right ~90%; the size of the change is off by ~3–4 pp, so a stated "up X%" needs |X| ≳ 8% (about twice that error) to be reliable.
-- Predictions are medians (`exp(Σ)`), so summed ranges are biased low unless smeared (`bias_correction="smearing"`, a metric change to gate).
-- Not covered by automated tests yet: the back-test scores single days only (§6).
+- Predictions are medians (`exp(Σ)`); smearing changes daily WMAPE by < 0.1 pp and the 14-day range error by ≤ 0.02 (8 origins), under the gate: not shipped.
+- `evaluate_fitted` scores week and month totals and the direction of consecutive totals (§5.1).
 
 ### 4.9 Factor chain and domestic history — *Analysis finding (`analysis/factor_chain.py`, back-tests)*
 
@@ -252,17 +252,15 @@ Date-only vs nowcast, single 3-month windows (WAPE domestic / international): Au
 
 ## 5. Code structure — *Mostly implemented*
 
-Same pattern as `features/registry.py` (declare once, request by name), applied to models. Tracked in issues [#9](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/9) (time effects), [#10](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/10) (rolling back-test), [#11](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/11) (train / validation / test split).
-
-Status on `main` (verify with `git ls-files src/tourism_twin/models`):
+Same pattern as `features/registry.py` (declare once, request by name), applied to models. Tracked in issues [#9](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/9) (time effects), [#10](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/10) (rolling back-test), [#11](https://github.com/Nikhil-Mundhra/ChallengeON-Advanced-Technology-Pioneers-2026/issues/11) (train / validation / test split). Status on `main` (verify with `git ls-files src/tourism_twin/models`):
 
 | Part | Status |
 | --- | --- |
-| `Model` protocol, `Component` / `LinearComponent`, `AdditiveLogModel`, `JointLinear` / `Backfitting` | Implemented |
-| Components: `ArrivalsConvolution`, `CentredSlope`, `LinearTrend`, `LocalLevel`, `AnnualFourier`, `DayOfWeek`, `EventKernel`, `LinearRegressors`, `ResidualGBM` | Implemented |
+| `Model` protocol, `Component` / `LinearComponent`, `AdditiveLogModel`, `JointLinear` / `Backfitting`, `ModelSpec`, registries, `DataHandler`, weightings, `linear_solve`, `evaluate_fitted` (§5.1) | Implemented |
+| Components: `ArrivalsConvolution`, `CentredSlope`, `LinearTrend`, `LocalLevel`, `AnnualFourier`, `DayOfWeek`, `EventKernel`, `GroupScale`, `LinearRegressors`, `ResidualGBM` | Implemented |
 | Event registry `domain/events.csv` | Implemented |
-| Back-test harness (`HoldoutSplit`, `RollingOrigin`), weekly and daily specs (`planning/specs.py`, `nowcast/specs.py`), `MarketRouter` | Implemented |
-| `NoiseModel` (`models/noise.py`), test-split predictions (`nowcast/predict.py`, `twin predict`), same-day model (`nowcast/same_day.py`) | Implemented |
+| Back-test harness (`HoldoutSplit`, `RollingOrigin`), #11 protocol (`VALIDATION_ORIGINS`, `FROZEN_TEST`, `compare`), weekly and daily specs (`planning/specs.py`, `nowcast/specs.py`), `MarketRouter` | Implemented |
+| `NoiseModel` (`models/noise.py`), test-split predictions (`nowcast/predict.py`, `twin predict`), serving bundle and API (`nowcast/serving.py`, #7), same-day model (`nowcast/same_day.py`) | Implemented |
 | Block grouping (`group` tag, `decompose_by_group`), time-only international spec (`INTL_TIME`) | Implemented |
 | Flight block | Component registered (`regressors`, block flight); no spec uses flight features (they add ~0 once arrivals are known, §4.7) |
 | Shared kernel / season shape with per-market scale (partial pooling) | Implemented for the 30 pooled-market nationalities (`POOLED_NATIONALITIES`, `nowcast/pooling.py`, #16) |
@@ -280,15 +278,15 @@ MarketRouter: DOMESTIC rows → one spec, every other market → another (a seri
 | Layer | Module | Owns | Extend by |
 | --- | --- | --- | --- |
 | Registry | `models/registry.py` (`COMPONENTS`, `FITTERS`) | Names → factories; each component's block (`group`: flow, time, holiday, flight, residual) | `COMPONENTS.register(name, cls)` |
-| Spec | `models/spec.py` (`ModelSpec`, immutable, validated at declaration); instances in `nowcast/specs.py` (`INTL_NOWCAST`, `DOMESTIC_NOWCAST`, variants `*_GBM`, `*_BASE90`, `INTL_FLOW_TIME`, time-only and flow-only) | Which components, fitter, row rules and weighting a model uses | A new `ModelSpec`, or `adding` / `without` / `replace_component` / `with_weighting` of an existing one |
+| Spec | `models/spec.py` (`ModelSpec`, immutable, validated at declaration); instances in `nowcast/specs.py` (`INTL_NOWCAST`, `DOMESTIC_NOWCAST`, `POOLED_NATIONALITIES`, variants `*_GBM`, `*_BASE90`, `INTL_FLOW_TIME`, time-only and flow-only) | Which components, fitter, row rules and weighting a model uses | A new `ModelSpec`, or `adding` / `without` / `replace_component` / `with_weighting` of an existing one |
 | Handler | `models/handler.py` (`DataHandler`, `RowRule`, `flagged`, `not_flagged`, `target_present`) | Feature resolution, training-row rules, log target, training weights | A new `RowRule` |
 | Weighting | `models/weighting.py` (`Uniform`, `Recency`, `ByColumn`, `Product`) | How much each training row counts; one axis per strategy, combined by `Product` | A class with `weights(rows) -> Series` (positive, mean 1) |
 | Evaluation | `models/evaluate.py` (`ModelCard`, `save_model` / `load_model`, `evaluate_fitted` → `Scorecard`); CLI `twin evaluate-model` | Scores a saved, fitted model on later rows without refitting: WAPE, bias, MAE, RMSE, MSE, log-MSE per segment at day / week / month grain, error by horizon, direction of consecutive totals, interval coverage, optional per-entity table (`group_column`, e.g. nationality); refuses rows inside the training window | — |
 | Model | `models/composite.py` (`AdditiveLogModel`) | Grouping, component copies per group, prediction, decomposition (by component and by block) | — |
-| Fitter | `models/fitters.py`, `models/linear_solve.py` (weighted least squares with penalty rows) | Joint / backfitting solve of the components on prepared rows | `FITTERS.register(name, cls)` |
+| Fitter | `models/fitters.py`, `models/linear_solve.py` (weighted least squares with penalty rows; LAPACK gelsd, falling back to QR gelsy when it raises, as on Apple Accelerate) | Joint / backfitting solve of the components on prepared rows | `FITTERS.register(name, cls)` |
 | Component | `models/components/` (`ComponentBase` hooks, `LinearComponent`) | One additive log-scale term: `fit(panel, offset, y, weights=None)`, `contribution`, `explain` | One module + registry entry |
 
-Weights apply to the squared error of data rows only (penalty rows are unweighted) and are relative: `w` and `3w` give the same fit, and `weights=None` follows the unweighted code path exactly. The smearing factor is weighted like the fit. Centring of periodic terms stays unweighted (the level owner absorbs the difference, so predictions are unaffected; only the split of the decomposition shifts). Implemented weightings: `Recency(half_life_days)` (drifting guests-per-arrival, §4.7) and `ByColumn` (e.g. per nationality). No shipped spec uses a weighting yet; each is a candidate for the rolling back-test gate.
+Weights apply to the squared error of data rows only (penalty rows are unweighted) and are relative: `w` and `3w` give the same fit, and `weights=None` follows the unweighted code path exactly. The smearing factor is weighted like the fit. Centring of periodic terms stays unweighted (the level owner absorbs the difference, so predictions are unaffected; only the split of the decomposition shifts). Implemented weightings: `Recency(half_life_days)` (drifting guests-per-arrival, §4.7) and `ByColumn` (e.g. per nationality); they compare and hash by their settings, so a spec stays a cache key after pickling. `POOLED_NATIONALITIES` uses `Recency(365)`; no market spec uses a weighting.
 
 ### 5.2 Components
 
@@ -299,7 +297,8 @@ Weights apply to the squared error of data rows only (penalty rows are unweighte
 | `slope` | `CentredSlope` | time | Centred log-slope (domestic nowcast) |
 | `annual_fourier` | `AnnualFourier` | time | Season on day of year |
 | `weekday` | `DayOfWeek` | time | Weekday, optionally × season |
-| `events` | `EventKernel` | holiday | One smoothed kernel per event type, from `domain/events.csv` |
+| `events` | `EventKernel` | holiday | One smoothed kernel per event type, from `domain/events.csv`; scope: all, international, one market or one pooled-market nationality |
+| `group_scale` | `GroupScale` | flow | Per-series log scale with a ridge toward the shared level (pooled fits) |
 | `regressors` | `LinearRegressors` | flight | Linear terms on named feature columns |
 | `residual_gbm` | `ResidualGBM` | residual | Final-stage GBM on the remaining residual; kept only if it passes the gate |
 
@@ -307,13 +306,13 @@ Weights apply to the squared error of data rows only (penalty rows are unweighte
 
 `domain/events.csv` with columns `event, kind (lunar|solar|one_off), anchor_date, window_start_offset, window_end_offset, scope, label, source (detected|manual)`. Separate rows for Ramadan, Eid al-Fitr, Eid al-Adha, National Day, Christmas–New Year, F1, ADIPEC and the rest, including test-period dates. `one_off` rows are masked from training. `is_holiday_week` and `is_major_event_week` become features derived from the CSV so the weekly panel and its tests keep working. Candidate windows come from `event_detector.py` (robust z on residuals, seed |z| ≥ 3, extend while |z| ≥ 1.5, recurrence by calendar date or Ramadan offset ±3 days; an event needs ≥ 2 occurrences to be recurring).
 
-### 5.4 Back-test harness (#10, #11)
+### 5.4 Back-test harness and evaluation protocol (#10, #11) — *Implemented*
 
-`backtest(spec, panel, origins)` → per-fold metrics. Monthly rolling origins, ~6-month horizon, fit only on data before each origin, domestic and international reported separately (WAPE, MAE, bias). Any calibration (z-scores, conformal, alphas) uses the training fold only. Origins for the daily nowcast: monthly from 2024-02-01 to 2025-02-01 (13 folds). A component tied to dated windows (events) is judged only on folds whose test period contains those windows; for Christmas–New Year and National Day this needs a fold such as test 2024-08-01 → 2025-01-31. Inside it, a time-ordered split: train fits parameters, validation chooses hyperparameters (K, smoothing λ, event thresholds, H), and one final test period is evaluated once after all choices are frozen. The four benchmarks in `planning/evaluation.py` become four specs.
+`backtest(spec, panel, splitter)` → per-fold predictions and metrics, a fresh fit per fold on rows ending `gap_days` before the origin; domestic and international reported separately. Protocol (`models/backtest.py`): `VALIDATION_ORIGINS` (monthly 2024-02-01..2024-08-01, horizon cut at 2025-01-31, 21-day gap, expanding window) for every choice; `FROZEN_TEST` (2025-02-01..2025-07-31) scored once, after every choice; `compare()` gives candidate − baseline WAPE with a 90% moving-block bootstrap interval (28-day blocks) and the share of folds with the same sign. A result counts only if the interval excludes 0 and the sign holds in most folds. Calibration (z-scores, conformal, σ) uses the training fold only. Event components are judged on folds containing their windows (Christmas–New Year and National Day: origin 2024-08-01). The four weekly benchmarks in `planning/evaluation.py` run as specs.
 
-### 5.5 Noise model
+### 5.5 Noise model — *Implemented*
 
-Fitted on back-test residuals: Gaussian in log, σ per month, AR(1) φ for growth with horizon. Replaces the in-sample conformal margins.
+`models/noise.py`: per series, AR(1) log errors along the horizon, fitted on out-of-sample back-test errors; no month factor. `range_interval` and `weighted_sd` give sums over days from the exact AR(1) covariance. Daily predictions only; the weekly simulator keeps conformal margins (§6).
 
 ### 5.6 Feature contract (analysis issues → model)
 
@@ -351,7 +350,7 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 | Event-detector z-scores, conformal margins and noise σ computed from training-fold residuals only | Whole-series statistics leak the test period |
 | Report domestic and international separately, never only pooled | Pooled raw-scale metrics are dominated by domestic (MAE 17,485 vs 2,466) |
 | A new component ships with a synthetic-data test: it must recover a known kernel / bump / sine | A component that can't recover its own truth can't be trusted on real data |
-| Keep a component only if it lowers rolling-origin WAPE by ≥ 0.3 points on both domestic and international; among variants within 0.2 points of the best, keep the simplest | Effective sample size is small (§4.4) |
+| Keep a component only if it lowers validation WAPE (§5.4) by ≥ 0.3 points on both domestic and international; among variants within 0.2 points of the best, keep the simplest | Effective sample size is small (§4.4) |
 
 **Reference evaluation** (reproduce this before changing anything; §4.1 and §4.5 are its results):
 
@@ -387,17 +386,17 @@ Apply these when building any part of §3–§5. Each comes from a measured fail
 
 | Gap | Where | Status |
 | --- | --- | --- |
-| Domestic nowcast did not converge | The kernel was fitted on the raw scale while every other block minimised log-scale SSE, so the shared objective rose on 33 of 119 block steps and cycled. The kernel is now refined on the log objective and kept only if it does not raise it. Domestic daily WAPE, 13 rolling origins: weekday × season 5.90, plain weekday 5.97 at caps 20 / 50 / 200 / 1,000 (was 11.39 / 13.83, collapsing to zero at cap 1,000); plain weekday ships (difference under 0.3 pp) | Fixed, issue #13 |
-| Same-day suppressed values | `nowcast/same_day.py` treats `*` as zero (earlier: dropped). `*` hides small, not necessarily zero, counts: zero biases down, dropping biased up. Needs a censored treatment | Open, issue #14 |
-| Weekly simulator uses legacy holiday flags | `is_holiday_week` / `is_major_event_week` lump Eid al-Fitr, Eid al-Adha, National Day and New Year; kept on purpose so shipped weekly results do not move. Daily models use `events.csv` | By design |
+| Domestic nowcast did not converge | The kernel was fitted on the raw scale while every other block minimised log-scale SSE; the shared objective rose on 33 of 119 block steps and cycled. The kernel is now refined on the log objective and kept only if not worse; domestic results are identical at caps 20 / 50 / 200 / 1,000 | Fixed, issue #13 |
+| Same-day suppressed values | `*` read as 0 equals the censored likelihood: every nationality with a suppressed value also published a 1. Pearson dispersion 8.0 domestic, 10.3 international (validation); Poisson 80% intervals cover 63.3%, so no same-day interval is produced | Closed, issue #14 |
+| Weekly simulator uses legacy holiday flags | `is_holiday_week` / `is_major_event_week` lump Eid al-Fitr, Eid al-Adha, National Day and New Year; kept so shipped weekly results do not move. Daily models use `events.csv` | By design |
 | Weekly simulator intervals | Conformal margins from the training window (holdout coverage 65.2% vs 80% nominal); daily predictions use `NoiseModel` | Open for the weekly path |
-| Block grouping and per-block decomposition | §3.1 | Proposed |
-| Pooling across nationalities | Pooled-market nationalities are predicted by one model per stay family (short: Saudi Arabia, Kuwait, Oman, Bahrain, Qatar; long: the rest) on each nationality's own arrivals, with a ridge-shrunk per-nationality scale. #11 validation: international nationality WAPE 12.24 vs 12.79 for the split, −0.55 pp [−0.79, −0.32], 7/7 folds; frozen test 11.16 vs 11.38, −0.22 pp [−0.45, +0.02]. Applied to all 45 nationalities it is worse (+3.6 pp): single-nationality markets keep their market model | Implemented (#16) |
-| Total-guests interval | §3.3: needs back-test errors of the summed series | Proposed |
+| Block grouping and per-block decomposition | §3.1 (`decompose_by_group`; `top_drivers` in `market_outputs.json`) | Implemented |
+| Pooling across nationalities | `POOLED_NATIONALITIES`: one model per stay family (short: Saudi Arabia, Kuwait, Oman, Bahrain, Qatar; long: the rest) on each nationality's own arrivals, `GroupScale` ridge 100, `Recency(365)`. #11 validation: international nationality WAPE 12.24 vs 12.79 for the split, −0.55 pp [−0.79, −0.32], 7/7 folds; frozen test 11.16 vs 11.38, −0.22 pp [−0.45, +0.02]. Recency weighting on the 30 pooled-market nationalities: 13.83 vs 14.23, −0.40 pp [−0.64, −0.19], 7/7. All 45 nationalities pooled: +3.6 pp, so single-nationality markets keep their market model | Implemented (#16) |
+| Total-guests interval | `TOTAL` and `INTERNATIONAL` error series of the summed back-test predictions (`test_total_guests.csv`, `/api/nowcast/range`) | Implemented |
 | Analysis outside the repository | `analysis/*.py` read the raw workbooks directly; figures in §4 are not reproducible from this repository | Analysis finding |
-| Test-period regime change | Wizz Air exit. Stress test (fit before 2025-02-01, the five nationalities' arrivals × 0.55, days 100–180): predicted guests / arrivals ratio KAZAKHSTAN 0.558 / 0.550, OTHER_EURASIA 0.663 / 0.660, OTHER_EUROPE 0.961 / 0.942. A base stock proportional to 90-day arrivals (`twin_daily_base90`) follows exactly but loses on the rolling back-test (domestic 11.23 vs 6.49, international 13.39 vs 9.42); the other intl terms are multipliers of the flow and scale with it | Checked; knot base kept |
+| Test-period regime change | Wizz Air exit. Stress test (fit before 2025-02-01, the five nationalities' arrivals × 0.55, days 100–180): predicted guests / arrivals ratio KAZAKHSTAN 0.558 / 0.550, OTHER_EURASIA 0.663 / 0.660, OTHER_EUROPE 0.961 / 0.942. A base tied to 90-day arrivals follows exactly but loses in the market model on validation (international +5.39 pp; domestic −0.77, n.s.); the other international terms multiply the flow | Checked; knot base kept for markets |
 | Row-presence rules differ between train and test | Absent test days get the nationality's mean training arrivals below 10 (4.5–6.1; biased upward, train keeps only Guests ≥ 10); published test rows are clipped at 10 arrivals; predictions floored at max(New Arrivals, 10). Training absences (238 rows) keep interpolation | Implemented for test |
-| Missing events / blocks | Chinese New Year (China), Morocco winter block (§4.7) | Open |
-| Range totals not scored | Back-test scores days only; needs period totals (week, month, [A, B]), direction, % change error and range-interval coverage (§4.8) | Open |
-| Domestic training start | Training from 2022-07-01 is worse on the #11 validation origins (5.37 vs 4.18 domestic WAPE, −1.19 pp [−2.04, −0.20], 7/7); its earlier gain came from origins overlapping the frozen test. `DOMESTIC_NOWCAST` trains on all history | Closed (reverted) |
+| Missing events / blocks | `chinese_new_year` (CHINA) and `morocco_winter_block` (MOROCCO) are in `events.csv`, outside the default kernel; both measured worse (§4.7) | Measured, not shipped |
+| Range totals | `evaluate_fitted` scores week and month totals and their direction; `NowcastService` serves any [A, B] range with `range_interval`. Not scored: arbitrary-range coverage and % change error (§4.8) | Partly implemented |
+| Domestic training start | Training from 2022-07-01 is worse on validation: +1.19 pp [+0.20, +2.04], 7/7 (5.37 vs 4.18 domestic WAPE); its earlier gain came from origins overlapping the frozen test. `DOMESTIC_NOWCAST` trains on all history | Closed (reverted) |
 | Edge effect | Decompositions disagree on residual memory (last 1–2 days vs ~1–2 weeks); centred smoothers are unreliable near series ends | Analysis finding, unresolved |

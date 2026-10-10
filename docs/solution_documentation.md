@@ -1,7 +1,7 @@
 # Abu Dhabi Tourism Digital Twin — Solution and Technical Specification
 
 **Challenge:** DCT Abu Dhabi — Advanced Technology Pioneers 2026 ([challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en))
-**Status:** working prototype: daily guest nowcast with test-split predictions and intervals (`twin predict`), weekly scenario simulator (CLI, web UI, JSON API), PDF reports, rolling-origin and forward-holdout back-tests, 98 automated tests.
+**Status:** working prototype: daily guest nowcast with test-split predictions and intervals (`twin predict`), weekly scenario simulator (CLI, web UI, JSON API), PDF reports, rolling-origin and forward-holdout back-tests, 87 automated tests.
 **Run instructions:** [README](../README.md) and [user guide](user_guide.md).
 
 ## 1. Summary
@@ -42,9 +42,9 @@ Flight data records departure country; hotel data records guest nationality. Arr
 | Working simulator | `twin simulate`, `twin serve` (web UI + JSON API), Python API |
 | Competition forecast | `twin predict`: `Guests` for every test-file row, validated against the test workbooks, with P10/P50/P90 |
 | Adjustable conversion chain | 7 levers over seats → passengers → P2P → hotel arrivals → guests; every stage shown baseline vs. scenario |
-| Historical validation | Daily nowcast: rolling-origin back-test (8 origins, 6-month horizon) against two baselines, held-out interval coverage, direction accuracy. Planning model: forward holdout (104 calibration weeks, 30 holdout weeks), 4-model benchmark |
+| Historical validation | Daily nowcast: issue #11 protocol (7 validation origins; frozen test scored once) against two baselines; interval coverage, direction accuracy. Planning model: forward holdout (104 calibration weeks, 30 holdout weeks), 4-model benchmark |
 | Sensitivity analysis | Tornado ranking; Monte Carlo P10/P50/P90 |
-| Granularity | Nowcast: 21 markets daily, split to each nationality row of the test file. Planning: 21 markets × 4 seasons, weekly |
+| Granularity | Nowcast: 21 markets daily; the 30 pooled-market nationalities modelled directly (§7.7), each other nationality row takes its market's prediction. Planning: 21 markets × 4 seasons, weekly |
 | Decision relevance | Generated briefing naming the lift, range and top driver |
 | Reproducibility | Source hashes in `lake/manifest.json`, env-configurable paths, `make all` from raw workbooks, seeded deterministic Monte Carlo, tests |
 
@@ -108,7 +108,8 @@ flowchart LR
     N --> K[Daily nowcast: AdditiveLogModel per market]
     K --> BT[Rolling-origin back-test]
     BT --> NM[Noise model]
-    K --> P[Predictions, intervals, market_outputs.json]
+    K --> P[Predictions, intervals, market_outputs.json, serving bundle]
+    N --> PN[Pooled nationality model] --> P
     NM --> P
     C --> D[Structural engine]
     C --> E[Residual ML]
@@ -184,17 +185,17 @@ flow_t   = c_t + Σ_{k=0..21} w_k · NewArrivals_{t−k}
 
 | Component | Form | Domestic (`domestic_nowcast`) | International (`intl_nowcast`) |
 | --- | --- | :---: | :---: |
-| `ArrivalsConvolution(K=21)` | Contribution log(flow_t). w_k = weight on arrivals k days earlier (a fitting device, not a measured stay distribution): w = U d with d ≥ 0 (non-increasing), Σd ≤ 1 (w₀ ≤ 1). c_t ≥ 0 is a base stock, piecewise linear between knots about 365 days apart with a first-difference penalty, flat beyond the training days. Bounded least squares, then SLSQP when Σd > 1, then projection onto Σd ≤ 1 if the solver stops short. Owns the level | ✓ | ✓ |
+| `ArrivalsConvolution(K=21)` | Contribution log(flow_t). w_k = weight on arrivals k days earlier (a fitting device, not a measured stay distribution): w = U d with d ≥ 0 (non-increasing), Σd ≤ 1 (w₀ ≤ 1). c_t ≥ 0 is a base stock, piecewise linear between knots about 365 days apart with a first-difference penalty, flat beyond the training days. Owns the level | ✓ | ✓ |
 | `CentredSlope` | Log-linear slope in years since the first training day, centred on the training rows; flat beyond the last training day | ✓ | — |
 | `AnnualFourier(4)` | 4 sine/cosine pairs of day of year, centred | ✓ | ✓ |
 | `DayOfWeek` | One effect per weekday (Monday reference), centred | ✓ | ✓ |
-| `EventKernel` | One coefficient per window day per event type from `domain/events.csv`; second-difference smoothing for windows of 6+ days, weight scaled by occurrences; zero outside the windows | — | ✓ |
+| `EventKernel` | One coefficient per window day per event type from `domain/events.csv`; second-difference smoothing for windows of 6+ days, weight scaled by occurrences; zero outside the windows. An event can be scoped to one market or one pooled-market nationality; `chinese_new_year` (CHINA) and `morocco_winter_block` (MOROCCO) are not in the default kernel | — | ✓ |
 
-- **Fitting** (`models/fitters.py`): `Backfitting`, kernel first (it owns the level). Every block minimises the same penalised log-scale objective, Σ(y − Σ contributions)² plus each component's penalty (the base-stock penalty is made unitless by the first pass's mean target, fixed for the fit): the kernel starts from a least-squares solve on the original scale and is refined on the log objective under its constraints, keeping the result only if it does not raise it; the linear components are one jointly solved block on y − log flow. The penalised objective therefore never increases (the SSE alone can rise slightly when a penalty falls), and fits converge (largest contribution change < 1e-6; cap 200 passes, not reached in the back-test). `FitReport.objective` records it per pass. The domestic weekday choice is reproducible with `scripts/compare_domestic_weekday.py`; its 13 origins include the 8 published ones. `domestic_time` has only linear components and uses `JointLinear` (one least squares).
+- **Fitting** (`models/fitters.py`): `Backfitting`, kernel first (it owns the level). Every block minimises the same penalised log-scale objective, Σ(y − Σ contributions)² plus each component's penalty (the base-stock penalty is made unitless by the first pass's mean target, fixed for the fit): the kernel starts from a least-squares solve on the original scale and is refined on the log objective under its constraints, keeping the result only if it does not raise it; the linear components are one jointly solved block on y − log flow. The penalised objective therefore never increases (the SSE alone can rise slightly when a penalty falls), and fits converge (largest contribution change < 1e-6; cap 200 passes, not reached in the back-test). `FitReport.objective` records it per pass. `scripts/compare_domestic_weekday.py` reproduces the domestic weekday and pass-cap comparison. `domestic_time` has only linear components and uses `JointLinear` (one least squares).
 - **Training rows**: `lag_complete` rows with guests; rows flagged `is_one_off_period` (the `international_shock_2022` window, international markets only) are excluded.
 - **Inputs**: `arrivals_lag_0..21` from `new_arrivals_filled` (suppressed or absent nationality-day arrivals interpolated). Lags run across the train/test boundary, so the first test days use the last training days' arrivals.
 - **Router**: `MarketRouter` serves `DOMESTIC` with `domestic_nowcast` and the other 20 markets with `intl_nowcast`.
-- **Other daily specs** (`DAILY_SPECS`): `naive_364` (same market, same weekday 364 days earlier, stepping back whole years until the date is in training); `arrivals_ratio` (new arrivals × the market's training guests ÷ new arrivals); `twin_daily_gbm` (`twin_daily` + `ResidualGBM` on weekday, month, ISO week, holiday week, arrivals lags 0 and 7, fitted once after convergence; not shipped, §9.3); `domestic_time` (`LocalLevel` + season + weekday by season + events, for when arrivals are unknown; the level is a Whittaker smoother, flat beyond the training days).
+- **Other daily specs** (`DAILY_SPECS`): `naive_364` (same market, same weekday 364 days earlier, stepping back whole years until the date is in training); `arrivals_ratio` (new arrivals × the market's training guests ÷ new arrivals); `twin_daily_gbm` (`twin_daily` + `ResidualGBM` on weekday, month, ISO week, holiday week, arrivals lags 0 and 7, fitted once after convergence; not shipped, §9.3); `domestic_time` (`LocalLevel` + season + weekday by season + events, for when arrivals are unknown; the level is a Whittaker smoother, flat beyond the training days); ablations `time_only`, `flow_only`, `flow_time`, `twin_daily_base90` (base stock tied to 90-day arrivals).
 
 ### 7.6 Intervals (`models/noise.py`)
 
@@ -211,13 +212,11 @@ bounds = pred × exp(± z · sqrt(var(h))),   z = Φ⁻¹(0.9) for 80%
 
 ### 7.7 Nationality predictions (`nowcast/pooling.py`, `nowcast/disaggregation.py`)
 
-The 30 nationalities of the 6 pooled markets are predicted directly (`POOLED_NATIONALITIES`): one model per stay family (short: Saudi Arabia, Kuwait, Oman, Bahrain, Qatar; long: every other international nationality), fitted on all 45 nationalities' own arrivals, with a shared arrivals kernel, season, weekday and events, a base stock proportional to the nationality's 90-day arrivals, and a per-nationality scale shrunk toward the family by a ridge penalty (`GroupScale`, ridge 100). Training rows are weighted by recency (half-life 365 days), because guests per arrival drift by nationality: on the 30 pooled-market nationalities (validation, nationality-day grain) guest-weighted WAPE 13.83% vs 14.23% unweighted (−0.40 pp [−0.64, −0.19], 7/7 folds), mean absolute bias per nationality 6.15% vs 7.32%. A shorter half-life (180 days), other shrinkage strengths (ridge 1, 10, 1,000), data-driven families and a MOROCCO-scoped winter event were worse or less stable. Their intervals come from that model's rolling-origin errors per nationality. The 15 single-nationality markets keep the market model.
+The 30 nationalities of the 6 pooled markets are predicted directly (`POOLED_NATIONALITIES`): one model per stay family (short: Saudi Arabia, Kuwait, Oman, Bahrain, Qatar; long: every other international nationality), fitted on all 45 nationalities' own arrivals, with a shared arrivals kernel, season, weekday and events, a base stock proportional to the nationality's 90-day arrivals, and a per-nationality scale shrunk toward the family by a ridge penalty (`GroupScale`, ridge 100). Training rows are weighted by recency (half-life 365 days), because guests per arrival drift by nationality: on the 30 pooled-market nationalities (validation, nationality-day grain) guest-weighted WAPE 13.83% vs 14.23% unweighted (−0.40 pp [−0.64, −0.19], 7/7 folds), mean absolute bias per nationality 6.15% vs 7.32%. Rejected on validation: half-life 180 days (5/7 folds), ridge 1, 10 and 1,000, data-driven families, the MOROCCO-scoped `morocco_winter_block` (+0.15 pp). Their intervals come from that model's rolling-origin errors per nationality. The 15 single-nationality markets keep the market model.
 
 Evaluation under the protocol of issue #11 (choice on validation origins 2024-02..2024-08 with a 21-day gap; frozen test 2025-02..2025-07 scored once; moving-block bootstrap, 28-day blocks, 90% intervals), international nationality WAPE: validation 12.24% vs 12.79% for the market model + arrival-share split (−0.55 pp [−0.79, −0.32], same sign in 7/7 folds); frozen test 11.16% vs 11.38% (−0.22 pp [−0.45, +0.02]). On the pooled-market nationalities alone: validation −2.18 pp [−3.13, −1.27]; frozen test −0.89 pp [−1.89, +0.06].
 
-The arrival-share split below is the fallback when a nationality has no pooled prediction:
-
-A pooled market's prediction is split across its nationalities by share = (trailing 7-day new arrivals × the nationality's training guests ÷ new arrivals ratio), normalised per market and day. Splitting actual market guests over the last training year this way gives a nationality WMAPE of 14.0%, against 24.0% for shares of same-day arrivals. Nationality bounds add the split's log-error variance (s.d. 0.18–0.25 per pooled market, last 365 training days) to the market's.
+Fallback when a nationality has no pooled prediction: a pooled market's prediction is split across its nationalities by share = (trailing 7-day new arrivals × the nationality's training guests ÷ new arrivals ratio), normalised per market and day. Splitting actual market guests over the last training year this way gives a nationality WMAPE of 14.0%, against 24.0% for shares of same-day arrivals. Nationality bounds add the split's log-error variance (s.d. 0.18–0.25 per pooled market, last 365 training days) to the market's.
 
 ### 7.8 Derived outputs (`nowcast/outputs.py`, `nowcast/weekly.py`)
 
@@ -234,7 +233,7 @@ A pooled market's prediction is split across its nationalities by share = (trail
 
 ### 7.9 Same-day guests (`nowcast/same_day.py`)
 
-`SameDayPoisson`: one Poisson GLM per market on weekday, holiday week and log(1 + new arrivals); markets with fewer than 60 training days use their mean. A suppressed nationality value (`*`) counts as 0: no observed same-day value is 0, observed counts fall from 1 (6,814 rows) to 2 (5,179) to 3 (2,967), and suppressed days have lower arrivals (CHINA median 328 vs 501). `same_day_backtest` scores it on rolling origins (`scripts/same_day_backtest.py`). Not called by `twin predict` (the test workbooks contain `Same-Day Guests`).
+`SameDayPoisson`: one Poisson GLM per market on weekday, holiday week and log(1 + new arrivals); markets with fewer than 60 training days use their mean. A suppressed nationality value (`*`) counts as 0: no observed same-day value is 0, observed counts fall from 1 (6,814 rows) to 2 (5,179) to 3 (2,967), and suppressed days have lower arrivals (CHINA median 328 vs 501). Every nationality with a suppressed value has also published a 1, so the censored likelihood (count < 1) equals reading `*` as 0 (issue #14). Counts are overdispersed: Pearson dispersion 8.0 domestic, 10.3 international on the validation origins; Poisson 80% intervals cover 63.3% of validation days, so no same-day interval is produced. `same_day_backtest` scores it on rolling origins (`scripts/same_day_backtest.py`). Not called by `twin predict` (the test workbooks contain `Same-Day Guests`).
 
 ## 8. Archetypes
 
@@ -289,20 +288,27 @@ Findings:
 
 ### 9.3 Daily nowcast
 
-**Validation (issue #11 protocol).** Origins monthly 2024-02-01..2024-08-01, horizon up to 6 months ending by 2025-01-31, 21-day gap, expanding window; WAPE % of daily segment totals, mean over 7 folds, domestic / international: `naive_364` 16.91 / 22.97; `arrivals_ratio` 17.93 / 8.86; `time_only` 10.10 / 10.68; `flow_only` 9.55 / 5.44; `flow_time` 4.18 / 4.42; `twin_daily` 4.18 / 4.59. Market grain (`compare`, 90% moving-block bootstrap): `twin_daily` − `naive_364` −12.71 pp [−15.45, −10.43] domestic, −18.42 [−19.98, −16.87] international; removing events +0.37 [+0.11, +0.67] international; all 7/7 folds. The frozen test 2025-02..2025-07 has been scored once, for #16 only.
+**Protocol (issue #11, `models/backtest.py`).** Validation (`VALIDATION_ORIGINS`): monthly origins 2024-02-01..2024-08-01, horizon up to 6 months ending by 2025-01-31, training ending 21 days before each origin, expanding window; 7 folds. Frozen test (`FROZEN_TEST`): 2025-02-01..2025-07-31, scored once after every choice (so far for #16 only). `compare()`: candidate − baseline WAPE with a 90% moving-block bootstrap interval (28-day date blocks shared by both models and every fold) and the share of folds with the same sign. A result counts only if the interval excludes 0 and the sign holds in most folds; a component ships only if it gains ≥ 0.3 pp on both segments.
 
-**Design** (exploratory under issue #11: these origins overlap the frozen test 2025-02..2025-07). `RollingOrigin`: 8 monthly origins, 2024-07-01 to 2025-02-01; each fold trains on days before its origin and tests the next 6 months (folds overlap in calendar time). A fresh model is fitted per fold (`models/backtest.py`). WMAPE is computed per fold over the market-days of each segment (domestic; the 20 international markets), then averaged over folds. A component stays only if it lowers WMAPE by ≥ 0.3 pp on both segments.
+**Validation.** WAPE % of daily segment totals, mean over 7 folds, domestic / international: `naive_364` 16.91 / 22.97; `arrivals_ratio` 17.93 / 8.86; `time_only` 10.10 / 10.68; `flow_only` 9.55 / 5.44; `flow_time` 4.18 / 4.42; `twin_daily` 4.18 / 4.59. Market-day grain (`compare`): `twin_daily` − `naive_364` −12.71 pp [−15.45, −10.43] domestic, −18.42 [−19.98, −16.87] international, 7/7 folds.
 
-| Spec | Domestic WMAPE | International WMAPE |
-| --- | :---: | :---: |
-| `naive_364` | 20.4% | 26.6% |
-| `arrivals_ratio` | 15.9% | 19.2% |
-| **`twin_daily`** (shipped) | **6.2%** | **9.4%** |
-| `twin_daily_gbm` | 6.2% | 9.1% |
+Shipped choices re-run under the protocol (market-day grain, candidate − shipped, pp WAPE; n.s. = interval includes 0; pooled nationalities: §7.7):
 
-The residual GBM lowers international WMAPE by 0.33 pp and domestic by 0 (domestic has no GBM), so it fails the both-segments rule and is not shipped.
+| Shipped | Candidate | Difference |
+| --- | --- | --- |
+| Domestic slope | No slope | +2.85 [+1.97, +3.56] |
+| Domestic plain weekday | Weekday × season | +0.05, n.s. |
+| Knot base stock | Base tied to 90-day arrivals | domestic −0.77, n.s.; international +5.39 |
+| International events | No events | +0.37 [+0.11, +0.67], 7/7 folds |
+| No residual GBM | `ResidualGBM` | −0.14, n.s. |
+| No international slope | Slope | −0.27 [−0.43, −0.10], 4/7 folds; under the 0.3 pp gate |
+| Domestic trains on all history | Training from 2022-07-01 | +1.19 [+0.20, +2.04], 7/7 folds (domestic 5.37 vs 4.18) |
 
-**Interval coverage** of the 80% interval, `twin_daily`, each fold's bounds from a noise model fitted on other folds only:
+**Exploratory** (origins overlap the frozen test; not decision evidence).
+
+8 monthly origins 2024-07-01..2025-02-01 (`RollingOrigin`, 6-month horizon, fresh fit per fold), mean fold WMAPE over each segment's market-days, domestic / international: `naive_364` 20.4 / 26.6; `arrivals_ratio` 15.9 / 19.2; `twin_daily` 6.2 / 9.4; `twin_daily_gbm` 6.2 / 9.1.
+
+Interval coverage of the 80% interval, `twin_daily`, each fold's bounds from a noise model fitted on other folds only:
 
 | Folds used to fit | All | Domestic | International |
 | --- | :---: | :---: | :---: |
@@ -311,7 +317,7 @@ The residual GBM lowers international WMAPE by 0.33 pp and domestic by 0 (domest
 
 International coverage is 79–83% at every horizon. Domestic coverage falls from 89% (h ≤ 13 days) to 74% (h > 120 days).
 
-**Direction** (week-to-week on the 8 origins of `twin predict`'s interval back-test, 1,154 distinct market-weeks, each from its earliest origin). The model sees observed new arrivals, so this is nowcast skill:
+Direction (week-to-week, the 8 origins of `twin predict`'s interval back-test, 1,154 distinct market-weeks, each from its earliest origin; the model sees observed new arrivals, so this is nowcast skill):
 
 | Predictor | Accuracy |
 | --- | :---: |
@@ -320,29 +326,21 @@ International coverage is 79–83% at every horizon. Domestic coverage falls fro
 | Same direction as last year | 63.1% |
 | Market's majority training direction | 53.6% |
 
-Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%, 0.85 → 91%, 0.98 → 99%. Weekly 80% bands cover 77.6% of back-test weeks. The noise model is fitted on the same folds, so both figures are in-sample for the error model.
+Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%, 0.85 → 91%, 0.98 → 99%. Weekly 80% bands cover 77.6% of back-test weeks. Both are in-sample for the error model (fitted on the same folds).
 
-**Same-day guests** (`same_day_backtest`, 8 origins 2024-07..2025-02, 6-month horizon, mean Poisson deviance, lower is better, suppressed values as 0): domestic 11.8 vs 15.3 for the market mean; international 4.87 vs 5.61.
-
-**Domestic training start.** Domestic guests per arrival fell from 3.55 (2022Q1) to about 2.5 (2022Q4). Training only from 2022-07-01 looked better on origins overlapping the frozen test (8 origins 2024-07..2025-02: 4.85% vs 6.23%) but is worse on the #11 validation origins (5.37% vs 4.18%, −1.19 pp [−2.04, −0.20], 7/7 folds), so `DOMESTIC_NOWCAST` trains on all history.
-
-**Smeared (mean) vs median predictions** (8 origins; daily WMAPE, 14-day range-sum absolute error, bias; domestic / international): median 6.23 / 9.42, 5.16 / 8.35, +0.33% / −1.80%; smeared 6.22 / 9.36, 5.14 / 8.35, +0.54% / −1.31%. Under the 0.3 pp gate; predictions stay medians.
-
-**Block ablation** (`twin ablate-blocks`, 13 monthly origins 2024-02-01..2025-02-01, WAPE % of daily segment totals; domestic / international): seasonal naive 18.80 / 19.28; time only 9.23 / 9.62; flow only 8.92 / 5.06; flow + time 5.97 / 4.19; flow + time + holiday (`twin_daily`) 5.97 / 4.12 (domestic with the slope extrapolated linearly; held flat, 5.46).
-
-**Base stock tied to arrivals** (`twin_daily_base90`, not shipped): c_t = ρ × trailing 90-day mean arrivals; domestic 11.23% (measured with the slope extrapolated linearly), international 13.39%.
-
-**Domestic slope beyond training** (13 origins 2024-02..2025-02, daily WAPE / bias): linear 5.97% / −2.61%; damped over 180 days 5.76% / −2.01%; over 90 days 5.66% / −1.63%; flat 5.46% / −0.36%; no slope 8.72% / +7.27%. `CentredSlope` holds the trend flat beyond the last training day by default.
-
-**Market-scoped events** (folds 2024-08..2025-01, which contain the windows; market daily WAPE without / with): Chinese New Year for CHINA 16.47% / 16.78%; Morocco winter guest block (`morocco_winter_block`) for OTHER_AMERICAS_AFRICA 11.28% / 13.42%. Neither is in the default event kernel. Events can also be scoped to one pooled-market nationality (matched on the nationality panel); `morocco_winter_block` is now scoped to MOROCCO, for testing inside the pooled nationality model.
-
-**Time-varying kernel** (not shipped): per-regime curves 8.72% overall WMAPE vs 8.39% for one shared curve × calendar (both measured with the earlier raw-scale kernel fit; the shipped fit now scores 8.31%); recency weighting destabilised domestic. `twin_daily` uses one kernel per market.
-
-**Fit diagnostics.** All 168 fits (21 markets × 8 origins) converge; `BacktestResult.diagnostics` counts non-converged fits. Domestic results are identical for caps of 20, 50, 200 and 1,000 passes (13 rolling origins 2024-02..2025-02, daily WAPE 5.97%).
+| Measurement | Origins | Result |
+| --- | --- | --- |
+| Same-day guests (`same_day_backtest`, mean Poisson deviance, `*` as 0) | 8, 2024-07..2025-02 | Domestic 11.77 vs 15.31 for the market mean; international 4.87 vs 5.61 |
+| Smeared (mean) vs median predictions | 8 | Daily WMAPE 6.22 / 9.36 vs 6.23 / 9.42; 14-day range-sum absolute error 5.14 / 8.35 vs 5.16 / 8.35; bias +0.54% / −1.31% vs +0.33% / −1.80%. Under the 0.3 pp gate; predictions stay medians |
+| Block ablation (`twin ablate-blocks`, WAPE of daily segment totals) | 13, 2024-02..2025-02 | Seasonal naive 18.80 / 19.28; time only 9.23 / 9.62; flow only 8.92 / 5.06; flow + time 5.97 / 4.19; `twin_daily` 5.97 / 4.12 (domestic slope extrapolated linearly; held flat, 5.46) |
+| Domestic slope beyond training (daily WAPE / bias) | 13 | Linear 5.97% / −2.61%; damped over 180 days 5.76% / −2.01%; over 90 days 5.66% / −1.63%; flat (default) 5.46% / −0.36%; no slope 8.72% / +7.27% |
+| Chinese New Year, scope CHINA (CHINA daily WAPE without / with) | Folds 2024-08..2025-01 | 16.47% / 16.78%; not in the default kernel |
+| Time-varying kernel | 8 | Per-regime curves 8.72% overall WMAPE vs 8.39% for one shared curve × calendar (earlier raw-scale kernel fit; the shipped fit scores 8.31%); recency weighting destabilised domestic; not shipped |
+| Fit diagnostics | 8; 13 | All 168 fits (21 markets × 8 origins) converge (`BacktestResult.diagnostics`); domestic daily WAPE 5.97% at caps 20, 50, 200 and 1,000 passes |
 
 ## 10. Tests
 
-85 tests, in folders that mirror the packages (61 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, API, architecture; 24 for the audit tool); all pass on a fresh clone. Details: [user guide §10](user_guide.md#10-tests).
+87 tests, in folders that mirror the packages (63 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, API, architecture; 24 for the audit tool); all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
 
 ## 11. Limitations
 
@@ -351,10 +349,10 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 | Departure country used as proxy for nationality | Misallocated market impact | Calibrated effective multiplier; planner-adjustable; documented |
 | Planning-model interval coverage 65.2% vs. 80% nominal | Simulator P10–P90 ranges are too narrow on the 2025 holdout | Coverage reported with every briefing; the simulator still uses the conformal margins |
 | Domestic prior over-forecast 2025 by 13.05% | Domestic baseline too high for 2025 conditions | Reported; domestic modeled separately |
-| Stay factor $L$ is a stock-to-flow ratio, not a measured length of stay | LOS lever (`--delta-los`) shifts a ratio, not a measured stay | The nowcast kernel is not used by the simulator |
+| Stay factor $L$ is a stock-to-flow ratio, not a measured length of stay | `--delta-los` shifts a guests-per-arrival ratio, not a measured stay | The nowcast kernel is not used by the simulator |
 | Nowcast kernel sum Σw is a fitting quantity linking past arrivals to the guest stock; it is below guests ÷ new arrivals where the base stock c_t carries part of the stock | Σw is not a length of stay | Not reported in any output |
-| Domestic nowcast interval coverage falls with horizon (90% at h ≤ 13 days, 71% at h > 120) | Late test-period domestic bounds are too narrow | Reported; no horizon-specific correction |
-| Nationality split of pooled markets is a modelled share | Extra error per nationality (split WMAPE 14.0%) | Split variance added to nationality intervals |
+| Domestic nowcast interval coverage falls with horizon (89% at h ≤ 13 days, 74% at h > 120; 8 exploratory origins) | Late test-period domestic bounds are too narrow | Reported; no horizon-specific correction |
+| Pooled-market nationalities come from a shared-shape model | Per-nationality error: guest-weighted WAPE 13.83% on the 30 nationalities (validation) | Intervals from that model's back-test errors per nationality |
 | Structural-only accuracy does not beat the seasonal prior | Structural chain is for scenario attribution more than for point forecasting | Hybrid reported alongside |
 | Cold-start markets use archetype defaults | Weak estimates for new origins | Flagged `is_cold_start` in results |
 | No room inventory | Occupancy cannot be reported | Output is guests, not occupancy |

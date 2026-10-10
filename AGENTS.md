@@ -22,8 +22,8 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin train [--max-date D] [--panel-path P]` | Structural, residual, conformal artifacts | lake |
 | `twin evaluate` | Weekly benchmarks through the back-test harness → `evaluation_results.json` (run before `train`, which reads its coverage) | lake |
 | `twin predict [--spec S] [--no-intervals]` | Daily nowcast of the test split (default spec `twin_daily`); refuses output failing `validate_predictions` | output (`predictions/`) |
-| `twin ablate-blocks` | Nowcast block ablation on 13 rolling origins (~10 min) | output (`nowcast_block_ablation.json`) |
-| `twin evaluate-model [--spec S \| --model P] --start D --end D [--frozen-test]` | Fit a spec (a `DAILY_SPECS` name, or `pooled_nationalities` at nationality grain with a per-nationality table) up to `--start` minus a 21-day gap (or load a saved model) and score it on the window without refitting → `evaluations/*.json`; refuses the frozen test window without `--frozen-test` | output (`models/`, `evaluations/`) |
+| `twin ablate-blocks` | Nowcast block ablation on 13 exploratory origins (~10 min) | output (`nowcast_block_ablation.json`) |
+| `twin evaluate-model [--spec S \| --model P] --start D --end D [--frozen-test]` | Fit a `DAILY_SPECS` name or `pooled_nationalities` up to `--start` minus 21 days (or load a model), score without refitting; frozen test only with `--frozen-test` | output (`models/`, `evaluations/`) |
 | `twin simulate --market M --season S [levers]` | Print a scenario briefing | — |
 | `twin charts` | Waterfall, tornado, benchmark figures | output |
 | `twin report {solution,database}` | PDF report (needs `report` extra) | output |
@@ -31,7 +31,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin query "SQL" [--database P] [--limit N]` | Read-only SQL on `analytics.duckdb` | — |
 
 - `twin query` and `twin report database` need `lake/analytics.duckdb` (gitignored; built by `twin build-lake`).
-- `twin predict` needs the raw test workbooks; it writes `{domestic,international}_test_guests.csv`, `test_total_guests.csv`, `test_guests_intervals.csv` and `market_outputs.json` (neither with `--no-intervals`), `test_predictions.png`.
+- `twin predict` needs the raw test workbooks; it writes `{domestic,international}_test_guests.csv`, `test_total_guests.csv`, `test_predictions.png`, and, except with `--no-intervals`, `test_guests_intervals.csv`, `market_outputs.json`, `nowcast_serving.json`.
 - Makefile targets: `install`, `lake`, `panel` (weekly + daily), `evaluate`, `train`, `charts`, `report` (solution), `test`, `all` (lake → panel → evaluate → train → charts → report → test), `clean`.
 
 ## Tests
@@ -58,9 +58,9 @@ data/       ingest, validation, lake_writer, manifest, lake, repository, imputat
 models/     shared model kernel, no use case: protocol, registry (component/fitter names), spec (ModelSpec),
             handler (DataHandler, RowRule), weighting, components/ (base + one module per component),
             linear_solve, fitters, composite, backtest, evaluate, noise
-nowcast/    daily competition model: specs, routing, baselines, predict (orchestration),
+nowcast/    daily competition model: specs, routing, baselines, predict (orchestration), pooling,
             disaggregation, submission (floor, workbook files, validation), weekly, outputs,
-            evaluation, same_day
+            serving, evaluation, same_day
 planning/   weekly scenario model: structural, residual, calendar_features, conformal, uncertainty,
             sensitivity, simulator, briefing, training, evaluation, specs, baselines
 reporting/  charts, predictions_plot, solution_report, database_report/, palette, pdf_palette
@@ -83,51 +83,51 @@ cli/        the `twin` command
 ## Modeling (guest model)
 
 - Read `docs/model_design.md` (§3 form, §4 evidence, §5 structure, §5.7 rules) before changing any model. When a measured result changes a modeling rule, update the rule here and its evidence in `docs/model_design.md` in the same change.
-- No general neural networks (MLP/CNN/RNN): ~1,300 daily rows; MLPs lost to the seasonal naive. The arrivals "convolution" is one constrained linear kernel.
+- No general neural networks (MLP/CNN/RNN): ~1,300 daily rows; MLPs lost to seasonal naive.
 - No interaction or power terms by default (weekday × season, seasonal kernels, `flow^α`): none passed the gate (`docs/model_design.md` §4.2).
 - Add a model part as: one module in `models/components/` (`Component` protocol or `LinearComponent`, `fit(panel, offset, y, weights=None)`), its export in `components/__init__.py`, one `COMPONENTS.register(name, cls)` line in `models/registry.py`, a synthetic test in `tests/models/test_components.py` that recovers a known truth, and its name in a `ModelSpec` in `nowcast/specs.py` (weekly: `planning/specs.py`). Edit nothing else; never hard-wire a model into `training.py` or `evaluation.py`.
-- Declare models as `ModelSpec` data (`models/spec.py`: components by registered name, fitter, row rules, weighting); never build component lists inside functions. Make variants with `adding` / `without` / `replace_component` / `with_weighting`, and route domestic/international with `routed(domestic_spec, international_spec)`.
+- Declare models as `ModelSpec` data (`models/spec.py`: components by registered name, fitter, row rules, weighting); never build component lists inside functions. Make variants with `adding` / `without` / `replace_component` / `with_weighting`, and route domestic/international with `routed(domestic_spec, international_spec)`. An ablation is a new spec entry, never a code branch.
 - Subclass `ComponentBase` (or `LinearComponent`) for a new component: it supplies the hooks the model and fitters call (`reset`, `penalty`, `final_stage`, `set_default_origin`); never probe for those hooks with `hasattr`/`getattr`.
-- Least-squares fitting math lives in `models/linear_solve.py`; components only provide designs and penalty rows.
+- Least-squares fitting math lives in `models/linear_solve.py`; components only provide designs and penalty rows. Solve through `least_squares` (gelsy fallback when Accelerate's gelsd fails).
 - Put every data step that is not math (features, training-row filters, target transform, weights) in `models/handler.py` as a `RowRule` or in `models/weighting.py` as a `Weighting`; never inside a component, fitter or `AdditiveLogModel`. (`AdditiveLogModel`'s `exclude_flag` / `include_flag` are shorthands that only create the same `RowRule`s; prefer `rules=`.)
-- A training-weight axis (recency, nationality, …) is one `Weighting` class; combine axes with `Product`. Weights must be positive; only relative values matter. Ship a weighting only if it passes the gate below.
+- A training-weight axis (recency, nationality, …) is one `Weighting` class; combine axes with `Product`. Weights must be positive; only relative values matter. Weightings compare and hash by their settings (specs are cache keys). Ship a weighting only if it passes the gate below.
 - Compose components only via `AdditiveLogModel` (`models/composite.py`); exactly one component per model sets `owns_level=True` (it raises otherwise).
 - Mark residual learners `final_stage = True` (fitted once, after the rest converge).
-- Add an ablation as a new spec entry, not a code branch.
 - Blocks (flow, time, holiday, flight) are parallel terms of one log-additive model, fitted jointly; never chain them (`docs/model_design.md` §3.1).
 - Refitting only some components against frozen others is for experiments only; ship a fully refitted model (§3.2).
-- Domestic and international differ only by spec: route with `MarketRouter`, never subclass a model per series. Evaluate each series separately; a total-guests interval comes from back-test errors of the summed series, not from adding intervals (§3.3).
-- The competition task is a nowcast: test-split `New Arrivals` are inputs; never use a feature derived from `Guests`.
+- Domestic and international differ only by spec: route with `MarketRouter`, never subclass a model per series. Evaluate each series separately.
 - Fit components jointly (`models/fitters.py`); centre periodic contributions; the one level owner and event terms (zero outside their windows) are not centred.
-- Nowcast guests equation inputs: hotel New Arrivals (kernel) + calendar blocks only. Flight, transfer, premium and seat features do not enter it (`docs/model_design.md` §4.9).
+- Nowcast guests equation inputs: test-split hotel New Arrivals (kernel) + calendar blocks only; never a feature derived from `Guests`, never flight, transfer, premium or seat features (§4.9).
 - Planning chain: one equation per link (flights → hotel arrivals → guests), simulated end to end; never put flights and arrivals in the same guests equation.
 - Calendar terms go in every equation; never de-seasonalize a variable separately before fitting.
 - A new input enters as a mixing weight inside the arrivals kernel or as a centred ratio, with one pooled coefficient; never as a free additive log term, never fitted per country.
 - Kernel weights, their sum and guests ÷ arrivals ratios are fitting quantities: never output, export or label them as length of stay; label the planning factor L "guests-per-arrival factor".
-- Nowcast specs are per series (`docs/model_design.md` §4.6): the arrivals kernel owns the level; DOMESTIC adds a centred slope and no events; INTERNATIONAL has events and no slope.
+- Nowcast specs are per series (`docs/model_design.md` §4.6): the arrivals kernel owns the level; DOMESTIC adds a centred slope and no events; INTERNATIONAL has events and no slope. DOMESTIC trains on all history (2022-07 start failed validation).
+- Predict pooled-market nationalities with `POOLED_NATIONALITIES`; single-nationality markets keep the market model; never pool all 45 (+3.6 pp).
 - Before changing a nowcast model, reproduce the reference evaluation in `docs/model_design.md` §5.7 and compare with its expected values.
-- Score a fitted model on later data only through `models/evaluate.evaluate_fitted` (no refitting); compare model choices with `models/backtest.compare` on `VALIDATION_ORIGINS`; score `FROZEN_TEST` once, after every choice is final.
+- Score a fitted model on later data only through `models/evaluate.evaluate_fitted` (no refitting); compare model choices with `models/backtest.compare` on `VALIDATION_ORIGINS`; score `FROZEN_TEST` once, after every choice is final. A result counts only if `compare`'s interval excludes 0 and its sign holds in most folds.
 - Compare models only through `models/backtest.backtest` with `RollingOrigin`/`HoldoutSplit`; pass `period_days=7` for weekly panels (else look-ahead leakage).
 - Never rank `DIAGNOSTIC_SPECS` with forecast specs; they read realized test-period data.
-- Judge event components only on back-test folds that contain their windows Decide specs on rolling origins, not on the two reference folds alone.
+- Judge event components only on back-test folds that contain their windows.
+- Decide specs on `VALIDATION_ORIGINS`, never on the two reference folds or on origins overlapping the frozen test (8-origin 2024-07..2025-02, 13-origin 2024-02..2025-02); label those exploratory.
 - Arrivals kernel: non-negative, non-increasing (`w = triu(ones) @ d`, `d >= 0`), `w_0 <= 1`.
 - Encode categoricals one-hot, season as Fourier terms, continuous inputs in log, lunar holidays from explicit dates.
 - Tune hyperparameters on validation folds with time-ordered splits only, never on the reported folds; compute calibration statistics (z-scores, conformal margins, σ) from training folds only.
-- Fit interval models (`models/noise.NoiseModel`) on out-of-sample back-test errors only.
-- Interval for a sum (a week, a date range, a total over markets): use `NoiseModel.range_interval` or the summed series' own back-test errors; never add bounds.
-- Report domestic and international separately. Ship a component only if it lowers rolling-origin WMAPE by ≥ 0.3 pp on both; among variants within 0.2 pp of the best, keep the simplest. `ResidualGBM` failed, keep it out of `twin_daily`.
-- Add event occurrences to `domain/events.csv` (with `scope`); `kind=one_off` rows are masked from training via `is_one_off_period`.
+- Fit `models/noise.NoiseModel` on out-of-sample back-test errors only. Interval for a sum (week, date range, total over markets): `NoiseModel.range_interval` or the summed series' own errors; never add bounds.
+- Report domestic and international separately. Ship a component only if it lowers validation WAPE by ≥ 0.3 pp on both; among variants within 0.2 pp of the best, keep the simplest. `ResidualGBM` failed, keep it out of `twin_daily`.
+- Add event occurrences to `domain/events.csv` (with `scope`: all, international, a market or a pooled-market nationality); `kind=one_off` rows are masked from training via `is_one_off_period`. Keep scoped events (`chinese_new_year`, `morocco_winter_block`) out of `DEFAULT_KERNEL_EVENTS` until they pass validation.
 - Never derive legacy `HOLIDAY_WEEKS` / `MAJOR_EVENT_WEEKS` from `events.csv`; that moves shipped weekly results.
 - No `.iterrows(` anywhere in `models/` (a test enforces it).
 
 ## Data and artifacts
 
 - `01a - DCT Dataset/` holds the raw workbooks: gitignored, supplied locally (or via `TWIN_SOURCE_DIR`). Never edit or commit them.
-- Committed despite `.gitignore`: `lake/manifest.json` and tracked files in `lake/curated/` (check with `git ls-files lake`). `build-lake`, `build-panel`, `build-daily-panel`, `train`, `evaluate`, and `make all` overwrite lake artifacts with default dirs; `charts`/`report`/`predict` overwrite `output/`.
-- Do not run those commands against the checkout casually; rebuild into scratch: `TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/out make all`.
+- Committed despite `.gitignore`: `lake/manifest.json` and tracked files in `lake/curated/` (check with `git ls-files lake`). `build-lake`, `build-panel`, `build-daily-panel`, `train`, `evaluate`, and `make all` overwrite lake artifacts with default dirs; `charts`/`report`/`predict`/`evaluate-model`/`ablate-blocks` write `output/`.
+- Run those against scratch dirs, never the checkout: `TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/out make all`; `twin predict` with a scratch `TWIN_OUTPUT_DIR`.
 - `make clean` removes only uncommitted generated files (figures, PDFs, `analytics.duckdb`, staging leftovers); it honours the same dir overrides.
-- Run `twin predict` with a scratch `TWIN_OUTPUT_DIR` when testing.
 - Never use a submission file unless `validate_predictions` returns no problems.
+- Floor nationality Guests at max(New Arrivals, 10); absent test days get below-threshold arrivals, not interpolation.
+- Read same-day `*` as 0; never publish Poisson same-day intervals (dispersion 8–10).
 - Narration and LLM text read `market_outputs.json` fields only and never compute numbers; add new numbers in `nowcast/outputs.py`.
 - `residual_engine.pkl` must pickle a plain dict of scikit-learn estimators, never a project class (survives module moves).
 

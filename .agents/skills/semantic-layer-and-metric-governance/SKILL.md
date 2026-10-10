@@ -15,7 +15,7 @@ Do not rely on ad hoc BI formulas for metrics that need cross-team trust.
 
 ## In this repo
 
-- Panel metrics (load factor, P2P share, implied LOS, response multiplier) are defined once in `tourism_twin/features/ratios.py`; reuse them via `PANEL_FEATURES.apply`, never re-derive.
+- Panel metrics (load factor, P2P share, guests per arrival (`implied_los` column, not a stay length), response multiplier) are defined once in `tourism_twin/features/ratios.py`; reuse them via `PANEL_FEATURES.apply`, never re-derive.
 - Ratios are recomputed from summed parts at each grain, never summed or averaged.
 - Ship metric-definition changes as a separate, explicitly reported change.
 

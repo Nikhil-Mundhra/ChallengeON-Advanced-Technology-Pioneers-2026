@@ -48,7 +48,7 @@ dropped 2026-10-09 — 10 of 20 commits touch it, but it is the command router; 
 ### R10 · Shotgun surgery · models/{backtest,baselines,specs}.py and models/{components,composite,fitters}.py
 dropped 2026-10-09 — each triple co-changed 3 times while the model layer was being built (thin history), not one concept spread out
 
-### R11 · bug, not a smell · services/simulator.py:69 · run_scenario calendar defaults
+### R11 · bug, not a smell · planning/simulator.py (then services/) · run_scenario calendar defaults
 dropped 2026-10-09 — every caller left iso_week=10, quarter=1, month=2, so every season used an early-March residual. Fixed by e8dea0b and 91a03e8: the scenario residual is the mean fit over the season's training weeks
 
 ### R12 · Large class · config.py:27 · Settings
@@ -57,10 +57,10 @@ dropped 2026-10-09 — 17 public members, all path properties; a settings table
 ### R13 · Large class · models/components/arrivals_conv.py:30 · ArrivalsConvolution
 dropped 2026-10-09 — 15 fields, one cluster (fitted kernel state and its diagnostics, written by fit, read by contribution/explain)
 
-### R14 · Alternative classes · models/uncertainty.py UncertaintyEngine vs models/noise.py NoiseModel
+### R14 · Alternative classes · planning/uncertainty.py (then models/) UncertaintyEngine vs models/noise.py NoiseModel
 dropped 2026-10-09 — different models (weekly simulator Monte Carlo vs daily nowcast error model) in different call paths; no caller chooses between them
 
-### R15 · bug, not a smell · services/simulator.py · scenario report central estimates
+### R15 · bug, not a smell · planning/simulator.py (then services/) · scenario report central estimates
 dropped 2026-10-09 — the API shows the hybrid (structural + season residual) next to conformal and Monte Carlo bands centred on the structural prediction; centring the bands on the hybrid or labelling them structural is a behaviour decision, not a refactor
 
 ### R16 · Long method · cli/pipeline.py:125 · _print_evaluation
