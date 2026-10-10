@@ -1,7 +1,7 @@
 # Abu Dhabi Tourism Digital Twin — Solution and Technical Specification
 
 **Challenge:** DCT Abu Dhabi — Advanced Technology Pioneers 2026 ([challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en))
-**Status:** working prototype: daily guest nowcast with test-split predictions and intervals (`twin predict`), weekly scenario simulator (CLI, JSON API, static web app with report, simulator and nowcast pages), PDF reports, rolling-origin and forward-holdout back-tests, 91 Python tests and 7 web parity tests.
+**Status:** working prototype: daily guest nowcast with test-split predictions and intervals (`twin predict`), weekly scenario simulator (CLI, JSON API, static web app with outlook, flight-scenario, daily-forecast and how-it-works pages), PDF reports, rolling-origin and forward-holdout back-tests, 97 Python tests and 11 web tests.
 **Run instructions:** [README](../README.md) and [user guide](user_guide.md).
 
 ## 1. Summary
@@ -123,7 +123,7 @@ flowchart LR
 
 Package layout: [README §2](../README.md#2-architecture).
 
-**Serving.** `twin export` (`export/bundle.py`) computes everything the web app needs once, at build time: daily predictions with AR(1) noise parameters, the what-if terms (`guests_t = max(base_t + pre_t + f · in_t, floor) · multiplier_t`, so a factor f on predicted-period arrivals is exact without exporting raw arrivals), the planning calibration, the weekly back-test and projection, and golden cases. `manifest.json` points at an immutable `<version>/` folder with SHA-256 digests. The web app (`web/`) ports the model maths to TypeScript (`web/src/engine/`) and is tested against the golden cases (1e-9; what-if and range cases 1e-6). No backend runs at request time: the outputs are read-only and versioned, so the bundle is the store, and the Python closure (pandas, scikit-learn, scipy, duckdb) exceeds a serverless function's size limit. Trade-off: a model change needs `make export` and a redeploy. The Monte Carlo spread is not ported (it depends on numpy's random stream); the web simulator shows the conformal band.
+**Serving.** `twin export` (`export/bundle.py`) computes everything the web app needs once, at build time: daily predictions with AR(1) noise parameters, the what-if terms (`guests_t = max(base_t + pre_t + f · in_t, floor) · multiplier_t`, so a factor f on predicted-period arrivals is exact without exporting raw arrivals), the planning calibration, the weekly back-test and projection, and golden cases. `manifest.json` points at an immutable `<version>/` folder with SHA-256 digests. The web app (`web/`) ports the model maths to TypeScript (`web/src/engine/`) and is tested against the golden cases (1e-9; what-if and range cases 1e-6). No backend runs at request time: the outputs are read-only and versioned, so the bundle is the store, and the Python closure (pandas, scikit-learn, scipy, duckdb) exceeds a serverless function's size limit. Trade-off: a model change needs `make export` and a redeploy. The Monte Carlo spread is not ported (it depends on numpy's random stream); the web simulator shows the conformal band. The landing page compares each forecast month with the same month a year earlier and calls a change up or down only when it exceeds that month's own range error (`web/src/engine/insights.ts`).
 
 ## 6. Operating modes
 
@@ -355,7 +355,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 
 ## 10. Tests
 
-91 Python tests, in folders that mirror the packages (67 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, deck, API, architecture; 24 for the audit tool), and 7 web parity tests; all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
+97 Python tests, in folders that mirror the packages (73 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, deck, API, architecture; 24 for the audit tool), and 11 web tests (8 engine parity, 3 for formatting and lever state); all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
 
 ## 11. Limitations
 
@@ -373,7 +373,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 | No room inventory | Occupancy cannot be reported | Output is guests, not occupancy |
 | No bookings, room rates, marketing spend, airfares, visa or macroeconomic data | Demand drivers beyond arrivals and the calendar are not modelled | Stated as a scope limit |
 | Planning model validated on a single forward split | One holdout period; no Autumn_Shoulder weeks | Season breakdown reported |
-| Weekly projection (web app) has no growth term; holiday flags end 2026-11-30 | Projected years repeat the seasonal profile; later holidays are missing | Growth is a stated user assumption, applied to projected weeks only |
+| Weekly projection (web app) has no growth term; holiday flags end with the week of 2027-02-08 | Projected years repeat the seasonal profile; later holidays are missing | Growth is a stated user assumption, applied to projected weeks only |
 | Observational data | No causal identification | Results described as planning estimates |
 
 Design evidence for the nowcast: [model design](model_design.md).

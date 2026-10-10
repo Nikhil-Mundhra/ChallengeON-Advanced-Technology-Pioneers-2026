@@ -36,11 +36,11 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 
 - `twin query` and `twin report database` need `lake/analytics.duckdb` (gitignored; built by `twin build-lake`).
 - `twin predict` needs the raw test workbooks; it writes `{domestic,international}_test_guests.csv`, `test_total_guests.csv`, `test_predictions.png`, and, except with `--no-intervals`, `test_guests_intervals.csv`, `market_outputs.json`, `nowcast_serving.json`.
-- Makefile targets: `install`, `lake`, `panel` (weekly + daily), `evaluate`, `train`, `charts`, `report` (solution), `test`, `all` (lake → panel → evaluate → train → charts → report → test), `clean`; `validate`, `export` (rm -rf `web/public/data`, then `twin export`), `backend` (test + export), `frontend` (`web-install`, `web-test`, `web-build`), `web-dev`; `up`/`down`/`status`/`logs` (Vite on `WEB_PORT`=5180, `src/app/server.py` on `API_PORT`=8090, pid files in `.run/`), `api-up`/`api-down`/`web-up`/`web-down`.
+- Makefile targets: `install`, `lake`, `panel` (weekly + daily), `evaluate`, `train`, `charts`, `report` (solution), `test`, `all` (lake → panel → evaluate → train → charts → report → test), `clean`; `validate`, `export` (rm -rf `web/public/data`, then `twin export`), `backend` (test + export), `frontend` (`web-install`, `web-test`, `web-build`), `web-dev`, `deploy` (`web-test`, then `vercel deploy --prod --yes` from `web/` to project `abu-dhabi-hotel-outlook`; needs `vercel login`; `web/.vercel` and `.env*` are gitignored); `up`/`down`/`status`/`logs` (Vite on `WEB_PORT`=5180, `src/app/server.py` on `API_PORT`=8090; each pid file in `.run/` holds the server's own pid via `exec`), `api-up`/`api-down`/`web-up`/`web-down`.
 
 ## Tests
 
-- Run `.venv/bin/pytest -q` (or `make test`); web: `make web-test`. If you report counts, run pytest and quote its actual output.
+- Run `.venv/bin/pytest -q` (or `make test`); web: `make web-test` (vitest) and `npx tsc --noEmit` in `web/`. If you report counts, run pytest and quote its actual output.
 - Tests mirror the packages: `tests/{data,features,models,nowcast,planning,reporting,app,audit}/` plus `tests/test_architecture.py`; run one area with `pytest tests/<area>` (CI scoping).
 - Put a test in the folder of the package it guards, in an existing file when one fits; never create a top-level product test file other than `test_architecture.py`.
 - Shared fixtures live in `tests/conftest.py` (`twin`, `weekly_panel`, `daily_panel`, `kernel_frame`: session-built, copied per test); synthetic generators with a known answer live in `tests/synthetic.py`. Reuse them instead of rebuilding data or refitting the same model in each test.
@@ -129,9 +129,12 @@ cli/        the `twin` command
 
 ## Web app (`web/`)
 
-- Layout: `src/engine/` (pure TS ports: `planning`, `weekly`, `whatif`, `noise`, `range`; `parity.test.ts`), `src/data/` (bundle loader), `src/components/{ui,layout,charts}`, `src/features/{report,simulate,nowcast}`, `src/theme/`, `src/content/report.ts`.
+- Layout: `src/app/routes.tsx` (every route, once), `src/engine/` (pure TS: ports `planning`, `weekly`, `whatif`, `noise`, `range`; page arithmetic `insights`, `nowcastViews`; `parity.test.ts`), `src/data/` (bundle loader, `format.ts`), `src/components/{ui,layout,charts}`, `src/features/{landing,simulate,nowcast,report}`, `src/theme/tokens.css`, `src/content/{labels,landing,geo,report}.ts`.
 - After any model or artifact change, run `make export` and commit `web/public/data` with the change; never hand-edit bundle files.
-- Static site, no request-time backend: never add an API or BFF for model numbers (the bundle is the store). Compute model numbers only in `src/engine/`; components and features only call it and format.
+- Static site, no request-time backend: never add an API or BFF for model numbers (the bundle is the store). Compute model numbers only in `src/engine/`; components and features contain no model arithmetic, only call it and format. Every new engine function gets a vitest case.
+- Define routes only in `src/app/routes.tsx`. Format numbers and dates only through `src/data/format.ts`; style charts only through `components/charts/theme.ts`. Sliders use `SliderRow` with a `defaultValue`.
+- CSS used by more than one feature lives in `components/*` or `theme/`, never in a lazy-loaded feature's CSS. Colours only via the semantic tokens in `theme/tokens.css`: no hex outside it, no `--brand-*` outside the brand surfaces (top nav, pills, landing, report hero); every new colour token gets a dark-mode value.
+- UI copy is plain language: no statistical terms beyond "±X% error", no em dashes. A landing statement calls a change up or down only when it exceeds the forecast's own error (`engine/insights.ts`); otherwise "about the same".
 - Every engine port needs golden cases in `export/bundle.golden_part` (or `planning_golden`) and a parity test; keep tolerances at 1e-9 where the maths is exact.
 - The bundle exports derived terms (what-if base/pre/in/floor/multiplier), never raw arrivals (licensed data).
 - Report copy lives in `web/src/content/report.ts`, each number with its source (README §3, solution documentation §11); keep those section numbers stable.

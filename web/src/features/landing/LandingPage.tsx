@@ -7,7 +7,7 @@ import { headlineMonth, marketMoves, monthlyOutlook, type MonthOutlook } from ".
 import { weeklyHeadline } from "../../engine/planning";
 import type { Bundle } from "../../engine/types";
 import { overallHoldoutWmape } from "../../engine/weekly";
-import { PRESETS, toLever } from "../simulate/levers";
+import { DEFAULT_INPUT, toLever } from "../simulate/levers";
 import "./landing.css";
 
 const IDS = CHAPTERS.map((c) => c.id);
@@ -21,7 +21,7 @@ export function LandingPage({ bundle }: { bundle: Bundle }) {
     const residents = monthlyOutlook(nowcast, "DOMESTIC", manifest.coverage);
     const total = monthlyOutlook(nowcast, "TOTAL", manifest.coverage);
     const moves = marketMoves(nowcast, manifest.coverage).filter((m) => m.market !== "DOMESTIC");
-    const lever = toLever(PRESETS.find((p) => p.value === "more_flights")!.input);
+    const lever = toLever({ ...DEFAULT_INPUT, frequency: 2, gauge: 290 });  // exactly the sentence: two more weekly flights of 290 seats
     return {
       international, residents, total, lead: headlineMonth(international),
       risers: moves.slice(0, 5), fallers: moves.slice(-3).reverse(),

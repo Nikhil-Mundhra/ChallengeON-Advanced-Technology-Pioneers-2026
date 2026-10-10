@@ -87,7 +87,7 @@ deploy: web-test
 	cd web && vercel deploy --prod --yes
 
 ## ---- Local servers (background, pid files in .run/) ----
-## make up        start both: web app http://localhost:$(WEB_PORT), Python API http://127.0.0.1:$(API_PORT)
+## make up        start both: web app http://localhost:$(WEB_PORT)/, Python API http://127.0.0.1:$(API_PORT)
 ## make down      stop both;  make status / make logs
 WEB_PORT ?= 5180
 API_PORT ?= 8090
@@ -120,7 +120,7 @@ web-down:
 status:
 	@for s in web api; do if [ -f $(RUN_DIR)/$$s.pid ] && kill -0 $$(cat $(RUN_DIR)/$$s.pid) 2>/dev/null; \
 	  then echo "$$s  running  pid $$(cat $(RUN_DIR)/$$s.pid)"; else echo "$$s  stopped"; fi; done
-	@echo "web  http://localhost:$(WEB_PORT)/report   api  http://127.0.0.1:$(API_PORT)/"
+	@echo "web  http://localhost:$(WEB_PORT)/   api  http://127.0.0.1:$(API_PORT)/"
 
 logs:
 	@tail -n 20 $(RUN_DIR)/web.log $(RUN_DIR)/api.log 2>/dev/null || true
