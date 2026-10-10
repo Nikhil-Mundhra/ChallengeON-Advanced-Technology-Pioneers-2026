@@ -4,11 +4,13 @@ ramadan,lunar,2023-03-23,-5,25,all,Ramadan 1444,detected
 ramadan,lunar,2024-03-11,-5,26,all,Ramadan 1445,detected
 ramadan,lunar,2025-03-01,-5,25,all,Ramadan 1446,detected
 ramadan,lunar,2026-02-18,-5,26,all,Ramadan 1447,detected
+ramadan,lunar,2027-02-08,-5,26,all,Ramadan 1448 (expected),manual
 eid_al_fitr,lunar,2022-05-02,-3,4,all,Eid al-Fitr 1443,manual
 eid_al_fitr,lunar,2023-04-21,-3,4,all,Eid al-Fitr 1444,manual
 eid_al_fitr,lunar,2024-04-10,-3,4,all,Eid al-Fitr 1445,manual
 eid_al_fitr,lunar,2025-03-30,-3,4,all,Eid al-Fitr 1446,manual
 eid_al_fitr,lunar,2026-03-20,-3,4,all,Eid al-Fitr 1447,manual
+eid_al_fitr,lunar,2027-03-10,-3,4,all,Eid al-Fitr 1448 (expected),manual
 eid_al_adha,lunar,2022-07-09,-1,3,all,Eid al-Adha 1443,manual
 eid_al_adha,lunar,2023-06-28,-1,3,all,Eid al-Adha 1444,manual
 eid_al_adha,lunar,2024-06-16,-1,3,all,Eid al-Adha 1445,manual
@@ -56,6 +58,7 @@ chinese_new_year,lunar,2023-01-22,-7,14,CHINA,Chinese New Year 2023,China arriva
 chinese_new_year,lunar,2024-02-10,-7,14,CHINA,Chinese New Year 2024,China arrivals 2-4.6x the pre-holiday level from -7 to +12 days
 chinese_new_year,lunar,2025-01-29,-7,14,CHINA,Chinese New Year 2025,China arrivals 2-4.6x the pre-holiday level from -7 to +12 days
 chinese_new_year,lunar,2026-02-17,-7,14,CHINA,Chinese New Year 2026,China arrivals 2-4.6x the pre-holiday level from -7 to +12 days
+chinese_new_year,lunar,2027-02-06,-7,14,CHINA,Chinese New Year 2027,China arrivals 2-4.6x the pre-holiday level from -7 to +12 days
 morocco_winter_block,solar,2023-12-01,-45,90,MOROCCO,Morocco winter guest-stock block 2023/24,Morocco guests per arrival 5.0-7.8 Nov-Dec 2023 (2.6-3.1 in 2022/23)
 morocco_winter_block,solar,2024-12-01,-45,90,MOROCCO,Morocco winter guest-stock block 2024/25,Morocco guests per arrival 6.9-10.9 Jan-Feb 2025
 morocco_winter_block,solar,2025-12-01,-45,90,MOROCCO,Morocco winter guest-stock block 2025/26 (assumed to recur),Two winters observed; not in 2022/23

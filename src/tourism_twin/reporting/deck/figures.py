@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Callable, Dict, List, Sequence, Tuple
 
 import matplotlib
+import pandas as pd
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Patch
 
 from tourism_twin.reporting.palette import AMBER, BLUE, INK, LINE, MINT, MUTED, NAVY, SKY, TEAL
 
@@ -47,16 +48,17 @@ def _save(fig, path: Path) -> Path:
 def goal_tree(out: Path, numbers: Dict[str, str]) -> Path:
     """Goal → three tasks → the layers that deliver them."""
     fig, ax = _canvas(12, 5.4)
-    _box(ax, 0.12, 0.80, 0.76, 0.14, "Goal: show how flight changes move hotel guests", NAVY, NAVY, "white", 14, True)
-    tasks = [("1. Predict daily hotel guests\nby market and nationality", 0.03),
-             ("2. Simulate flight what-ifs\n(routes, seats, load factor)", 0.36),
-             ("3. Explain which factors\nmove the number most", 0.69)]
+    _box(ax, 0.06, 0.80, 0.88, 0.15, "Goal: predict hotel guests by market and day, so hotels and DCT\ncan plan capacity, prices and advertising before demand arrives",
+         NAVY, NAVY, "white", 13, True)
+    tasks = [("1. Predict daily guests\nby market and nationality", 0.03),
+             ("2. Forecast the next season\nunder arrivals scenarios", 0.36),
+             ("3. Explain what moves guests\n(flights, calendar, markets)", 0.69)]
     for text, x in tasks:
         _box(ax, x, 0.48, 0.28, 0.16, text, SKY, BLUE, NAVY, 11)
         _arrow(ax, (0.5, 0.80), (x + 0.14, 0.645))
-    layers = [("Data\nhotel + flight data,\ncleaned and joined", 0.03), ("Models\nconversion chain +\nguest prediction", 0.27),
-              ("Validation\ntested on unseen\nlater periods", 0.51), ("Simulator\nweb app: what-ifs,\nranges, drivers", 0.75)]
-    for i, (text, _) in enumerate(layers):
+    layers = ["Data\nhotel + flight data,\ncleaned and joined", "Models\narrivals → guests,\ncalendar effects",
+              "Validation\ntested on unseen\nlater periods", "Simulator\nweb app: what-ifs,\nranges, outlook"]
+    for i, text in enumerate(layers):
         x = 0.02 + i * 0.25
         _box(ax, x, 0.06, 0.20, 0.22, text, MINT, TEAL, INK, 10.5)
         if i:
@@ -70,7 +72,7 @@ def system_diagram(out: Path, numbers: Dict[str, str]) -> Path:
     fig, ax = _canvas(12.5, 5.6)
     ax.text(0.0, 0.97, "BUILD  (offline, Python: run once per data refresh)", fontsize=12, color=NAVY, fontweight="bold")
     steps = [("Raw data", "hotel guests, flights", SKY, BLUE), ("Data lake", "checked, versioned", SKY, BLUE),
-             ("Panels", "daily and weekly", SKY, BLUE), ("Models", "chain + guest prediction", MINT, TEAL),
+             ("Panels", "daily and weekly", SKY, BLUE), ("Models", "fit + select", MINT, TEAL),
              ("Validation", "held-out periods", MINT, TEAL), ("Export", "versioned bundle", "#FFF7E6", AMBER)]
     w, h, gap = 0.135, 0.20, 0.032
     for i, (name, detail, face, edge) in enumerate(steps):
@@ -86,19 +88,6 @@ def system_diagram(out: Path, numbers: Dict[str, str]) -> Path:
         if i:
             _arrow(ax, (x - 0.05, 0.18), (x, 0.18))
     _arrow(ax, (0.01 + 5 * (w + gap) + w / 2, 0.62), (0.395, 0.28), AMBER)
-    return _save(fig, out)
-
-
-def passenger_split(out: Path, numbers: Dict[str, str]) -> Path:
-    """Where arriving passengers go: only one branch fills hotels."""
-    fig, ax = _canvas(7, 5.2)
-    _box(ax, 0.28, 0.78, 0.44, 0.15, "Arriving passengers", NAVY, NAVY, "white", 13, True)
-    branches = [(f"Connect onward\n(~{numbers.get('const.transfer_share_pct', '50')}%)", 0.02, "#F5F7FA", MUTED),
-                ("Residents,\nfamily visits", 0.36, "#F5F7FA", MUTED), ("Hotel guests", 0.70, MINT, TEAL)]
-    for text, x, face, edge in branches:
-        _box(ax, x, 0.30, 0.28, 0.18, text, face, edge, INK, 12, text == "Hotel guests")
-        _arrow(ax, (0.5, 0.78), (x + 0.14, 0.485))
-    ax.text(0.84, 0.18, "what we predict", ha="center", fontsize=11, color=TEAL, style="italic")
     return _save(fig, out)
 
 
@@ -140,6 +129,72 @@ def validation_bars(out: Path, numbers: Dict[str, str]) -> Path:
     return _save(fig, out)
 
 
+def model_form(out: Path, numbers: Dict[str, str]) -> Path:
+    """Guests = flow × calendar multiplier: two branches, one joint fit."""
+    fig, ax = _canvas(9.5, 3.0)
+    _box(ax, 0.00, 0.62, 0.17, 0.24, "New arrivals\n(last 22 days)", SKY, BLUE, NAVY, 11, True)
+    _box(ax, 0.23, 0.62, 0.25, 0.24, "Distributed lag\nguests still in hotels from\neach earlier check-in day", MINT, TEAL, INK, 10.5)
+    _box(ax, 0.00, 0.14, 0.17, 0.24, "Date", SKY, BLUE, NAVY, 11, True)
+    _box(ax, 0.23, 0.14, 0.25, 0.24, "Calendar multiplier\nseason (Fourier) · weekday ·\nRamadan, Eid, events", MINT, TEAL, INK, 10.5)
+    _arrow(ax, (0.17, 0.74), (0.23, 0.74))
+    _arrow(ax, (0.17, 0.26), (0.23, 0.26))
+    _box(ax, 0.56, 0.38, 0.17, 0.24, "flow × multiplier\n(fitted jointly)", "#FFF7E6", AMBER, INK, 11, True)
+    _arrow(ax, (0.48, 0.74), (0.56, 0.56))
+    _arrow(ax, (0.48, 0.26), (0.56, 0.44))
+    _box(ax, 0.81, 0.38, 0.17, 0.24, "Hotel guests\ntonight", NAVY, NAVY, "white", 12, True)
+    _arrow(ax, (0.73, 0.50), (0.81, 0.50))
+    return _save(fig, out)
+
+
+def protocol_timeline(out: Path, numbers: Dict[str, str]) -> Path:
+    """Train → gap → validate at 7 monthly origins; frozen test scored once; test period forecast."""
+    fig, ax = plt.subplots(figsize=(9.5, 3.0))
+    origins = ["2024-02", "2024-03", "2024-04", "2024-05", "2024-06", "2024-07", "2024-08"]
+    t0, t_end = pd.Timestamp("2022-01-01"), pd.Timestamp("2026-03-01")
+    x = lambda d: (pd.Timestamp(d) - t0).days
+    for i, origin in enumerate(origins):
+        y = len(origins) - i
+        start = pd.Timestamp(origin + "-01")
+        ax.barh(y, x(start - pd.Timedelta(days=21)), left=0, color=BLUE, height=0.6)
+        ax.barh(y, 21, left=x(start - pd.Timedelta(days=21)), color=LINE, height=0.6)
+        end = min(start + pd.DateOffset(months=6), pd.Timestamp("2025-01-31"))
+        ax.barh(y, (end - start).days, left=x(start), color=TEAL, height=0.6)
+    ax.barh(0, x("2025-07-31") - x("2025-02-01"), left=x("2025-02-01"), color=AMBER, height=0.6)
+    ax.barh(-1, x("2026-02-28") - x("2025-08-01"), left=x("2025-08-01"), color="#B9C3CF", height=0.6)
+    ax.set_yticks([*range(1, len(origins) + 1), 0, -1],
+                  [*[f"origin {o}" for o in reversed(origins)], "frozen test (once)", "test period (forecast)"], fontsize=9)
+    years = [pd.Timestamp(f"{y}-01-01") for y in range(2022, 2027)]
+    ax.set_xticks([x(d) for d in years], [str(d.year) for d in years])
+    ax.set_xlim(0, x(t_end))
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.legend(handles=[Patch(color=BLUE, label="train (expanding)"), Patch(color=LINE, label="21-day gap"),
+                       Patch(color=TEAL, label="validate (6 months)"), Patch(color=AMBER, label="frozen test")],
+              frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.2), fontsize=10)
+    return _save(fig, out)
+
+
+def outlook_months(out: Path, numbers: Dict[str, str]) -> Path:
+    """Guest-nights per winter month: last winter's model estimate vs the flat and trend scenarios."""
+    months = [numbers[f"outlook.month{i}"] for i in (1, 2, 3)]
+    series = [("{} (arrivals known)".format(numbers["outlook.previous_window"]), "previous", "#B9C3CF"),
+              ("{}, flat arrivals".format(numbers["outlook.window"]), "flat", BLUE),
+              ("{}, arrivals trend".format(numbers["outlook.window"]), "trend", TEAL)]
+    fig, ax = plt.subplots(figsize=(7.4, 4.6))
+    width = 0.27
+    for j, (label, key, color) in enumerate(series):
+        values = [float(numbers[f"outlook.{key}.m{i}_guests"]) for i in (1, 2, 3)]
+        positions = [i + (j - 1) * width for i in range(3)]
+        ax.bar(positions, values, width=width, color=color, label=label)
+        for p, v in zip(positions, values):
+            ax.text(p, v + 0.02, f"{v:.2f}", ha="center", fontsize=9, color=INK)
+    ax.set_xticks(range(3), months, fontsize=11)
+    ax.set_ylabel("Hotel guest-nights (millions)")
+    ax.set_ylim(0, max(float(numbers[f"outlook.trend.m{i}_guests"]) for i in (1, 2, 3)) * 1.18)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, 1.16), ncol=2, fontsize=9)
+    return _save(fig, out)
+
+
 def _reference_report():
     from tourism_twin.reporting.charts import reference_scenario
 
@@ -172,10 +227,12 @@ def asset(name: str, assets_dir: Path) -> Callable[[Path, Dict[str, str]], Path]
 
 FIGURES: Dict[str, Callable[[Path, Dict[str, str]], Path]] = {
     "goal_tree": goal_tree,
-    "passenger_split": passenger_split,
     "system_diagram": system_diagram,
     "conversion_chain": conversion_chain,
     "validation_bars": validation_bars,
+    "model_form": model_form,
+    "protocol_timeline": protocol_timeline,
+    "outlook_months": outlook_months,
     "waterfall": waterfall,
     "tornado": tornado,
 }

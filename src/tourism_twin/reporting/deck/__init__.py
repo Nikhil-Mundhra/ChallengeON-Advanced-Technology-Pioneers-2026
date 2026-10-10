@@ -47,7 +47,8 @@ def _table_rows(spec: Dict[str, Any], table, used) -> tuple[List[str], List[List
 
 
 def build_deck(content: Path = DEFAULT_CONTENT, out_dir: Optional[Path] = None, pdf: bool = True,
-               validation_summary: Optional[Path] = None, planning_evaluation: Optional[Path] = None) -> DeckResult:
+               validation_summary: Optional[Path] = None, planning_evaluation: Optional[Path] = None,
+               outlook: Optional[Path] = None) -> DeckResult:
     content = Path(content)
     deck = yaml.safe_load(content.read_text())
     out_dir = Path(out_dir or SETTINGS.output_dir / "deck")
@@ -55,7 +56,8 @@ def build_deck(content: Path = DEFAULT_CONTENT, out_dir: Optional[Path] = None, 
     assets_dir = content.parent / "assets"
     table = numbers.collect(deck.get("numbers", {}),
                             validation_summary or SETTINGS.output_dir / "validation_summary.json",
-                            planning_evaluation or SETTINGS.evaluation_results_path)
+                            planning_evaluation or SETTINGS.evaluation_results_path,
+                            outlook or SETTINGS.output_dir / "outlook.json")
     used: set = set()
 
     prs = layout.new_presentation()

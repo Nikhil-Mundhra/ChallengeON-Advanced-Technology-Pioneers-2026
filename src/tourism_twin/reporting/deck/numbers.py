@@ -1,7 +1,8 @@
 """Numbers shown in the deck, by name, each with its source.
 
-Order of precedence: artifacts (output/validation_summary.json from `twin validate`; the
-committed planning evaluation lake/curated/evaluation_results.json), then the deck's own
+Order of precedence: artifacts (output/validation_summary.json from `twin validate`;
+output/outlook.json from `twin outlook`; the committed planning evaluation
+lake/curated/evaluation_results.json), then the deck's own
 `numbers:` block, whose entries must name a source. `{name}` placeholders in slide text are
 filled from this table; an unresolved placeholder is an error.
 """
@@ -28,23 +29,76 @@ def _fmt(value: Any, digits: int = 1) -> str:
 
 
 def from_validation_summary(path: Path) -> Dict[str, Number]:
-    """val.<spec>.<segment> (WAPE %, daily segment totals) and cmp.<spec>_vs_<baseline>.<segment>.*"""
+    """`twin validate` output: val.<spec>.<segment> (WAPE %, daily segment totals),
+    cmp.<candidate>_vs_<baseline>.<segment>.<field> (difference = candidate − baseline, pp), and
+    nat.<comparison>.<path> for every number under "nationalities"."""
     if not path.exists():
         return {}
     data = json.loads(path.read_text())
     source = f"{path.name} (validation origins, #11)"
     out: Dict[str, Number] = {}
-    for spec, segments in data.get("segment_wape", {}).items():
+    for spec, segments in data.get("segment_wape", {}).get("values", {}).items():
         for segment, value in segments.items():
             out[f"val.{spec}.{segment}"] = Number(_fmt(float(value)), source)
-    for key, segments in data.get("compare", {}).items():
-        for segment, result in segments.items():
-            for field in ("difference_pp", "ci_low", "ci_high", "share_folds_same_sign"):
-                if field in result:
-                    out[f"cmp.{key}.{segment}.{field}"] = Number(_fmt(float(result[field]), 2), source)
-    for key, value in data.get("constants", {}).items():
-        out[f"const.{key}"] = Number(_fmt(value, 2) if isinstance(value, float) else str(value), source)
+    for row in data.get("compare", {}).get("rows", []):
+        key = f"cmp.{row['candidate']}_vs_{row['baseline']}.{row['segment']}"
+        for field in ("difference_pp", "ci_low", "ci_high", "share_folds_same_sign"):
+            if field in row:
+                out[f"{key}.{field}"] = Number(_fmt(float(row[field]), 2), source)
+
+    def leaves(prefix: str, node: Any) -> None:
+        if isinstance(node, dict):
+            for name, child in node.items():
+                leaves(f"{prefix}.{name}", child)
+        elif isinstance(node, (int, float)) and not isinstance(node, bool):
+            out[prefix] = Number(_fmt(float(node), 2), source)
+    leaves("nat", data.get("nationalities", {}))
     return out
+
+
+def _title(market: str) -> str:
+    names = {"UNITED KINGDOM": "the UK", "UNITED STATES OF AMERICA": "the US", "RUSSIAN FEDERATION": "Russia"}
+    return names.get(market, market.title())
+
+
+def from_outlook(path: Path) -> Dict[str, Number]:
+    """`twin outlook` output: outlook.window / previous_window, outlook.<scenario>.{change,
+    domestic_share, top1..3, top1..3_share, m1..3_change}, outlook.month1..3,
+    outlook.bt.<scenario>.<segment> (season error %, back-test) and outlook.bt.window."""
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text())
+    source = f"{path.name} ({data['spec']}, guests known to {data['guests_known_to']}, arrivals to {data['arrivals_known_to']})"
+    out = {"outlook.window": Number(data["window"].replace("winter ", ""), source),
+           "outlook.previous_window": Number(data["previous"]["window"], source),
+           "outlook.guests_known_to": Number(data["guests_known_to"], source),
+           "outlook.arrivals_known_to": Number(data["arrivals_known_to"], source)}
+    for i, month in enumerate(data["previous"]["months"], start=1):
+        out[f"outlook.previous.m{i}_guests"] = Number(_fmt(month["guest_nights"] / 1e6, 2), source)
+    for scenario, summary in data["scenarios"].items():
+        key = f"outlook.{scenario}"
+        out[f"{key}.change"] = Number(f"{summary['change_pct']:+.0f}", source)
+        out[f"{key}.guests"] = Number(_fmt(summary["guest_nights"] / 1e6, 2), source)
+        out[f"{key}.domestic_share"] = Number(f"{summary['domestic_share_pct']:.0f}", source)
+        for rank, market in enumerate(summary["top_source_markets"][:3], start=1):
+            out[f"{key}.top{rank}"] = Number(_title(market["market"]), source)
+            out[f"{key}.top{rank}_share"] = Number(f"{market['share_pct']:.0f}", source)
+        for i, month in enumerate(summary["months"], start=1):
+            out[f"outlook.month{i}"] = Number(pd_month(month["month"]), source)
+            out[f"{key}.m{i}_guests"] = Number(_fmt(month["guest_nights"] / 1e6, 2), source)
+            out[f"{key}.m{i}_change"] = Number(f"{month['change_pct']:+.0f}", source)
+    for row in data.get("backtest", []):
+        out["outlook.bt.window"] = Number(row["window"], source)
+        out[f"outlook.bt.{row['scenario']}.{row['segment']}"] = Number(f"{row['season_error_pct']:+.0f}", source)
+    return out
+
+
+def pd_month(period: str) -> str:
+    """'2026-12' → 'Dec 2026'."""
+    import calendar
+
+    year, month = period.split("-")
+    return f"{calendar.month_abbr[int(month)]} {year}"
 
 
 def from_planning_evaluation(path: Path) -> Dict[str, Number]:
@@ -98,8 +152,11 @@ def from_deck(block: Dict[str, Dict[str, Any]]) -> Dict[str, Number]:
     return out
 
 
-def collect(deck_numbers: Dict[str, Dict[str, Any]], validation_summary: Path, planning_evaluation: Path) -> Dict[str, Number]:
+def collect(deck_numbers: Dict[str, Dict[str, Any]], validation_summary: Path, planning_evaluation: Path,
+            outlook: Optional[Path] = None) -> Dict[str, Number]:
     table = from_deck(deck_numbers)
+    if outlook is not None:
+        table.update(from_outlook(outlook))
     table.update(from_planning_evaluation(planning_evaluation))
     table.update(from_reference_scenario())
     table.update(from_validation_summary(validation_summary))  # artifacts override deck fallbacks

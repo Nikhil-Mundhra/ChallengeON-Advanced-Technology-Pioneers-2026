@@ -84,6 +84,11 @@ HOLIDAY_WEEKS = {
     "2026-05-25",
     # 2026 UAE National Day week
     "2026-11-30",
+    # 2026/27 New Year / Festive peak weeks
+    "2026-12-28",
+    "2027-01-04",
+    # 2027 Lunar New Year / Spring Festival & Ramadan Start (expected)
+    "2027-02-08",
 }
 
 MAJOR_EVENT_WEEKS = {

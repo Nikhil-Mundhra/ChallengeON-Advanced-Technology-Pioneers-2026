@@ -32,6 +32,24 @@ FIXTURE = {
 }
 
 
+def _month(m, guests, change=None):
+    return {"month": m, "guest_nights": guests, **({} if change is None else {"change_pct": change})}
+
+
+OUTLOOK = {  # the shape `twin outlook` writes (nowcast/outlook.outlook_document)
+    "window": "winter 2026/27", "spec": "twin_daily", "guests_known_to": "2025-07-31", "arrivals_known_to": "2026-02-28",
+    "previous": {"window": "2025/26", "guest_nights": 3.0e6,
+                 "months": [_month("2025-12", 1.1e6), _month("2026-01", 1.0e6), _month("2026-02", 0.9e6)]},
+    "scenarios": {s: {"guest_nights": g, "change_pct": c, "domestic_share_pct": 30.0,
+                      "top_source_markets": [{"market": "RUSSIAN FEDERATION", "share_pct": 10.3}, {"market": "UNITED KINGDOM", "share_pct": 9.1},
+                                             {"market": "INDIA", "share_pct": 8.7}],
+                      "months": [_month("2026-12", g * 0.36, c), _month("2027-01", g * 0.34, c), _month("2027-02", g * 0.30, c)]}
+                  for s, g, c in (("flat", 3.0e6, 0.2), ("trend", 3.2e6, 7.7))},
+    "backtest": [{"window": "winter 2024/25 (Dec–Jan)", "scenario": s, "segment": seg, "season_error_pct": e}
+                 for s, e in (("flat", -8.9), ("trend", 29.1)) for seg in ("total", "international", "domestic")],
+}
+
+
 def _write(tmp_path, content):
     path = tmp_path / "deck.yaml"
     path.write_text(yaml.safe_dump(content, sort_keys=False))
@@ -52,11 +70,33 @@ def test_deck_builds_slides_fills_numbers_and_reports_fallbacks(tmp_path):
 
 def test_artifacts_override_the_deck_fallback(tmp_path):
     summary = tmp_path / "validation_summary.json"
-    summary.write_text(json.dumps({"segment_wape": {"twin_daily": {"domestic": 4.18, "international": 4.59}}}))
+    summary.write_text(json.dumps({  # the shape `twin validate` writes
+        "segment_wape": {"grain": "day", "values": {"twin_daily": {"domestic": 4.18, "international": 4.59}}},
+        "compare": {"grain": "day", "rows": [{"segment": "domestic", "baseline": "naive_364", "candidate": "twin_daily",
+                                              "difference_pp": -12.7, "ci_low": -14.1, "ci_high": -11.2, "share_folds_same_sign": 1.0}]},
+        "nationalities": {"pooled_nationalities_vs_split": {"difference_pp": -0.55}}}))
     table = numbers.collect(FIXTURE["numbers"], summary, tmp_path / "missing.json")
     assert table["val.twin_daily.domestic"].value == "4.2"
+    assert table["cmp.twin_daily_vs_naive_364.domestic.difference_pp"].value == "-12.70"
+    assert table["nat.pooled_nationalities_vs_split.difference_pp"].value == "-0.55"
     assert table["val.twin_daily.domestic"].source.startswith("validation_summary.json")
     assert table["val.naive_364.domestic"].value == "20.0"  # not in the artifact: fallback stays
+
+
+def test_outlook_numbers_and_figure(tmp_path):
+    path = tmp_path / "outlook.json"
+    path.write_text(json.dumps(OUTLOOK))
+    table = numbers.from_outlook(path)
+    assert table["outlook.window"].value == "2026/27"
+    assert (table["outlook.trend.change"].value, table["outlook.flat.change"].value) == ("+8", "+0")
+    assert (table["outlook.trend.top1"].value, table["outlook.trend.top1_share"].value) == ("Russia", "10")
+    assert table["outlook.month1"].value == "Dec 2026"
+    assert table["outlook.bt.trend.total"].value == "+29"
+    content = {**FIXTURE, "slides": [{"title": "Outlook {outlook.window}", "figure": "outlook_months", "bullets": ["{outlook.trend.top2}"]}]}
+    result = build_deck(_write(tmp_path, content), out_dir=tmp_path / "o", pdf=False, validation_summary=tmp_path / "m.json",
+                        planning_evaluation=tmp_path / "m.json", outlook=path)
+    texts = [s.text_frame.text for s in pptx.Presentation(str(result.pptx)).slides[0].shapes if s.has_text_frame]
+    assert "Outlook 2026/27" in texts and any("the UK" in t for t in texts)
 
 
 def test_unresolved_or_unsourced_numbers_fail_loudly(tmp_path):
@@ -69,10 +109,12 @@ def test_unresolved_or_unsourced_numbers_fail_loudly(tmp_path):
                    pdf=False, validation_summary=tmp_path / "m.json", planning_evaluation=tmp_path / "m.json")
 
 
-def test_the_shipped_deck_has_ten_slides_and_every_number_resolves():
+def test_the_shipped_deck_has_ten_slides_and_every_number_resolves(tmp_path):
     deck = yaml.safe_load(DEFAULT_CONTENT.read_text())
     assert len(deck["slides"]) == 10
-    table = numbers.collect(deck.get("numbers", {}), DEFAULT_CONTENT.parent / "absent.json", DEFAULT_CONTENT.parent / "absent.json")
+    outlook = tmp_path / "outlook.json"
+    outlook.write_text(json.dumps(OUTLOOK))
+    table = numbers.collect(deck.get("numbers", {}), tmp_path / "absent.json", tmp_path / "absent.json", outlook)
     for slide in deck["slides"]:
         text = yaml.safe_dump(slide)
         for name in numbers.PLACEHOLDER.findall(text):
