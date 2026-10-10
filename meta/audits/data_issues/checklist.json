@@ -24,7 +24,7 @@
       "tests/test_digital_twin.py",
       "README.md",
       "docs/*.md",
-      "sql/example_queries.sql",
+      "src/tourism_twin/data/sql/example_queries.sql",
       "output/",
       "tmp/",
       ".gitignore",
@@ -1209,7 +1209,7 @@
       "objective": "Is each SUM, AVG, weighted mean, MIN, MAX, first/last, count, and deduplication appropriate to native grain?",
       "risk": "A single wrong operator can distort all downstream values.",
       "scope": {
-        "files": ["src/tourism_twin/data/*.py", "src/tourism_twin/data/panel.py", "src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py", "sql/*.sql"],
+        "files": ["src/tourism_twin/data/*.py", "src/tourism_twin/data/panel.py", "src/tourism_twin/models/training.py", "src/tourism_twin/models/evaluation.py", "src/tourism_twin/data/sql/*.sql"],
         "tables_or_sheets": ["ALL transformed objects"],
         "fields": ["ALL aggregated fields"],
         "date_or_population": "ALL"

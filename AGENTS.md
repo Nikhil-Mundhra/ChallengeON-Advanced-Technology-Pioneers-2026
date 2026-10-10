@@ -50,7 +50,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 
 ## Layout and layering
 
-Non-code material lives under `meta/`: `meta/deck/` (slide content, fonts, assets), `meta/research/` (research outputs written by `scripts/`), `meta/audits/` (audit checklist and dated records). Code, `lake/`, `docs/`, `scripts/`, `sql/` and `web/` stay at the root.
+Non-code material lives under `meta/`: `meta/deck/` (slide content, fonts, assets), `meta/research/` (research outputs written by `scripts/`), `meta/audits/` (audit checklist and dated records). Code, `lake/`, `docs/`, `scripts/` and `web/` stay at the root; example `twin query` SQL lives in `src/tourism_twin/data/sql/`.
 
 Packages under `src/`: `tourism_twin` (pipeline and model), `app` (`server.py` + `static/index.html`, the earlier UI), `audit_agent` (LLM data-audit tool, run via `scripts/run_data_issues_audit.py`; input `meta/audits/data_issues/checklist.json`, output `audit/issues.md`). Committed audit inputs and dated snapshots live in `meta/audits/`, never in the repo root; run state and fresh output go to `audit/` (gitignored).
 
