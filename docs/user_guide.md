@@ -80,7 +80,7 @@ scenarios.{flat,trend}:
   top_source_markets[]               top 5 international markets, OTHER_* excluded: {market, share_pct}
   months[].{month, guest_nights, change_pct}
   arrivals_growth.<MARKET>           growth factor used
-backtest[]:                the same procedure on the window two years earlier, ending before the frozen test,
+backtest[]:                the same procedure on the latest same-span window ≥ 2 years earlier that starts before the frozen test (cut at its start; empty if it would train on under 1 year of guests),
                            with guests and arrivals cut at the live distances before its start
   window, scenario, segment (total, international, domestic), train_end, arrivals_end,
   season_error_pct, daily_wape_pct
@@ -272,16 +272,16 @@ Results are in the [README](../README.md#32-weekly-planning-model-forward-holdou
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-91 tests: 67 product tests in folders that mirror the packages, and 24 for the audit tool; all pass (the prediction-validator test skips without the raw test workbooks). `make web-test` runs 7 web parity tests (`web/src/engine/parity.test.ts`). Run one area with `pytest tests/<area>`:
+96 tests: 72 product tests in folders that mirror the packages, and 24 for the audit tool; all pass (the prediction-validator test skips without the raw test workbooks). `make web-test` runs 7 web parity tests (`web/src/engine/parity.test.ts`). Run one area with `pytest tests/<area>`:
 
 | Folder | Tests | Covers |
 | :--- | ---: | :--- |
 | `tests/data/` | 9 | lake grain, weekly and daily panels, test-file row rules |
 | `tests/features/` | 4 | feature registry, event registry and offsets, one-off masking |
 | `tests/models/` | 37 | components (known-answer recovery), fitting and weights, specs, back-test harness and noise model, fitted-model evaluation |
-| `tests/nowcast/` | 6 | baselines, submission validator, outputs, serving, same-day guests |
+| `tests/nowcast/` | 10 | baselines, submission validator, outputs, serving, same-day guests, winter outlook scenario |
 | `tests/planning/` | 4 | waterfall identity, planning rules, scenario residual |
-| `tests/reporting/` | 4 | presentation deck |
+| `tests/reporting/` | 5 | presentation deck, validation and outlook numbers |
 | `tests/app/` | 1 | web API |
 | `tests/test_architecture.py` | 2 | layering, no row loops |
 | `tests/audit/` | 24 | audit tool |

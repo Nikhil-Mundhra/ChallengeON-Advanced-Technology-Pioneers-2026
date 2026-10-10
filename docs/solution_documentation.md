@@ -248,7 +248,7 @@ Fallback when a nationality has no pooled prediction: a pooled market's predicti
 | Arrivals scenario | Each market's new arrivals on the same weekday 364 days earlier × growth, compounded per further year: `flat` 1.0; `trend` the market's arrivals over the last 365 known days ÷ the 365 days before |
 | Calendar | Season, weekday and `domain/events.csv` windows of the predicted window (Ramadan and Eid al-Fitr 1448 are expected dates) |
 | Comparison | The same model one year earlier, from that year's actual arrivals: the change is the model's own year-on-year change, not model minus actual |
-| Back-test | The same procedure on the window two years earlier, ending before the frozen test (for 2026/27: Dec 2024 – Jan 2025), with guests and arrivals cut at the live distances before the window; season error % and daily WAPE per segment. A window overlapping the frozen test raises |
+| Back-test | The same procedure on the latest same-span window ≥ 2 years earlier that starts before the frozen test, cut at its start (for 2026/27: Dec 2024 – Jan 2025); empty if it would train on under 1 year of guests, with guests and arrivals cut at the live distances before the window; season error % and daily WAPE per segment. A window overlapping the frozen test raises |
 
 Output: `output/outlook.json` (user guide §1.3); `twin report deck` reads it for the outlook slide.
 

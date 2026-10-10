@@ -36,6 +36,7 @@ The raw competition workbooks are not in the repository. Place the organizer-pro
 | — | `twin predict [--spec S] [--no-intervals]` | `output/predictions/` (§5) |
 | — | `twin evaluate-model --spec S --start D --end D [--frozen-test]` | `output/models/*.pkl`, `output/evaluations/*.json`: a spec fitted up to `--start` minus 21 days, scored without refitting |
 | — | `twin validate` (`make validate`) | `output/validation_summary.json`: the §3.1 numbers (segment WAPE per spec, `compare` rows, nationality results) on `VALIDATION_ORIGINS` |
+| — | `twin outlook [--winter Y] [--spec S]` | `output/outlook.json`: guests for Dec Y – Feb Y+1 (default 2026/27) under flat and trend arrivals scenarios, with the procedure's back-test |
 | — | `twin export [--out web/public/data] [--spec twin_daily]` (`make export`) | Versioned JSON bundle the web app reads (§2) |
 | — | `twin ablate-blocks` | `output/nowcast_block_ablation.json`: WAPE of each block combination on 13 origins 2024-02..2025-02 (exploratory: they overlap the frozen test) |
 
@@ -169,7 +170,7 @@ The hybrid is lowest on all four metrics; its WMAPE margin over the calendar mod
 | `lake/curated/conformal_calibrator.json` | Market | 21 markets | Conformal margins, target alpha 0.2, demonstrated coverage |
 | `lake/curated/evaluation_results.json` | — | — | Weekly back-test metrics, benchmark leaders, market and season breakdowns |
 | `lake/analytics.duckdb` | — | — | Query database with analytical views (built by `build-lake`; not committed) |
-| `src/tourism_twin/domain/events.csv` | Event occurrence | 60 | Event, kind, anchor date, window offsets, scope (all, international, a market or a pooled-market nationality), label, source; 2021–2026 |
+| `src/tourism_twin/domain/events.csv` | Event occurrence | 63 | Event, kind, anchor date, window offsets, scope (all, international, a market or a pooled-market nationality), label, source; 2021–2027 |
 
 ---
 
@@ -183,5 +184,6 @@ The hybrid is lowest on all four metrics; its WMAPE margin over the calendar mod
 | `output/pdf/challengeon_solution_report.pdf` | `twin report solution` |
 | `output/pdf/challengeon_schema_database_report.pdf` | `twin report database` |
 | `output/validation_summary.json` | `twin validate` |
+| `output/outlook.json` | `twin outlook` |
 | `web/public/data/` (committed): `manifest.json` + one versioned folder | `twin export` (`make export` replaces the folder) |
 | Earlier web UI and JSON API at `http://127.0.0.1:8080` | `twin serve --port 8080` |
