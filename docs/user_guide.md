@@ -273,7 +273,7 @@ Results are in the [README](../README.md#32-weekly-planning-model-forward-holdou
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-97 tests: 73 product tests in folders that mirror the packages, and 24 for the audit tool; all pass (the prediction-validator test skips without the raw test workbooks). `make web-test` runs 17 web tests: 12 parity tests (`web/src/engine/parity.test.ts`, including the five planning answers), 2 formatting (`data/format.test.ts`), 3 lever state and slider rules (`features/simulate/levers.test.ts`). Run one area with `pytest tests/<area>`:
+98 tests: 74 product tests in folders that mirror the packages, and 24 for the audit tool; all pass (the prediction-validator test skips without the raw test workbooks). `make web-test` runs 17 web tests: 12 parity tests (`web/src/engine/parity.test.ts`, including the five planning answers), 2 formatting (`data/format.test.ts`), 3 lever state and slider rules (`features/simulate/levers.test.ts`). Run one area with `pytest tests/<area>`:
 
 | Folder | Tests | Covers |
 | :--- | ---: | :--- |
@@ -281,7 +281,7 @@ pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 | `tests/features/` | 4 | feature registry, event registry and offsets, one-off masking |
 | `tests/models/` | 37 | components (known-answer recovery), fitting and weights, specs, back-test harness and noise model, fitted-model evaluation |
 | `tests/nowcast/` | 10 | baselines, submission validator, outputs, serving, same-day guests, winter outlook scenario |
-| `tests/planning/` | 4 | waterfall identity, planning rules, scenario residual |
+| `tests/planning/` | 5 | waterfall identity, planning rules, scenario residual, event exposure |
 | `tests/reporting/` | 6 | presentation deck, validation and outlook numbers |
 | `tests/app/` | 1 | web API |
 | `tests/test_architecture.py` | 2 | layering, no row loops |

@@ -49,7 +49,7 @@ twin query "SELECT COUNT(*) FROM guest_daily_totals"  # SQL on lake/analytics.du
 twin report database                                # schema & database PDF (needs lake/analytics.duckdb)
 ```
 
-**Tests:** 97 Python tests in folders that mirror the packages (`tests/{data,features,models,nowcast,planning,reporting,app,audit}/`; run one area with `pytest tests/<area>`); all pass (the prediction-validator test skips without the raw test workbooks). `make web-test`: 17 web tests (12 parity tests of the web engine against the bundle, 5 for formatting and simulator lever state). `make backend` = test + export; `make frontend` = web install, test, build; `make deploy` = web tests, then a Vercel production deploy of `web/` (needs `vercel login`).
+**Tests:** 98 Python tests in folders that mirror the packages (`tests/{data,features,models,nowcast,planning,reporting,app,audit}/`; run one area with `pytest tests/<area>`); all pass (the prediction-validator test skips without the raw test workbooks). `make web-test`: 17 web tests (12 parity tests of the web engine against the bundle, 5 for formatting and simulator lever state). `make backend` = test + export; `make frontend` = web install, test, build; `make deploy` = web tests, then a Vercel production deploy of `web/` (needs `vercel login`).
 
 ### Configuration
 

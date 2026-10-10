@@ -1,7 +1,7 @@
 # Abu Dhabi Tourism Digital Twin — Solution and Technical Specification
 
 **Challenge:** DCT Abu Dhabi — Advanced Technology Pioneers 2026 ([challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en))
-**Status:** working prototype: daily guest nowcast with test-split predictions and intervals (`twin predict`), weekly scenario simulator (CLI, JSON API, static web app with outlook, flight-scenario, daily-forecast and how-it-works pages), PDF reports, rolling-origin and forward-holdout back-tests, 97 Python tests and 11 web tests.
+**Status:** working prototype: daily guest nowcast with test-split predictions and intervals (`twin predict`), weekly scenario simulator (CLI, JSON API, static web app with outlook, flight-scenario, daily-forecast and how-it-works pages), PDF reports, rolling-origin and forward-holdout back-tests, 98 Python tests and 11 web tests.
 **Run instructions:** [README](../README.md) and [user guide](user_guide.md).
 
 ## 1. Summary
@@ -355,7 +355,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 
 ## 10. Tests
 
-97 Python tests, in folders that mirror the packages (73 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, deck, API, architecture; 24 for the audit tool), and 11 web tests (8 engine parity, 3 for formatting and lever state); all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
+98 Python tests, in folders that mirror the packages (74 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, deck, API, architecture; 24 for the audit tool), and 11 web tests (8 engine parity, 3 for formatting and lever state); all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
 
 ## 11. Limitations
 
