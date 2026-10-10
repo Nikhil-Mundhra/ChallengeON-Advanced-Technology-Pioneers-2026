@@ -19,8 +19,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# PDF dossiers built by `twin report solution` and `twin report database`.
-report = ["reportlab>=4.0"]
+# PDF dossiers built by `twin report solution` and `twin report database`; the slide deck by `twin report deck`.
+report = ["reportlab>=4.0", "python-pptx>=1.0", "pyyaml>=6"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]

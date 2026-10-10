@@ -97,10 +97,10 @@ def plot_tornado(report, out_path: Path) -> Path:
     fig, ax = plt.subplots(figsize=(9, 4.8))
     bars = ax.barh(labels, spreads, color=TEAL, height=0.5, edgecolor="none")
 
-    ax.set_xlabel("Scenario Swing Spread (Guest-Days)")
+    ax.set_xlabel("Change in weekly hotel guests between the low and high lever setting")
     ax.set_title(
-        f"Tornado Sensitivity Analysis: {report.market}\n"
-        f"Ranking Decision Levers by Hotel Demand Elasticity",
+        f"Sensitivity by lever: {report.market}\n"
+        f"Which levers move weekly hotel guests most",
         pad=15,
         fontweight="bold",
         color=NAVY,
@@ -180,17 +180,22 @@ def plot_model_benchmark(out_path: Path) -> Path | None:
     return out_path
 
 
-def generate_charts() -> list[Path]:
-    """Render the presentation figures; returns the paths written."""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    twin = TourismDigitalTwin()
+def reference_scenario():
+    """The scenario every presentation chart uses: UK, Winter Peak, +2 flights/week on a 290-seat
+    aircraft and +2 pp load factor."""
     lever = ScenarioLever(
         market="UNITED KINGDOM",
         delta_frequency=2.0,
         aircraft_gauge=290.0,
         delta_load_factor=0.02,
     )
-    report = twin.run_scenario("UNITED KINGDOM", "Winter_Peak", lever)
+    return TourismDigitalTwin().run_scenario("UNITED KINGDOM", "Winter_Peak", lever)
+
+
+def generate_charts() -> list[Path]:
+    """Render the presentation figures; returns the paths written."""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    report = reference_scenario()
 
     written = [
         plot_waterfall(report, OUTPUT_DIR / "waterfall_attribution.png"),

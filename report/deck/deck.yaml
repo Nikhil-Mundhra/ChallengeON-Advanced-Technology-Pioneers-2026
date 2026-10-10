@@ -1,0 +1,175 @@
+# Presentation content — the only file to edit. Build: `twin report deck` → output/deck/deck.pptx (+ deck.pdf)
+#
+# Each slide: title, message (one line under the title), bullets (a tree: text + children),
+# figure (a name from reporting/deck/figures.py, or asset:<file> in report/deck/assets/),
+# table (header + rows), notes (speaker notes).
+# Numbers: write {name}. They are filled from artifacts (output/validation_summary.json,
+# lake/curated/evaluation_results.json); the `numbers:` block below is the fallback and must name
+# its source. Writing rules: plain words; a technical term only with its job ("we used X to do Y");
+# a detail always under its parent bullet.
+
+footer: "Abu Dhabi Tourism Digital Twin · DCT Abu Dhabi · Advanced Technology Pioneers 2026"
+
+numbers:
+  val.naive_364.domestic: {value: "16.9", source: "validation re-run on 901edb1 (#11)"}
+  val.naive_364.international: {value: "23.0", source: "validation re-run on 901edb1 (#11)"}
+  val.time_only.domestic: {value: "10.1", source: "validation re-run on 901edb1 (#11)"}
+  val.time_only.international: {value: "10.7", source: "validation re-run on 901edb1 (#11)"}
+  val.flow_only.domestic: {value: "9.6", source: "validation re-run on 901edb1 (#11)"}
+  val.flow_only.international: {value: "5.4", source: "validation re-run on 901edb1 (#11)"}
+  val.twin_daily.domestic: {value: "4.2", source: "validation re-run on 901edb1 (#11)"}
+  val.twin_daily.international: {value: "4.6", source: "validation re-run on 901edb1 (#11)"}
+  const.transfer_share_pct: {value: "50", source: "flight data 2023–2025: transfer ÷ total passengers"}
+  const.wizz_drop: {value: "45–49%", source: "test-period arrivals vs a year earlier, 5 Wizz Air markets (model_design §4.7)"}
+  const.pooling_gain_val: {value: "0.55", source: "#16, validation origins"}
+  const.pooling_gain_frozen: {value: "0.22", source: "#16, frozen test, scored once"}
+  const.recency_gain_val: {value: "0.40", source: "pooled grid, validation origins (#16 follow-up)"}
+
+slides:
+  - title: "Flights and hotels are planned apart"
+    message: "Only part of every arriving flight becomes hotel guests, and that part changes by country and season."
+    bullets:
+      - text: "Two teams, two sets of numbers"
+        children:
+          - "Aviation plans routes and seats; tourism plans hotels and events"
+          - "No shared model links the two, so simple what-ifs are hard to answer"
+      - text: "Not every passenger becomes a hotel guest"
+        children:
+          - "About {const.transfer_share_pct}% of arriving passengers connect onward and never leave the airport"
+          - "Others are residents coming home or visitors staying with family"
+      - text: "A data catch"
+        children:
+          - "Flight 'country' = where the flight departed; hotel 'country' = the guest's nationality"
+    figure: passenger_split
+    notes: "Open with the planner's question: if an airline adds two flights a week from the UK, how many more hotel guests do we get? Today nobody can answer that quickly."
+
+  - title: "What we built"
+    message: "A simulator that links flight changes to hotel guests, tested on periods it never saw."
+    figure: goal_tree
+    notes: "One goal, three tasks, four layers. Every later slide sits under one of these boxes."
+
+  - title: "Data, and the 'country' catch"
+    message: "We joined flight and hotel data on markets, and fixed what the raw data gets wrong."
+    bullets:
+      - text: "Data used"
+        children:
+          - "Hotel guests and check-ins per day, by nationality (2022 → Feb 2026)"
+          - "Flights per day by route and airline (daily from 2023; 2022 only monthly)"
+      - text: "The country catch"
+        children:
+          - "Markets: the 15 largest nationalities, 5 regional groups, and domestic"
+          - "Small nationalities: predicted by a shared model per group, each with its own level"
+      - text: "Data problems handled"
+        children:
+          - "Hidden small counts ('*') treated as unknown, not zero"
+          - "Wizz Air left Abu Dhabi in Sep 2025: arrivals from 5 markets fell {const.wizz_drop}"
+    notes: "The country mismatch is the challenge's stated catch. We do not pretend to map departure country to nationality one-to-one; we model each nationality from its own hotel check-ins."
+
+  - title: "System design"
+    message: "Heavy work happens once, offline; the simulator only reads the results."
+    figure: system_diagram
+    notes: "Build side: Python pipeline from raw data to a versioned bundle. Serve side: a static web app with the same maths in the browser, so it runs on a free tier with no server and answers instantly."
+
+  - title: "Models › ① The conversion chain"
+    message: "Every step from seats to hotel guests is visible and adjustable."
+    figure: conversion_chain
+    figure_position: top
+    bullets:
+      - text: "Each step is calibrated from history"
+        children:
+          - "Per market and per season, so winter and summer behave differently"
+      - text: "Each step is a lever"
+        children:
+          - "New or cut routes, flights per week, aircraft size, load factor, transfer share"
+      - text: "The waterfall shows where a change goes"
+        children:
+          - "How much of the extra guests comes from seats, load factor, and each later step"
+    notes: "This is the transparent layer the brief asks for: a planner can audit and change every assumption."
+
+  - title: "Models › ② Guest prediction"
+    message: "Recent hotel check-ins tell us how many guests are in hotels tonight; the calendar shapes the rest."
+    bullets:
+      - text: "From check-ins to guests staying"
+        children:
+          - "We used a distributed lag to turn the last 3 weeks of check-ins into guests staying tonight"
+      - text: "Calendar effects"
+        children:
+          - "Season, weekday and holidays (Ramadan, Eid, National Day, Christmas–New Year)"
+      - text: "Market detail"
+        children:
+          - "Domestic and international modelled separately"
+          - "Small nationalities share a model within their group; recent years count more"
+      - text: "Kept simple on purpose"
+        children:
+          - "No neural networks: about 1,300 days of data would overfit"
+          - "Every added part had to cut held-out error by at least 0.3 points"
+    figure: validation_bars
+    notes: "The bar chart shows what each part adds: the calendar alone, arrivals alone, then both together."
+
+  - title: "Validation: tested on periods the model never saw"
+    message: "Full model error: {val.twin_daily.domestic}% domestic, {val.twin_daily.international}% international."
+    bullets:
+      - text: "How we tested"
+        children:
+          - "Trained on the past, scored on the next 6 months, at 7 starting points"
+          - "Never shuffled; a final period was kept aside and scored only once"
+      - text: "What we rejected, with evidence"
+        children:
+          - "Transfer share as an extra input: no measurable gain"
+          - "A shorter domestic training window: worse, so reverted"
+      - text: "What we kept"
+        children:
+          - "Pooling small nationalities: {const.pooling_gain_val} points better"
+          - "Weighting recent years: a further {const.recency_gain_val} points better"
+    table:
+      header: ["Model", "Domestic error", "International error"]
+      rows:
+        - ["Same day last year", "{val.naive_364.domestic}%", "{val.naive_364.international}%"]
+        - ["Calendar only", "{val.time_only.domestic}%", "{val.time_only.international}%"]
+        - ["Arrivals only", "{val.flow_only.domestic}%", "{val.flow_only.international}%"]
+        - ["Full model", "{val.twin_daily.domestic}%", "{val.twin_daily.international}%"]
+      highlight_row: 3
+    notes: "Error is WMAPE on daily totals over the held-out periods. Rejecting ideas that did not hold up is part of the rigour."
+
+  - title: "What moves hotel guest numbers most"
+    message: "In this example, {tornado.top1} moves guests most, then {tornado.top2}."
+    figure: tornado
+    bullets:
+      - text: "Sensitivity, one lever at a time"
+        children:
+          - "Each bar: change in guests when that lever moves up or down"
+      - text: "Broken down by market and season"
+        children:
+          - "The same change gives different results in winter and summer, and by country"
+    notes: "Example shown: UK, winter peak, two more flights a week on a 290-seat aircraft."
+
+  - title: "Demo, and what a planner should do differently"
+    message: "Ask a what-if, get guests by market and season, with an honest range."
+    figure: "asset:demo.png"
+    bullets:
+      - text: "Watch carrier changes early"
+        children:
+          - "A single airline's exit cut arrivals from 5 markets by {const.wizz_drop}"
+      - text: "Target stopover markets"
+        children:
+          - "Origins with many connecting passengers but few hotel stays are the growth opportunity"
+      - text: "Plan by market and season, not one total"
+        children:
+          - "A total can look right while single markets are far off"
+    notes: "Show the simulator: change flights per week for one market, then a date range and its direction."
+
+  - title: "Real-life use, limits, and how to reproduce"
+    message: "Runs free as a static web app; rebuilt from raw data with one command."
+    bullets:
+      - text: "Use"
+        children:
+          - "Planners test routes and capacity before deals; earlier warning when demand may drop"
+      - text: "Limits we state openly"
+        children:
+          - "Data is aggregated: no spending, trip purpose, or stays outside hotels"
+          - "Nationality is not residence; stay length is not measured directly"
+      - text: "Reproducibility"
+        children:
+          - "One command rebuilds data, models, tests, figures and this deck"
+          - "Every number here is read from saved results, not typed by hand"
+    notes: "Next steps: add official stay statistics, and refresh monthly as new data arrives."

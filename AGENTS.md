@@ -27,6 +27,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin simulate --market M --season S [levers]` | Print a scenario briefing | — |
 | `twin charts` | Waterfall, tornado, benchmark figures | output |
 | `twin report {solution,database}` | PDF report (needs `report` extra) | output |
+| `twin report deck [--content P] [--no-pdf]` | 10-slide presentation from `report/deck/deck.yaml` → `deck/deck.pptx` (+ PDF via LibreOffice); needs `report` extra | output |
 | `twin serve [--port 8080]` | Web UI + JSON API | — |
 | `twin query "SQL" [--database P] [--limit N]` | Read-only SQL on `analytics.duckdb` | — |
 
@@ -118,6 +119,12 @@ cli/        the `twin` command
 - Add event occurrences to `domain/events.csv` (with `scope`: all, international, a market or a pooled-market nationality); `kind=one_off` rows are masked from training via `is_one_off_period`. Keep scoped events (`chinese_new_year`, `morocco_winter_block`) out of `DEFAULT_KERNEL_EVENTS` until they pass validation.
 - Never derive legacy `HOLIDAY_WEEKS` / `MAJOR_EVENT_WEEKS` from `events.csv`; that moves shipped weekly results.
 - No `.iterrows(` anywhere in `models/` (a test enforces it).
+
+## Presentation deck
+
+- Edit slide content only in `report/deck/deck.yaml`; layout lives in `reporting/deck/layout.py`, figures in `reporting/deck/figures.py` (planning charts reused from `reporting/charts.py`).
+- Result numbers on slides (errors, gains, shares, effects) are `{name}` placeholders filled from artifacts (`reporting/deck/numbers.py`); never type a result into slide text, and every fallback entry names its `source`. Design facts (e.g. 7 validation origins, a 21-day lag window) may be written directly.
+- Plain language: a technical term only with its job; a detail always under its parent bullet.
 
 ## Data and artifacts
 
