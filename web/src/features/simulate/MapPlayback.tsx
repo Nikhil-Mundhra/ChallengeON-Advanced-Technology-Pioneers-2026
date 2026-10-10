@@ -53,7 +53,7 @@ export function MapPlayback({ pb, selected, startWeek, onSelect }: { pb: Playbac
       </div>
 
       <FlowMap flows={flows} hub={ABU_DHABI} domestic={home ? { base: home.guests[w] - home.extra[w], sim: home.guests[w] } : null}
-               selected={selected} onSelect={onSelect} dots={{ mode, perDot, playing: true }} />
+               selected={selected} onSelect={onSelect} dots={{ mode, perDot, playing }} />
 
       <div className="playback__scrub">
         <ResponsiveContainer width="100%" height={56}>
