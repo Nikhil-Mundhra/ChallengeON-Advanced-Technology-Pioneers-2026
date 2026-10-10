@@ -53,6 +53,14 @@ $ make up
 
 Web app: http://localhost:5180. JSON API: http://127.0.0.1:8090. Stop both with `make down`.
 
+### Run it in Docker
+
+```console
+$ docker compose up
+```
+
+Web app: http://localhost:8080. API and earlier UI: http://localhost:8090. The committed data bundle and lake artifacts travel inside the images, so no raw workbooks are needed. Single images: `docker build --target web -t tourism-twin-web .` or `--target api`.
+
 ### Check it
 
 * **Outlook** (`/`): each coming month against the same month a year earlier, the markets growing and slowing most, and answers to the five planning questions.
