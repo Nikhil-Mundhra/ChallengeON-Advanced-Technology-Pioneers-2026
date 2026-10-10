@@ -141,7 +141,7 @@ cli/        the `twin` command
 - "Leaving" on the moving map is check-ins minus the change in guests staying (`engine/playback.ts`), never a stay-length model.
 - Every engine port needs golden cases in `export/bundle.golden_part` (or `planning_golden`) and a parity test; keep tolerances at 1e-9 where the maths is exact.
 - The bundle exports derived terms (what-if base/pre/in/floor/multiplier), never raw arrivals (licensed data).
-- Report copy lives in `web/src/content/report.ts`, each number with its source (README §3, solution documentation §11); keep those section numbers stable.
+- Report copy lives in `web/src/content/report.ts`, each number with its source (solution documentation §9.2 weekly holdout, §9.3 daily validation, §11 limitations); keep those section numbers stable.
 
 ## Presentation deck
 

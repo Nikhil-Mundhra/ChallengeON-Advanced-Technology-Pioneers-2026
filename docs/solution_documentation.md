@@ -1,7 +1,7 @@
 # Abu Dhabi Tourism Digital Twin — Solution and Technical Specification
 
 **Challenge:** DCT Abu Dhabi — Advanced Technology Pioneers 2026 ([challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en))
-**Status:** working prototype: daily guest nowcast with test-split predictions and intervals (`twin predict`), weekly scenario simulator (CLI, JSON API, static web app with outlook, flight-scenario, daily-forecast and how-it-works pages), PDF reports, rolling-origin and forward-holdout back-tests, 98 Python tests and 17 web tests.
+**Status:** working prototype: daily guest nowcast with test-split predictions and intervals (`twin predict`), weekly scenario simulator (CLI, JSON API, static web app with outlook, flight-scenario, daily-forecast and how-it-works pages), PDF reports, rolling-origin and forward-holdout back-tests, 99 Python tests and 21 web tests.
 **Run instructions:** [README](../README.md) and [user guide](user_guide.md).
 
 ## 1. Summary
@@ -97,6 +97,22 @@ The daily panel is the input of the daily nowcast (§7.5). `twin predict` and th
 
 Derived columns of both panels (ratios, flags, calendar fields, archetype, arrival lags) are defined once in `src/tourism_twin/features/` and resolved by `FeatureRegistry` in dependency order. Ratios are computed from summed parts at the panel's grain, never averaged. Both panel builders read the lake through `LakeRepository` (`data/repository.py`); the weekly panel's SQL runs on in-memory DuckDB views over the curated Parquet, so `twin build-panel` does not need `lake/analytics.duckdb`. The weekly planning model (structural, training, evaluation) reads `weekly_market_panel.parquet`.
 
+### 4.4 Data assets
+
+| File | Grain | Rows | Contents |
+| :--- | :--- | :--- | :--- |
+| `lake/curated/guest_daily.parquet` | Nationality-day | 69,920 | 1,520 dates × (45 nationalities + domestic); presence and suppression flags |
+| `lake/curated/flight_daily.parquet` | Route-airline-day | 116,395 | Daily flights from 2023-01-01; load-factor outlier flag |
+| `lake/curated/flight_monthly.parquet` | Monthly | 1,213 | 2022 records on 12 month-start dates (built by `build-lake`; not committed) |
+| `lake/curated/weekly_market_panel.parquet` | Market-week | 3,507 | 21 markets (top 15 + 5 regional clusters + `DOMESTIC`), both splits, 39 columns |
+| `lake/curated/daily_market_panel.parquet` | Market-day | 31,920 | 21 markets × 1,520 days, both splits, arrival lags 0–21 (not committed) |
+| `lake/curated/structural_calibration.json` | Market-season | 21 × 4 | Calibrated seats, load factor, P2P share, multiplier, stay factor |
+| `lake/curated/residual_engine.pkl` | Market | 21 models | RidgeCV residual models |
+| `lake/curated/conformal_calibrator.json` | Market | 21 | Conformal margins, target alpha 0.2, demonstrated coverage |
+| `lake/curated/evaluation_results.json` | — | — | Weekly back-test metrics, benchmark leaders, market and season breakdowns |
+| `lake/analytics.duckdb` | — | — | Query database with analytical views (built by `build-lake`; not committed) |
+| `src/tourism_twin/domain/events.csv` | Event occurrence | 63 | Event, kind, anchor date, window offsets, scope (all, international, a market or a pooled-market nationality), label, source; 2021–2027 |
+
 ## 5. Architecture
 
 ```mermaid
@@ -121,7 +137,22 @@ flowchart LR
     G --> X --> W[Static web app: TypeScript engine]
 ```
 
-Package layout: [README §2](../README.md#2-architecture).
+Package layout (`src/tourism_twin/`, bottom up; each layer imports only from layers above it, enforced by `tests/test_architecture.py`):
+
+```text
+config.py      every file location (env-overridable, stdlib only)
+domain/        value types and reference data: markets, archetypes, seasons, scenario types, event registry (events.csv)
+features/      FeatureRegistry: derived columns declared once with their inputs, resolved in dependency order
+data/          raw workbooks → validated lake; LakeRepository; weekly and daily panels; imputation
+models/        shared kernel: components/ (additive log-scale terms), spec, registry, fitters, back-test harness, noise model
+nowcast/       daily competition model: specs (twin_daily), routing, baselines, predict, pooled nationalities, outputs, serving
+planning/      weekly scenario model: structural chain, residual, conformal, Monte Carlo, tornado, simulator, training, evaluation
+reporting/     scenario charts, test-prediction plot, solution PDF, schema and database PDF, deck
+export/        the web bundle (`twin export`)
+cli/           the `twin` command
+```
+
+Outside the package: `src/app/` (`server.py` + `static/index.html`) is the earlier web UI and JSON API (user guide §7.1); it calls `config`, `domain`, `planning` and `nowcast.serving`. `src/audit_agent/` is a separate data-audit tool ([manual](../src/audit_agent/README.md)) and does not import `tourism_twin`.
 
 **Serving.** `twin export` (`export/bundle.py`) computes everything the web app needs once, at build time: daily predictions with AR(1) noise parameters, the what-if terms (`guests_t = max(base_t + pre_t + f · in_t, floor) · multiplier_t`, so a factor f on predicted-period arrivals is exact without exporting raw arrivals), the planning calibration, the weekly back-test and projection, and golden cases. `manifest.json` points at an immutable `<version>/` folder with SHA-256 digests. The web app (`web/`) ports the model maths to TypeScript (`web/src/engine/`) and is tested against the golden cases (1e-9; what-if and range cases 1e-6). No backend runs at request time: the outputs are read-only and versioned, so the bundle is the store, and the Python closure (pandas, scikit-learn, scipy, duckdb) exceeds a serverless function's size limit. Trade-off: a model change needs `make export` and a redeploy. The Monte Carlo spread is not ported (it depends on numpy's random stream); the web simulator shows the conformal band. The landing page compares each forecast month with the same month a year earlier and calls a change up or down only when it exceeds that month's own range error (`web/src/engine/insights.ts`).
 
@@ -163,7 +194,7 @@ Guests = Seats × LF × P2PShare × M × L
 Hybrid = max(0, planning_guests + residual)
 ```
 
-One `RidgeCV` per market. Features: two week-of-year sine/cosine harmonic pairs, quarter dummies, winter and summer flags, holiday-week flag (Eid al-Fitr, Eid al-Adha, UAE National Day, New Year / festive weeks) and major-event-week flag (e.g. ADIPEC, Formula 1). Target: actual guests − `planning_guests`, so training and serving use the same structural prediction. In a scenario the residual is the mean fitted residual over the market's training weeks in that season, holidays and events included, matching the all-weeks seasonal baseline (stored as `season_residual` in `residual_engine.pkl`). No aviation inputs: the residual does not change with a capacity lever, so the hybrid lift equals the structural lift unless the max(0, ·) floor binds (tested: lift ≥ 0 for +2 flights in 5 markets).
+One `RidgeCV` per market. Features: two week-of-year sine/cosine harmonic pairs, quarter dummies, winter and summer flags, holiday-week flag (Eid al-Fitr, Eid al-Adha, UAE National Day, New Year / festive weeks), major-event-week flag (e.g. ADIPEC, Formula 1), and each `domain/events.csv` event's share of the week for the markets it covers (`event_exposure_matrix`; validation −0.7 pp, see §9.2). Target: actual guests − `planning_guests`, so training and serving use the same structural prediction. In a scenario the residual is the mean fitted residual over the market's training weeks in that season, holidays and events included, matching the all-weeks seasonal baseline (stored as `season_residual` in `residual_engine.pkl`). No aviation inputs: the residual does not change with a capacity lever, so the hybrid lift equals the structural lift unless the max(0, ·) floor binds (tested: lift ≥ 0 for +2 flights in 5 markets).
 
 ### 7.3 Domestic demand
 
@@ -268,20 +299,20 @@ Seven archetypes assigned per market in `domain/archetypes.py`: Direct Leisure, 
 
 ### 9.2 Results (weekly planning model, forward holdout)
 
-| Setting | WMAPE | Bias | MAE | RMSE |
-| :--- | :---: | :---: | :---: | :---: |
-| International planning | 27.52% | +1.52% | 2,466.5 | 3,920.7 |
-| International realized-chain | 24.54% | −5.67% | 2,199.9 | 3,308.7 |
-| Domestic forecast | 16.04% | +13.05% | 17,485.2 | 21,078.9 |
-| Combined planning | 23.14% | +5.93% | 3,192.1 | 6,007.8 |
-| Combined realized-chain | 21.30% | +1.48% | 2,938.3 | 5,646.6 |
+| Setting | WMAPE | Bias | MAE | RMSE | Inputs |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| International planning | 27.52% | +1.52% | 2,466.5 | 3,920.7 | Scheduled seats + calibrated seasonal priors |
+| International realized-chain | 24.54% | −5.67% | 2,199.9 | 3,308.7 | Realized P2P × calibrated multiplier × stay factor |
+| Domestic forecast | 16.04% | +13.05% | 17,485.2 | 21,078.9 | Calibrated seasonal prior; no holdout arrivals |
+| Combined planning | 23.14% | +5.93% | 3,192.1 | 6,007.8 | International + domestic |
+| Combined realized-chain | 21.30% | +1.48% | 2,938.3 | 5,646.6 | International + domestic |
 
 | Model (all markets) | WMAPE | Bias | MAE | RMSE |
 | :--- | :---: | :---: | :---: | :---: |
-| 1. Historical seasonal prior | 23.00% | −6.60% | 3,172.8 | 6,156.5 |
-| 2. Pure ML / calendar | 22.00% | −8.50% | 3,035.6 | 5,839.0 |
-| 3. Structural only | 23.14% | +5.93% | 3,192.1 | 6,007.8 |
-| 4. Hybrid digital twin | **20.62%** | **+5.55%** | **2,845.4** | **5,298.1** |
+| 1. Historical seasonal prior (market-season mean) | 23.00% | −6.60% | 3,172.8 | 6,156.5 |
+| 2. Pure ML / calendar (per-market ridge, no aviation) | 22.00% | −8.50% | 3,035.6 | 5,839.0 |
+| 3. Structural only (planning mode) | 23.14% | +5.93% | 3,192.1 | 6,007.8 |
+| 4. Hybrid digital twin (structural + residual) | **20.62%** | **+5.55%** | **2,845.4** | **5,298.1** |
 
 Combined planning mode by season (structural prediction):
 
@@ -295,17 +326,29 @@ Autumn_Shoulder is not in the holdout window. Per-market results are in `market_
 
 Findings:
 
-1. The hybrid model is best on all four metrics (`benchmark_leaders`; bias by absolute value). Its WMAPE lead over the calendar-only model is 0.26 pp.
+1. The hybrid model is best on all four metrics (`benchmark_leaders`; bias by absolute value). Its WMAPE lead over the calendar-only model is 1.38 pp. Its residual uses the calendar and each `events.csv` event's share of the week (`planning/calendar_features.py`); with the calendar alone the hybrid scores 21.74% (bias +5.36%), and on the validation origins the events lower weekly WAPE by 0.7 pp (90% interval [−1.55, −0.16], 7/7 origins).
 2. The structural-only engine (23.14%) does not beat the seasonal prior (23.00%) on WMAPE.
 3. International planning mode, which uses no realized operational data, has 27.52% WMAPE and +1.52% bias.
 4. The domestic prior over-forecast the holdout by 13.05%: 2025 domestic guests were below the 2023–2024 seasonal level.
 5. Interval coverage: 65.2% of holdout market-weeks fall inside structural prediction × (1 ± conformal margin), against a nominal 80%.
+6. These numbers are not comparable with §9.3: the daily nowcast uses the predicted period's new arrivals, the planning model does not.
 
 ### 9.3 Daily nowcast
 
 **Protocol (issue #11, `models/backtest.py`).** Validation (`VALIDATION_ORIGINS`): monthly origins 2024-02-01..2024-08-01, horizon up to 6 months ending by 2025-01-31, training ending 21 days before each origin, expanding window; 7 folds. Frozen test (`FROZEN_TEST`): 2025-02-01..2025-07-31, scored once after every choice (so far for #16 only). `compare()`: candidate − baseline WAPE with a 90% moving-block bootstrap interval (28-day date blocks shared by both models and every fold) and the share of folds with the same sign. A result counts only if the interval excludes 0 and the sign holds in most folds; a component ships only if it gains ≥ 0.3 pp on both segments. `twin validate` re-runs the validation table and comparisons below into `output/validation_summary.json`.
 
-**Validation.** WAPE % of daily segment totals, mean over 7 folds, domestic / international: `naive_364` 16.91 / 22.97; `arrivals_ratio` 17.93 / 8.86; `time_only` 10.10 / 10.68; `flow_only` 9.55 / 5.44; `flow_time` 4.18 / 4.42; `twin_daily` 4.18 / 4.59. Market-day grain (`compare`): `twin_daily` − `naive_364` −12.71 pp [−15.45, −10.43] domestic, −18.42 [−19.98, −16.87] international, 7/7 folds.
+**Validation.** WAPE % of daily segment totals, mean over 7 folds:
+
+| Spec | Domestic | International |
+| :--- | :---: | :---: |
+| `naive_364` (same weekday 364 days earlier) | 16.91% | 22.97% |
+| `arrivals_ratio` (arrivals × training guests ÷ arrivals) | 17.93% | 8.86% |
+| `time_only` (level + season + weekday + events, no arrivals) | 10.10% | 10.68% |
+| `flow_only` (arrivals kernel alone) | 9.55% | 5.44% |
+| `flow_time` (kernel + calendar, no events) | 4.18% | 4.42% |
+| **`twin_daily`** (shipped) | **4.18%** | **4.59%** |
+
+Market-day grain (`compare`): `twin_daily` − `naive_364` −12.71 pp [−15.45, −10.43] domestic, −18.42 [−19.98, −16.87] international, 7/7 folds. On segment totals the events partly cancel across markets, so `flow_time` scores below `twin_daily` for the international total; at market grain removing the events costs international markets 0.37 pp (table below).
 
 Shipped choices re-run under the protocol (market-day grain, candidate − shipped, pp WAPE; n.s. = interval includes 0; pooled nationalities: §7.7):
 
@@ -355,7 +398,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 
 ## 10. Tests
 
-98 Python tests, in folders that mirror the packages (74 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, deck, API, architecture; 24 for the audit tool), and 17 web tests (12 engine parity, 5 for formatting, lever state and slider rules); all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
+99 Python tests, in folders that mirror the packages (75 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, deck, API, architecture; 24 for the audit tool), and 21 web tests (13 engine parity, 2 formatting, 3 lever state and slider rules, 3 map geometry); all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
 
 ## 11. Limitations
 

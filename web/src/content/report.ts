@@ -1,6 +1,6 @@
 /** Report copy: facts only, with the source of every number. Edit text here, not in components.
- *  Numbers: README §3 (validation, issue #11 protocol; weekly planning holdout) and
- *  docs/solution_documentation.md §11 (limitations). */
+ *  Numbers: docs/solution_documentation.md §9.3 (daily validation, issue #11 protocol),
+ *  §9.2 (weekly planning holdout) and §11 (limitations). */
 
 export interface ReportSection {
   id: string;

@@ -1,6 +1,6 @@
 # Abu Dhabi Tourism Digital Twin — User Guide
 
-How to write the test-split predictions, run scenarios, use the web app, read the output, retrain, evaluate, and rebuild the reports. Setup and the full pipeline are in the [README](../README.md); method and results are in the [solution documentation](solution_documentation.md).
+How to write the test-split predictions, run scenarios, use the web app, read the output, retrain, evaluate, and rebuild the reports. Setup, the full pipeline, configuration and every command are in [§12](#12-setup-pipeline-and-configuration); method and results are in the [solution documentation](solution_documentation.md).
 
 ---
 
@@ -208,11 +208,11 @@ make up         # web app http://localhost:5180 (WEB_PORT), Python API http://12
 make web-dev    # Vite dev server; make web-test (vitest), web-build (type-check + web/dist), deploy (web-test + vercel deploy --prod)
 ```
 
-`web/` is a static React site; no Python runs at request time. Production: Vercel project `abu-dhabi-hotel-outlook`, public at https://abu-dhabi-hotel-outlook.vercel.app (`web/vercel.json`: SPA rewrites, `manifest.json` cached 60 s, versioned files immutable; `web/.vercel` and `.env*` are gitignored). Pages, in the fixed top navigation (a drop-down sheet on phones): `/` Outlook, `/simulate` Flight scenarios, `/nowcast` Daily forecast, `/report` How it works (copy and sources in `web/src/content/report.ts`; its "What if…?" section shows the same five planning answers as the landing page). The copy is plain language; the only uncertainty term is "±X% error". Colours come from `web/src/theme/tokens.css` (palette from visitabudhabi.ae and dct.gov.ae), fonts Oswald and Inter; dark mode follows the system setting.
+`web/` is a static React site (Vite 6, React 19, TypeScript, Recharts 3, d3-geo, react-router 7; routes defined once in `web/src/app/routes.tsx`); no Python runs at request time. It reads `web/public/data/manifest.json` → `<version>/{nowcast,whatif,planning,weekly,golden}.json`, and `web/src/engine/` ports the model maths to TypeScript, checked by `parity.test.ts` against `golden.json` (why static: solution documentation §5). Production: Vercel project `abu-dhabi-hotel-outlook`, public at https://abu-dhabi-hotel-outlook.vercel.app (`web/vercel.json`: SPA rewrites, `manifest.json` cached 60 s, versioned files immutable; `web/.vercel` and `.env*` are gitignored). Pages, in the fixed top navigation (a drop-down sheet on phones): `/` Outlook, `/simulate` Flight scenarios, `/nowcast` Daily forecast, `/report` How it works (copy and sources in `web/src/content/report.ts`; its "What if…?" section shows the same five planning answers as the landing page). The copy is plain language; the only uncertainty term is "±X% error". Colours come from `web/src/theme/tokens.css` (palette from visitabudhabi.ae and dct.gov.ae), fonts Oswald and Inter; dark mode follows the system setting.
 
 - **Bundle** (`twin export [--out web/public/data] [--spec twin_daily]`, `export/bundle.py`): `manifest.json` (`schema_version`, `version` = `YYYYmmdd-HHMMSS-<git sha>`, `spec`, `coverage`, `predicted_period`, `files`, `sha256`) points at `<version>/`: `nowcast.json` (daily predictions, AR(1) noise parameters and z for 50/80/90% per series; last 400 days of actual guests; nationality predictions), `whatif.json` (per market and day: base stock, kernel flow from arrivals before and inside the predicted period, floor, calendar multiplier; no raw arrivals), `planning.json` (calibration, archetype priors, season residual, conformal margins), `weekly.json`, `golden.json` (input → expected output cases for the parity tests).
-- **`weekly.json`**, per calibrated market: actual weekly guests (complete weeks), the structural part and residual (calendar and events) for every panel week and 3 years beyond, and the forward-holdout back-test (fitted before 2024-12-30; reproduces the 20.62% WMAPE of README §3.2). Projected weeks use the calibrated seasonal seats; the model has no growth term, and holiday flags end with the week of 2027-02-08 (`calendar_flags_until`).
-- **`/` Outlook** (`web/src/engine/insights.ts`): each full forecast month (international, UAE residents, all guests) against the same month a year earlier in actual guests, with the month's own error (`NoiseModel.range_interval` at the manifest coverage); a change is called up or down only when larger than that error, else "about the same". Also the markets growing and slowing most; chapter 03 "What if…?" answers the five planning questions (new route, more flights, more seats, fuller flights, seasonal market mix) with the weekly change, its error and the extra guests over 2026 (`engine/questions.ts`); and accuracy facts (daily error from README §3.1, weekly holdout WMAPE).
+- **`weekly.json`**, per calibrated market: actual weekly guests (complete weeks), the structural part and residual (calendar and events) for every panel week and 3 years beyond, and the forward-holdout back-test (fitted before 2024-12-30; reproduces the 20.62% WMAPE of [solution documentation §9.2](solution_documentation.md#92-results-weekly-planning-model-forward-holdout)). Projected weeks use the calibrated seasonal seats; the model has no growth term, and holiday flags end with the week of 2027-02-08 (`calendar_flags_until`).
+- **`/` Outlook** (`web/src/engine/insights.ts`): each full forecast month (international, UAE residents, all guests) against the same month a year earlier in actual guests, with the month's own error (`NoiseModel.range_interval` at the manifest coverage); a change is called up or down only when larger than that error, else "about the same". Also the markets growing and slowing most; chapter 03 "What if…?" answers the five planning questions (new route, more flights, more seats, fuller flights, seasonal market mix) with the weekly change, its error and the extra guests over 2026 (`engine/questions.ts`); and accuracy facts (daily error from [solution documentation §9.3](solution_documentation.md#93-daily-nowcast), weekly holdout WMAPE).
 - **`/simulate`:** left panel: market (All markets by default, then calibrated markets, then countries with no calibration of their own, labelled "estimated from similar markets"), presets (Today, 2 more flights a week, Stopover campaign, Longer stays; disabled where they do nothing), the 7 levers in two groups (Flights, Visitors), each with a default mark and reset, and a Forecast section (week the changes start, by default the week after the real data; growth of −5 to +10% a year, projected weeks only). Levers apply to one market, picked in the list or on the map; with All markets they are locked. UAE residents have no flight levers or stopover share, and seats per extra flight applies only once extra flights are added. Changes never alter real weeks. Centre tabs: Map (a moving map: Play at 1x/4x runs the weeks from Dec 2022 to Feb 2029; dots stream along the arcs, teal for people arriving (hotel check-ins = weekly guests ÷ the season's guests-per-visitor factor) and coral for people leaving (check-ins minus the change in guests staying since last week), filter Both / Arriving / Leaving; a scrubber chart of total weekly guests that marks where real data ends; counters for the week, real or forecast, its guests, change vs a year before, top 3 arriving markets and guests added by the changes; event weeks named in a callout, their markets' arcs glowing; no motion with reduced motion), Over time (actuals, back-test and projection, event flags and the error on event weeks; all markets summed for All markets), How it adds up (conversion chain and waterfall) and Biggest levers (tornado), the only two tabs with a season choice. Right: totals for the Week / Month / Year / Since-a-date period around the week on the map, following playback (visitors arriving = hotel check-ins, hotel nights, visitors added by the changes), and "Where visitors come from", the countries and regions for the same period (nationality detail is on `/nowcast`). For a country without weekly history, a "New route estimate" card gives weekly guests and the change per season from similar markets, and the totals fall back to all markets.
 - **`/nowcast`:** market or total, 7/14/28/91 days and first day; forecast total for the shown dates with its likely range (±error) and change vs the days before ("no clear change" under ±8%, as `/api/nowcast/range`), the total with check-in sliders (residents and international 50–150%, selected market 0–200%), the days before with their dates; bars against the same days last year; daily line with its likely range; nationality list (filtered by the top-bar search).
 
@@ -263,7 +263,7 @@ Calibrates on 104 complete weeks (2023-01-02 to 2024-12-23 week starts, 2,132 ma
 | Domestic forecast | Calibrated domestic seasonal prior |
 | Combined | International + domestic |
 
-Results are in the [README](../README.md#32-weekly-planning-model-forward-holdout). Bias is (Σ predicted − Σ actual) / Σ actual, so a positive bias is an over-forecast. The domestic forecast over-predicted the 2025 holdout by 13.05%: domestic guests fell below their 2023–2024 seasonal level.
+Results are in [solution documentation §9.2](solution_documentation.md#92-results-weekly-planning-model-forward-holdout). Bias is (Σ predicted − Σ actual) / Σ actual, so a positive bias is an over-forecast. The domestic forecast over-predicted the 2025 holdout by 13.05%: domestic guests fell below their 2023–2024 seasonal level.
 
 ---
 
@@ -273,11 +273,11 @@ Results are in the [README](../README.md#32-weekly-planning-model-forward-holdou
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-98 tests: 74 product tests in folders that mirror the packages, and 24 for the audit tool; all pass (the prediction-validator test skips without the raw test workbooks). `make web-test` runs 17 web tests: 12 parity tests (`web/src/engine/parity.test.ts`, including the five planning answers), 2 formatting (`data/format.test.ts`), 3 lever state and slider rules (`features/simulate/levers.test.ts`). Run one area with `pytest tests/<area>`:
+99 tests: 75 product tests in folders that mirror the packages, and 24 for the audit tool; all pass (the prediction-validator test skips without the raw test workbooks). `make web-test` runs 21 web tests: 13 parity tests (`web/src/engine/parity.test.ts`, including the five planning answers), 2 formatting (`data/format.test.ts`), 3 lever state and slider rules (`features/simulate/levers.test.ts`), 3 map geometry (`components/charts/mapGeometry.test.ts`). Run one area with `pytest tests/<area>`:
 
 | Folder | Tests | Covers |
 | :--- | ---: | :--- |
-| `tests/data/` | 9 | lake grain, weekly and daily panels, test-file row rules |
+| `tests/data/` | 10 | lake grain, weekly and daily panels, calendar weeks, test-file row rules |
 | `tests/features/` | 4 | feature registry, event registry and offsets, one-off masking |
 | `tests/models/` | 37 | components (known-answer recovery), fitting and weights, specs, back-test harness and noise model, fitted-model evaluation |
 | `tests/nowcast/` | 10 | baselines, submission validator, outputs, serving, same-day guests, winter outlook scenario |
@@ -316,3 +316,58 @@ twin report deck         # output/deck/deck.pptx + deck.pdf from meta/deck/deck.
 ```
 
 `model_benchmark.png` reads `lake/curated/evaluation_results.json`.
+
+---
+
+## 12. Setup, pipeline and configuration
+
+```bash
+make install                # python3 -m venv .venv && .venv/bin/pip install -e ".[report,dev]"
+source .venv/bin/activate   # 'report' = reportlab, python-pptx, pyyaml (PDFs, deck); 'dev' = pytest
+```
+
+The raw competition workbooks are not in the repository. `twin build-lake` and `twin predict` read them from `01a - DCT Dataset/` (or `TWIN_SOURCE_DIR`). `lake/curated/{guest_daily,flight_daily,weekly_market_panel}.parquet` and the weekly model artifacts are committed, so `simulate`, `serve`, `charts`, `report solution` and the tests run without the raw files.
+
+`make all` runs the pipeline below, then the tests. With default settings it overwrites the committed lake artifacts. It does not run `twin predict` (which builds the daily panel in memory from `guest_daily.parquet`) or `twin export`.
+
+| Step | Command (`make` target) | Writes |
+| :--- | :--- | :--- |
+| 1 | `twin build-lake` (`make lake`) | `lake/curated/{guest_daily,flight_daily,flight_monthly}.parquet`, `lake/analytics.duckdb`, `lake/manifest.json` |
+| 2 | `twin build-panel`, `twin build-daily-panel [--max-lag K]` (`make panel`) | `lake/curated/weekly_market_panel.parquet`; `daily_market_panel.parquet` (not committed; default K = 21) |
+| 3 | `twin evaluate` (`make evaluate`) | `lake/curated/evaluation_results.json` |
+| 4 | `twin train [--max-date 2025-07-27] [--panel-path P]` (`make train`) | `structural_calibration.json`, `residual_engine.pkl`, `conformal_calibrator.json` (coverage read from `evaluation_results.json`) |
+| 5 | `twin charts` (`make charts`) | `output/figures/*.png` |
+| 6 | `twin report solution` (`make report`) | `output/pdf/challengeon_solution_report.pdf` |
+| 7 | `pytest tests/ -v` (`make test`) | — |
+
+Other commands (each also `python -m tourism_twin <command>`; `twin <command> --help` lists options):
+
+| Command | Writes |
+| :--- | :--- |
+| `twin predict [--spec S] [--no-intervals]` | `output/predictions/` (§1) |
+| `twin evaluate-model --spec S --start D --end D [--frozen-test]` | `output/models/*.pkl`, `output/evaluations/*.json` (§1.2) |
+| `twin validate` (`make validate`) | `output/validation_summary.json`: the solution documentation §9.3 numbers on `VALIDATION_ORIGINS` |
+| `twin outlook [--winter Y] [--spec S]` | `output/outlook.json` (§1.3) |
+| `twin export [--out web/public/data] [--spec twin_daily]` (`make export`) | The versioned web bundle (§7); `make export` replaces the folder |
+| `twin ablate-blocks` | `output/nowcast_block_ablation.json`: WAPE of each block combination on 13 origins 2024-02..2025-02 (exploratory: they overlap the frozen test) |
+| `twin simulate ...` | Console briefing (§3) |
+| `twin query "SELECT ..."` | SQL on `lake/analytics.duckdb` (created by `build-lake`) |
+| `twin report database` | `output/pdf/challengeon_schema_database_report.pdf` (needs `lake/analytics.duckdb`) |
+| `twin report deck` | `output/deck/deck.pptx` + `deck.pdf` (§11) |
+| `twin serve --port 8080` | Earlier web UI and JSON API (§7.1) |
+
+Make targets beyond the pipeline: `make up` / `down` / `status` / `logs` (web app http://localhost:5180, Python API http://127.0.0.1:8090); `make backend` = test + export; `make frontend` = web install, test, build; `make deploy` = web tests, then a Vercel production deploy of `web/` (needs `vercel login`). `make clean` removes only uncommitted generated files (`output/figures`, `output/pdf`, `lake/analytics.duckdb`, staging leftovers), honours the variables below, and never deletes committed lake artifacts.
+
+**Configuration.** All paths are defined in `src/tourism_twin/config.py` and can be overridden by environment variables (read once at import):
+
+| Variable | Default | Holds |
+| :--- | :--- | :--- |
+| `TWIN_ROOT` | repository root | Base for the defaults below |
+| `TWIN_SOURCE_DIR` | `01a - DCT Dataset/` | Raw competition workbooks |
+| `TWIN_LAKE_DIR` | `lake/` | DuckDB database, manifest, curated tables, model artifacts |
+| `TWIN_OUTPUT_DIR` | `output/` | Figures, PDF reports, predictions |
+
+```bash
+TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/output make all   # rebuild without touching the checkout
+TWIN_OUTPUT_DIR=/tmp/output twin predict                       # predictions outside the checkout
+```

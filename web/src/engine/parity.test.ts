@@ -108,7 +108,7 @@ describe("weekly timeline", () => {
   const weekly = read<Weekly>(manifest.files.weekly);
   const planning = read<Planning>(manifest.files.planning);
 
-  it("reproduces the published 30-week holdout WMAPE (README §3.2: 20.62%)", () => {
+  it("reproduces the published 30-week holdout WMAPE (solution documentation §9.2: 20.62%)", () => {
     const points = Object.keys(weekly.markets).flatMap((m) => timeline(planning, weekly, m, NO_CHANGE, { start: "9999" }));
     expect(holdoutWmape(points)).toBeCloseTo(20.62, 2);
   });
