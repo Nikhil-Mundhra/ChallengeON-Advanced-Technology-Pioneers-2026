@@ -186,6 +186,10 @@ Guests = Seats × LF × P2PShare × M × L
 - **Market bridge.** Departure country $k$ is linked to nationality $k$. $M_{m,s}$ absorbs non-national passengers, indirect connections and overland arrivals (e.g. via DXB). A full 45 × 33 country-to-nationality matrix (1,485 parameters) is not identifiable from aggregate weekly series and is not estimated.
 - **Planning prediction** (`planning_guests`): scheduled seats × calibrated LF, P2P share, $M$, $L$. A served market whose seats carry no P2P passengers has zero aviation arrivals; an unserved market keeps its calibrated arrivals; `DOMESTIC` = calibrated arrivals × $L$, independent of seats. The simulator's baseline applies the same rule (`MarketSeasonParams.arrivals_from`).
 - **Cold start.** A country without calibration gets its archetype's default LF, P2P share, $M$ and $L$ (`domain/archetypes.py`; unknown countries map to Emerging / Sparse).
+- **Non-linear dynamics (S-curve, capacity dilution, room constraints).** Rather than a naive linear multiplier, the structural conversion incorporates three empirical non-linear effects calibrated from the lake:
+  1. *Frequency S-curve:* Flight services below daily (<7/wk) capture lower load factors (74.2% for 1–3x weekly vs. 87.5% for daily routes in the panel); reaching daily frequency triggers network capture gains.
+  2. *Capacity dilution:* Seat surges beyond baseline decay marginal load factors and P2P transit shares (elasticities $\eta_{\text{LF}} = 0.05$, $\eta_{\text{P2P}} = 0.08$), reflecting yield discounting and transit spillover.
+  3. *Destination hotel ceiling:* Peak-season room constraints asymptotically saturate runaway guest growth based on historical peak-to-baseline capacity caps (2.5× in Winter/Spring, 2.0× in Summer).
 - **Waterfall.** The scenario lift is attributed sequentially: seats, load factor, P2P share, multiplier, stay factor. The five parts sum to the total lift (tested to < 1e-9 for every calibrated market, a cold-start market, all seasons and 6 lever sets). `simulate` raises if they differ by more than a relative 1e-9 (absolute 1e-6).
 
 ### 7.2 Residual ML (`planning/residual.py`, `planning/calendar_features.py`)
