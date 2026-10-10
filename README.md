@@ -5,10 +5,10 @@ Analytics lake, daily guest nowcast and scenario simulator for the [ChallengeON 
 | Model | Question | Grain | Command |
 | :--- | :--- | :--- | :--- |
 | Daily nowcast (`twin_daily`) | Hotel guests on the withheld test days (2025-08-01 to 2026-02-28), given that period's new arrivals | Market-day, written per test-file row | `twin predict` |
-| Weekly planning model | Guest effect of aviation levers (weekly frequency, aircraft gauge, seats, load factor, P2P share, response multiplier, stay factor) | Market × season, weekly | `twin simulate`, `twin serve` |
+| Weekly planning model | Guest effect of aviation levers (weekly frequency, aircraft gauge, seats, load factor, P2P share, response multiplier, stay factor) | Market × season, weekly | `twin simulate`, web app `/simulate` |
 
 - Method, data contract, results, limitations: [docs/solution_documentation.md](docs/solution_documentation.md)
-- CLI, web UI, Python API, outputs: [docs/user_guide.md](docs/user_guide.md)
+- CLI, web app, Python API, outputs: [docs/user_guide.md](docs/user_guide.md)
 
 ---
 
@@ -21,7 +21,7 @@ source .venv/bin/activate         # 'report' = reportlab (PDFs), 'dev' = pytest
 
 The raw competition workbooks are not in the repository. Place the organizer-provided files in `01a - DCT Dataset/` (or set `TWIN_SOURCE_DIR`). `twin build-lake` and `twin predict` read them. `lake/curated/{guest_daily,flight_daily,weekly_market_panel}.parquet` and the weekly model artifacts are committed, so `simulate`, `serve`, `charts`, `report solution` and the tests run without the raw files.
 
-`make all` rebuilds the lake, panels, weekly evaluation and training, charts and report, then runs the tests. With default settings it overwrites the committed lake artifacts; see [Configuration](#configuration) for a scratch rebuild. `make all` does not run `twin predict`.
+`make all` rebuilds the lake, panels, weekly evaluation and training, charts and report, then runs the tests. With default settings it overwrites the committed lake artifacts; see [Configuration](#configuration) for a scratch rebuild. `make all` does not run `twin predict`, which builds the daily panel in memory from `guest_daily.parquet` (no `daily_market_panel.parquet` needed).
 
 | Step | Command (`make` target) | Writes |
 | :--- | :--- | :--- |
@@ -35,22 +35,20 @@ The raw competition workbooks are not in the repository. Place the organizer-pro
 | 7 | `pytest tests/ -v` (`make test`) | — |
 | — | `twin predict [--spec S] [--no-intervals]` | `output/predictions/` (§5) |
 | — | `twin evaluate-model --spec S --start D --end D [--frozen-test]` | `output/models/*.pkl`, `output/evaluations/*.json`: a spec fitted up to `--start` minus 21 days, scored without refitting |
+| — | `twin validate` (`make validate`) | `output/validation_summary.json`: the §3.1 numbers (segment WAPE per spec, `compare` rows, nationality results) on `VALIDATION_ORIGINS` |
+| — | `twin export [--out web/public/data] [--spec twin_daily]` (`make export`) | Versioned JSON bundle the web app reads (§2) |
 | — | `twin ablate-blocks` | `output/nowcast_block_ablation.json`: WAPE of each block combination on 13 origins 2024-02..2025-02 (exploratory: they overlap the frozen test) |
 
-`twin predict` builds the daily panel in memory from `guest_daily.parquet`; it does not need `daily_market_panel.parquet`.
-
-Other commands:
+Other commands (each also `python -m tourism_twin <command>`; `twin <command> --help` lists options):
 
 ```bash
 twin simulate --market "UNITED KINGDOM" --season Winter_Peak --delta-freq 2.0 --gauge 290.0 --delta-lf 0.02
-twin serve --port 8080                              # web UI + JSON API at http://127.0.0.1:8080
+make up                                             # web app http://localhost:5180, Python API :8090 (make down/status/logs)
 twin query "SELECT COUNT(*) FROM guest_daily_totals"  # SQL on lake/analytics.duckdb (created by build-lake)
 twin report database                                # schema & database PDF (needs lake/analytics.duckdb)
 ```
 
-Every command is also available as `python -m tourism_twin <command>`; `twin <command> --help` lists options.
-
-**Tests:** 87 tests in folders that mirror the packages (`tests/{data,features,models,nowcast,planning,app,audit}/`; run one area with `pytest tests/<area>`); all pass, except that the prediction-validator test skips without the raw test workbooks.
+**Tests:** 91 Python tests in folders that mirror the packages (`tests/{data,features,models,nowcast,planning,reporting,app,audit}/`; run one area with `pytest tests/<area>`); all pass (the prediction-validator test skips without the raw test workbooks). `make web-test`: 7 parity tests of the web engine against the bundle. `make backend` = test + export; `make frontend` = web install, test, build.
 
 ### Configuration
 
@@ -94,11 +92,12 @@ src/tourism_twin/
 │                  pooled nationalities, disaggregation, submission, weekly, outputs, serving, same-day GLM
 ├── planning/      weekly scenario model: structural chain, residual, conformal, Monte Carlo, tornado
 │                  sensitivity, simulator, briefing, training, weekly benchmark specs and evaluation
-├── reporting/     scenario charts, test-prediction plot, solution PDF, schema & database PDF
+├── reporting/     scenario charts, test-prediction plot, solution PDF, schema & database PDF, deck
+├── export/        the web bundle (`twin export`); sibling of reporting/
 └── cli/           the `twin` command
 ```
 
-`src/app/` (`server.py` + `static/index.html`) is the web server; it calls `config`, `domain`, `planning` and `nowcast.serving`. `src/audit_agent/` is a separate LLM data-audit tool ([manual](src/audit_agent/README.md)) and does not import `tourism_twin`.
+**Web app** (`web/`: Vite 6, React 19, TypeScript, Recharts 3, react-router 7): a static site with no backend at request time (Vercel-ready via `web/vercel.json`). Routes: `/report` (long-form report, copy in `web/src/content/report.ts`), `/simulate` (levers, conversion chain, waterfall, tornado, weekly back-test and 3-year projection), `/nowcast` (daily nowcast, range intervals, arrivals what-if). It reads `web/public/data/manifest.json` → `<version>/{nowcast,whatif,planning,weekly,golden}.json`; `web/src/engine/` ports the model maths to TypeScript and `parity.test.ts` checks it against `golden.json` (1e-9; what-if and range cases 1e-6). The model outputs are read-only and versioned, so the bundle is the store; the Python closure (pandas, scikit-learn, scipy, duckdb) is too large for a serverless function. `src/app/` (`server.py` + `static/index.html`; `twin serve --port`, or `python -m app.server` with `PORT`, default 8080) is the earlier web UI and JSON API; it calls `config`, `domain`, `planning` and `nowcast.serving`. `src/audit_agent/` is a separate LLM data-audit tool ([manual](src/audit_agent/README.md)) and does not import `tourism_twin`.
 
 Model parts:
 
@@ -152,9 +151,7 @@ Calibration: 104 complete weeks (2023-01-02 to 2024-12-23 week starts, 2,132 mar
 | 3. Structural only (planning mode) | 23.14% | +5.93% | 3,192.1 | 6,007.8 |
 | 4. Hybrid digital twin (structural + residual) | **21.74%** | **+5.36%** | **2,999.2** | **5,673.6** |
 
-The hybrid is lowest on all four metrics; its WMAPE margin over the calendar model is 0.26 pp. Interval coverage: 65.2% of holdout market-weeks fall inside structural prediction × (1 ± per-market conformal margin), against a nominal 80%.
-
-The two tables are not comparable: the nowcast uses the predicted period's new arrivals, the planning model does not.
+The hybrid is lowest on all four metrics; its WMAPE margin over the calendar model is 0.26 pp. Interval coverage: 65.2% of holdout market-weeks fall inside structural prediction × (1 ± per-market conformal margin), against a nominal 80%. The two tables are not comparable: the nowcast uses the predicted period's new arrivals, the planning model does not.
 
 ---
 
@@ -185,4 +182,6 @@ The two tables are not comparable: the nowcast uses the predicted period's new a
 | `output/figures/{waterfall_attribution,tornado_sensitivity,model_benchmark}.png` | `twin charts` |
 | `output/pdf/challengeon_solution_report.pdf` | `twin report solution` |
 | `output/pdf/challengeon_schema_database_report.pdf` | `twin report database` |
-| Web UI and JSON API at `http://127.0.0.1:8080` | `twin serve --port 8080` |
+| `output/validation_summary.json` | `twin validate` |
+| `web/public/data/` (committed): `manifest.json` + one versioned folder | `twin export` (`make export` replaces the folder) |
+| Earlier web UI and JSON API at `http://127.0.0.1:8080` | `twin serve --port 8080` |

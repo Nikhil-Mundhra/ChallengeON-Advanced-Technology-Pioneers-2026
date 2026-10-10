@@ -1,7 +1,7 @@
 # Abu Dhabi Tourism Digital Twin — Solution and Technical Specification
 
 **Challenge:** DCT Abu Dhabi — Advanced Technology Pioneers 2026 ([challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en))
-**Status:** working prototype: daily guest nowcast with test-split predictions and intervals (`twin predict`), weekly scenario simulator (CLI, web UI, JSON API), PDF reports, rolling-origin and forward-holdout back-tests, 87 automated tests.
+**Status:** working prototype: daily guest nowcast with test-split predictions and intervals (`twin predict`), weekly scenario simulator (CLI, JSON API, static web app with report, simulator and nowcast pages), PDF reports, rolling-origin and forward-holdout back-tests, 91 Python tests and 7 web parity tests.
 **Run instructions:** [README](../README.md) and [user guide](user_guide.md).
 
 ## 1. Summary
@@ -11,7 +11,7 @@ Two models:
 | Model | Inputs for the predicted period | Output | Command |
 | --- | --- | --- | --- |
 | Daily nowcast (`twin_daily`) | Daily new arrivals per market | Daily guests per market and nationality for 2025-08-01 to 2026-02-28, P10/P50/P90, weekly direction | `twin predict` |
-| Weekly planning model | Scheduled seats, planner levers, calibrated seasonal priors | Weekly guest lift per market and season | `twin simulate`, `twin serve` |
+| Weekly planning model | Scheduled seats, planner levers, calibrated seasonal priors | Weekly guest lift per market and season; weekly back-test and 3-year projection | `twin simulate`, web app |
 
 **Planning model.** It estimates how a change in air connectivity changes weekly hotel guests for a source market and season. A planner changes weekly frequency, aircraft gauge, seat capacity, load factor, P2P share, response multiplier or stay factor and gets:
 
@@ -39,7 +39,7 @@ Flight data records departure country; hotel data records guest nationality. Arr
 
 | Requirement | Implementation |
 | --- | --- |
-| Working simulator | `twin simulate`, `twin serve` (web UI + JSON API), Python API |
+| Working simulator | `twin simulate`, static web app (`web/`, `/simulate`), `twin serve` (JSON API), Python API |
 | Competition forecast | `twin predict`: `Guests` for every test-file row, validated against the test workbooks, with P10/P50/P90 |
 | Adjustable conversion chain | 7 levers over seats → passengers → P2P → hotel arrivals → guests; every stage shown baseline vs. scenario |
 | Historical validation | Daily nowcast: issue #11 protocol (7 validation origins; frozen test scored once) against two baselines; interval coverage, direction accuracy. Planning model: forward holdout (104 calibration weeks, 30 holdout weeks), 4-model benchmark |
@@ -116,10 +116,14 @@ flowchart LR
     D --> F[Hybrid prediction]
     E --> F
     F --> G[Uncertainty and sensitivity]
-    G --> H[CLI / web UI / API / PDF]
+    G --> H[CLI / API / PDF]
+    P --> X[twin export: versioned JSON bundle]
+    G --> X --> W[Static web app: TypeScript engine]
 ```
 
 Package layout: [README §2](../README.md#2-architecture).
+
+**Serving.** `twin export` (`export/bundle.py`) computes everything the web app needs once, at build time: daily predictions with AR(1) noise parameters, the what-if terms (`guests_t = max(base_t + pre_t + f · in_t, floor) · multiplier_t`, so a factor f on predicted-period arrivals is exact without exporting raw arrivals), the planning calibration, the weekly back-test and projection, and golden cases. `manifest.json` points at an immutable `<version>/` folder with SHA-256 digests. The web app (`web/`) ports the model maths to TypeScript (`web/src/engine/`) and is tested against the golden cases (1e-9; what-if and range cases 1e-6). No backend runs at request time: the outputs are read-only and versioned, so the bundle is the store, and the Python closure (pandas, scikit-learn, scipy, duckdb) exceeds a serverless function's size limit. Trade-off: a model change needs `make export` and a redeploy. The Monte Carlo spread is not ported (it depends on numpy's random stream); the web simulator shows the conformal band.
 
 ## 6. Operating modes
 
@@ -230,7 +234,6 @@ Fallback when a nationality has no pooled prediction: a pooled market's predicti
 | Year-on-year change | Forecast ÷ actual guests of the week 364 days earlier − 1 |
 | Top drivers | Model blocks other than the flow (time, holiday, flight, residual) with |mean log contribution| ≥ 0.5% in the week, as % effects |
 
-
 ### 7.9 Same-day guests (`nowcast/same_day.py`)
 
 `SameDayPoisson`: one Poisson GLM per market on weekday, holiday week and log(1 + new arrivals); markets with fewer than 60 training days use their mean. A suppressed nationality value (`*`) counts as 0: no observed same-day value is 0, observed counts fall from 1 (6,814 rows) to 2 (5,179) to 3 (2,967), and suppressed days have lower arrivals (CHINA median 328 vs 501). Every nationality with a suppressed value has also published a 1, so the censored likelihood (count < 1) equals reading `*` as 0 (issue #14). Counts are overdispersed: Pearson dispersion 8.0 domestic, 10.3 international on the validation origins; Poisson 80% intervals cover 63.3% of validation days, so no same-day interval is produced. `same_day_backtest` scores it on rolling origins (`scripts/same_day_backtest.py`). Not called by `twin predict` (the test workbooks contain `Same-Day Guests`).
@@ -249,9 +252,7 @@ Seven archetypes assigned per market in `domain/archetypes.py`: Direct Leisure, 
 - Baselines: (1) market-season mean of training guests; (2) per-market ridge on calendar features only; (3) structural planning prediction; (4) hybrid.
 - Output: `lake/curated/evaluation_results.json`.
 
-### 9.2 Results
-
-Weekly planning model, forward holdout.
+### 9.2 Results (weekly planning model, forward holdout)
 
 | Setting | WMAPE | Bias | MAE | RMSE |
 | :--- | :---: | :---: | :---: | :---: |
@@ -288,7 +289,7 @@ Findings:
 
 ### 9.3 Daily nowcast
 
-**Protocol (issue #11, `models/backtest.py`).** Validation (`VALIDATION_ORIGINS`): monthly origins 2024-02-01..2024-08-01, horizon up to 6 months ending by 2025-01-31, training ending 21 days before each origin, expanding window; 7 folds. Frozen test (`FROZEN_TEST`): 2025-02-01..2025-07-31, scored once after every choice (so far for #16 only). `compare()`: candidate − baseline WAPE with a 90% moving-block bootstrap interval (28-day date blocks shared by both models and every fold) and the share of folds with the same sign. A result counts only if the interval excludes 0 and the sign holds in most folds; a component ships only if it gains ≥ 0.3 pp on both segments.
+**Protocol (issue #11, `models/backtest.py`).** Validation (`VALIDATION_ORIGINS`): monthly origins 2024-02-01..2024-08-01, horizon up to 6 months ending by 2025-01-31, training ending 21 days before each origin, expanding window; 7 folds. Frozen test (`FROZEN_TEST`): 2025-02-01..2025-07-31, scored once after every choice (so far for #16 only). `compare()`: candidate − baseline WAPE with a 90% moving-block bootstrap interval (28-day date blocks shared by both models and every fold) and the share of folds with the same sign. A result counts only if the interval excludes 0 and the sign holds in most folds; a component ships only if it gains ≥ 0.3 pp on both segments. `twin validate` re-runs the validation table and comparisons below into `output/validation_summary.json`.
 
 **Validation.** WAPE % of daily segment totals, mean over 7 folds, domestic / international: `naive_364` 16.91 / 22.97; `arrivals_ratio` 17.93 / 8.86; `time_only` 10.10 / 10.68; `flow_only` 9.55 / 5.44; `flow_time` 4.18 / 4.42; `twin_daily` 4.18 / 4.59. Market-day grain (`compare`): `twin_daily` − `naive_364` −12.71 pp [−15.45, −10.43] domestic, −18.42 [−19.98, −16.87] international, 7/7 folds.
 
@@ -340,7 +341,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 
 ## 10. Tests
 
-87 tests, in folders that mirror the packages (63 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, API, architecture; 24 for the audit tool); all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
+91 Python tests, in folders that mirror the packages (67 product: lake and panels, features, model components and fitting, back-test harness and noise model, fitted-model evaluation, nowcast outputs and serving, planning rules, deck, API, architecture; 24 for the audit tool), and 7 web parity tests; all pass (the prediction-validator test skips without the raw test workbooks). Details: [user guide §10](user_guide.md#10-tests).
 
 ## 11. Limitations
 
@@ -358,6 +359,7 @@ Stated `direction_prob` vs share right: 0.55 → 63%, 0.65 → 78%, 0.75 → 82%
 | No room inventory | Occupancy cannot be reported | Output is guests, not occupancy |
 | No bookings, room rates, marketing spend, airfares, visa or macroeconomic data | Demand drivers beyond arrivals and the calendar are not modelled | Stated as a scope limit |
 | Planning model validated on a single forward split | One holdout period; no Autumn_Shoulder weeks | Season breakdown reported |
+| Weekly projection (web app) has no growth term; holiday flags end 2026-11-30 | Projected years repeat the seasonal profile; later holidays are missing | Growth is a stated user assumption, applied to projected weeks only |
 | Observational data | No causal identification | Results described as planning estimates |
 
 Design evidence for the nowcast: [model design](model_design.md).

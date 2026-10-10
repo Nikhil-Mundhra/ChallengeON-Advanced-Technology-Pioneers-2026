@@ -2,7 +2,7 @@
 
 Rules for coding agents in this repository. If this file disagrees with the code, trust the code and fix this file.
 
-Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, web UI/JSON API, PDF reports. Competition output: daily guest nowcast from composable log-scale components (`twin predict`). Human docs: `README.md`, `docs/`; model design (implemented vs. measured vs. proposed): `docs/model_design.md`.
+Project: Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT challenge). Raw DCT workbooks → DuckDB/Parquet lake → weekly and daily market panels → structural seats → pax → P2P → hotel arrivals → guests chain with a residual ML layer and conformal intervals → CLI, static web app (`web/`), JSON API, PDF reports. Competition output: daily guest nowcast from composable log-scale components (`twin predict`). Human docs: `README.md`, `docs/`; model design (implemented vs. measured vs. proposed): `docs/model_design.md`.
 
 ## Setup
 
@@ -22,23 +22,25 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin train [--max-date D] [--panel-path P]` | Structural, residual, conformal artifacts | lake |
 | `twin evaluate` | Weekly benchmarks through the back-test harness → `evaluation_results.json` (run before `train`, which reads its coverage) | lake |
 | `twin predict [--spec S] [--no-intervals]` | Daily nowcast of the test split (default spec `twin_daily`); refuses output failing `validate_predictions` | output (`predictions/`) |
+| `twin validate` | #11 validation table and `compare` rows on `VALIDATION_ORIGINS` | output (`validation_summary.json`) |
+| `twin export [--out D] [--spec S]` | Fit, predict, write the web bundle: `manifest.json` + `<version>/{nowcast,whatif,planning,weekly,golden}.json` | `web/public/data` (default) |
 | `twin ablate-blocks` | Nowcast block ablation on 13 exploratory origins (~10 min) | output (`nowcast_block_ablation.json`) |
 | `twin evaluate-model [--spec S \| --model P] --start D --end D [--frozen-test]` | Fit a `DAILY_SPECS` name or `pooled_nationalities` up to `--start` minus 21 days (or load a model), score without refitting; frozen test only with `--frozen-test` | output (`models/`, `evaluations/`) |
 | `twin simulate --market M --season S [levers]` | Print a scenario briefing | — |
 | `twin charts` | Waterfall, tornado, benchmark figures | output |
 | `twin report {solution,database}` | PDF report (needs `report` extra) | output |
 | `twin report deck [--content P] [--no-pdf]` | 10-slide presentation from `report/deck/deck.yaml` → `deck/deck.pptx` (+ PDF via LibreOffice); needs `report` extra | output |
-| `twin serve [--port 8080]` | Web UI + JSON API | — |
+| `twin serve [--port 8080]` | Earlier web UI + JSON API (`python -m app.server` reads `PORT`) | — |
 | `twin query "SQL" [--database P] [--limit N]` | Read-only SQL on `analytics.duckdb` | — |
 
 - `twin query` and `twin report database` need `lake/analytics.duckdb` (gitignored; built by `twin build-lake`).
 - `twin predict` needs the raw test workbooks; it writes `{domestic,international}_test_guests.csv`, `test_total_guests.csv`, `test_predictions.png`, and, except with `--no-intervals`, `test_guests_intervals.csv`, `market_outputs.json`, `nowcast_serving.json`.
-- Makefile targets: `install`, `lake`, `panel` (weekly + daily), `evaluate`, `train`, `charts`, `report` (solution), `test`, `all` (lake → panel → evaluate → train → charts → report → test), `clean`.
+- Makefile targets: `install`, `lake`, `panel` (weekly + daily), `evaluate`, `train`, `charts`, `report` (solution), `test`, `all` (lake → panel → evaluate → train → charts → report → test), `clean`; `validate`, `export` (rm -rf `web/public/data`, then `twin export`), `backend` (test + export), `frontend` (`web-install`, `web-test`, `web-build`), `web-dev`; `up`/`down`/`status`/`logs` (Vite on `WEB_PORT`=5180, `src/app/server.py` on `API_PORT`=8090, pid files in `.run/`), `api-up`/`api-down`/`web-up`/`web-down`.
 
 ## Tests
 
-- Run `.venv/bin/pytest -q` (or `make test`). If you report counts, run pytest and quote its actual output.
-- Tests mirror the packages: `tests/{data,features,models,nowcast,planning,app,audit}/` plus `tests/test_architecture.py`; run one area with `pytest tests/<area>` (CI scoping).
+- Run `.venv/bin/pytest -q` (or `make test`); web: `make web-test`. If you report counts, run pytest and quote its actual output.
+- Tests mirror the packages: `tests/{data,features,models,nowcast,planning,reporting,app,audit}/` plus `tests/test_architecture.py`; run one area with `pytest tests/<area>` (CI scoping).
 - Put a test in the folder of the package it guards, in an existing file when one fits; never create a top-level product test file other than `test_architecture.py`.
 - Shared fixtures live in `tests/conftest.py` (`twin`, `weekly_panel`, `daily_panel`, `kernel_frame`: session-built, copied per test); synthetic generators with a known answer live in `tests/synthetic.py`. Reuse them instead of rebuilding data or refitting the same model in each test.
 - Test behaviour: known-answer recovery, leakage, reconciliation, invariants, regressions. Do not test constants, registry membership, constructor errors or message text.
@@ -47,7 +49,7 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 
 ## Layout and layering
 
-Packages under `src/`: `tourism_twin` (pipeline and model), `app` (`server.py` + `static/index.html`), `audit_agent` (LLM data-audit tool, run via `scripts/run_data_issues_audit.py`; input `audits/data_issues/checklist.json`, output `audit/issues.md`). Committed audit inputs and dated snapshots live in `audits/`, never in the repo root; run state and fresh output go to `audit/` (gitignored).
+Packages under `src/`: `tourism_twin` (pipeline and model), `app` (`server.py` + `static/index.html`, the earlier UI), `audit_agent` (LLM data-audit tool, run via `scripts/run_data_issues_audit.py`; input `audits/data_issues/checklist.json`, output `audit/issues.md`). Committed audit inputs and dated snapshots live in `audits/`, never in the repo root; run state and fresh output go to `audit/` (gitignored).
 
 `src/tourism_twin/`, lowest layer first; a module imports only from its own layer or layers above it (enforced by `test_packages_import_only_lower_layers`):
 
@@ -64,12 +66,13 @@ nowcast/    daily competition model: specs, routing, baselines, predict (orchest
             serving, evaluation, same_day
 planning/   weekly scenario model: structural, residual, calendar_features, conformal, uncertainty,
             sensitivity, simulator, briefing, training, evaluation, specs, baselines
-reporting/  charts, predictions_plot, solution_report, database_report/, palette, pdf_palette
+reporting/  charts, predictions_plot, solution_report, database_report/, deck/, palette, pdf_palette
+export/     bundle.py: the web bundle (sibling of reporting/; neither imports the other)
 cli/        the `twin` command
 ```
 
 - `nowcast/` and `planning/` never import each other; shared model code goes in `models/`.
-- Place code by role: vocabulary/constants → `domain/`; derived columns → `features/`; reading/writing raw or lake data → `data/`; reusable model parts → `models/`; the daily competition model and its outputs → `nowcast/`; the scenario simulator → `planning/`; figures/PDFs → `reporting/`.
+- Place code by role: vocabulary/constants → `domain/`; derived columns → `features/`; reading/writing raw or lake data → `data/`; reusable model parts → `models/`; the daily competition model and its outputs → `nowcast/`; the scenario simulator → `planning/`; figures/PDFs → `reporting/`; the web bundle → `export/`.
 - Keep `cli/` to argument parsing and printing; register new subcommands in `tourism_twin/cli/`.
 - Never import a later layer from an earlier one (e.g. `features/` must not import `data/`).
 
@@ -119,6 +122,15 @@ cli/        the `twin` command
 - Add event occurrences to `domain/events.csv` (with `scope`: all, international, a market or a pooled-market nationality); `kind=one_off` rows are masked from training via `is_one_off_period`. Keep scoped events (`chinese_new_year`, `morocco_winter_block`) out of `DEFAULT_KERNEL_EVENTS` until they pass validation.
 - Never derive legacy `HOLIDAY_WEEKS` / `MAJOR_EVENT_WEEKS` from `events.csv`; that moves shipped weekly results.
 - No `.iterrows(` anywhere in `models/` (a test enforces it).
+
+## Web app (`web/`)
+
+- Layout: `src/engine/` (pure TS ports: `planning`, `weekly`, `whatif`, `noise`, `range`; `parity.test.ts`), `src/data/` (bundle loader), `src/components/{ui,layout,charts}`, `src/features/{report,simulate,nowcast}`, `src/theme/`, `src/content/report.ts`.
+- After any model or artifact change, run `make export` and commit `web/public/data` with the change; never hand-edit bundle files.
+- Static site, no request-time backend: never add an API or BFF for model numbers (the bundle is the store). Compute model numbers only in `src/engine/`; components and features only call it and format.
+- Every engine port needs golden cases in `export/bundle.golden_part` (or `planning_golden`) and a parity test; keep tolerances at 1e-9 where the maths is exact.
+- The bundle exports derived terms (what-if base/pre/in/floor/multiplier), never raw arrivals (licensed data).
+- Report copy lives in `web/src/content/report.ts`, each number with its source (README §3, solution documentation §11); keep those section numbers stable.
 
 ## Presentation deck
 

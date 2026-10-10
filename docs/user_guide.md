@@ -1,6 +1,6 @@
 # Abu Dhabi Tourism Digital Twin — User Guide
 
-How to write the test-split predictions, run scenarios, read the output, retrain, evaluate, and rebuild the reports. Setup and the full pipeline are in the [README](../README.md); method and results are in the [solution documentation](solution_documentation.md).
+How to write the test-split predictions, run scenarios, use the web app, read the output, retrain, evaluate, and rebuild the reports. Setup and the full pipeline are in the [README](../README.md); method and results are in the [solution documentation](solution_documentation.md).
 
 ---
 
@@ -58,6 +58,8 @@ Blocks: `time` (season, weekday, and for domestic the slope held at its last tra
 ### 1.2 Scoring a model: `twin evaluate-model`
 
 `twin evaluate-model --spec S --start D --end D` fits a `DAILY_SPECS` name or `pooled_nationalities` on rows dated up to `--start` − (`--gap-days` + 1) days (default gap 21), or loads `--model P`, and scores the window without refitting (`models/evaluate.evaluate_fitted`): WAPE, bias, MAE, RMSE, MSE, log-MSE per segment at day, complete-week and complete-month grain, error by horizon, direction of consecutive totals; `pooled_nationalities` adds a per-nationality table. A window overlapping 2025-02-01..2025-07-31 needs `--frozen-test` (score once, after every choice). Writes `output/models/<spec>_<train_end>.pkl` and `output/evaluations/<spec>_<start>_<end>.json`.
+
+`twin validate` (`make validate`) back-tests `naive_364`, `arrivals_ratio`, `time_only`, `flow_only`, `flow_time` and `twin_daily` on `VALIDATION_ORIGINS` (never the frozen test) and writes `output/validation_summary.json`: `protocol`, `folds`, `segment_wape` (`grain`, `values.<spec>.{domestic,international}`), `compare` (`grain`, `rows[]`: `twin_daily` against `naive_364`, `time_only` and `flow_time` per segment) and `nationalities` (the pooled-nationality and recency results, each with its commit).
 
 ---
 
@@ -171,19 +173,26 @@ Other `ScenarioLever` fields: `delta_seats_pct`, `delta_p2p_share`, `delta_multi
 
 ---
 
-## 7. Web simulator
+## 7. Web app
 
 ```bash
-twin serve --port 8080      # open http://localhost:8080
+make export     # rm -rf web/public/data, then twin export: fit twin_daily, write the bundle
+make up         # web app http://localhost:5180 (WEB_PORT), Python API http://127.0.0.1:8090 (API_PORT); make down / status / logs
+make web-dev    # Vite dev server only; make web-test (parity), make web-build (type-check + web/dist)
 ```
 
-Single page (`src/app/static/index.html`) served by `src/app/server.py`; no frontend build step.
+`web/` is a static React site; no Python runs at request time. `/report` is the long-form report (copy and sources in `web/src/content/report.ts`). Deploy `web/` to Vercel (`web/vercel.json`: SPA rewrites, `manifest.json` cached 60 s, versioned files immutable).
 
-- **Controls:** market, season, added weekly flights, aircraft gauge, load-factor shift, P2P shift, response-multiplier shift, guests-per-arrival ratio shift, and a reset-to-baseline button. (Seat-percentage shift is CLI/API only.)
-- **Panels:** executive recommendation; KPI cards (baseline weekly guests, structural lift, hybrid lift, conformal range, simulated total); waterfall chart; conversion-chain table; tornado chart.
-- **JSON API:** `GET /api/simulate` with query parameters `market`, `season`, `delta_freq`, `gauge`, `delta_seats_pct`, `delta_lf`, `delta_p2p`, `delta_mult_pct`, `delta_los` (an invalid season returns 400); `GET /api/benchmark`.
+- **Bundle** (`twin export [--out web/public/data] [--spec twin_daily]`, `export/bundle.py`): `manifest.json` (`schema_version`, `version` = `YYYYmmdd-HHMMSS-<git sha>`, `spec`, `coverage`, `predicted_period`, `files`, `sha256`) points at `<version>/`: `nowcast.json` (daily predictions, AR(1) noise parameters and z for 50/80/90% per series; last 400 days of actual guests; nationality predictions), `whatif.json` (per market and day: base stock, kernel flow from arrivals before and inside the predicted period, floor, calendar multiplier; no raw arrivals), `planning.json` (calibration, archetype priors, season residual, conformal margins), `weekly.json`, `golden.json` (input → expected output cases for the parity tests).
+- **`weekly.json`**, per calibrated market: actual weekly guests (complete weeks), the structural part and calendar residual for every panel week and 3 years beyond, and the forward-holdout back-test (fitted before 2024-12-30; reproduces the 21.74% WMAPE of README §3.2). Projected weeks use the calibrated seasonal seats; the model has no growth term, and holiday flags end 2026-11-30.
+- **`/simulate`:** market, season and the 7 levers; current vs. scenario weekly guests, conversion chain, waterfall, tornado, conformal band (the Monte Carlo spread is not ported); a timeline of actuals, back-test and projection with a scenario start week and a stated growth assumption (−5 to +10% a year, projected weeks only), and a per-year table.
+- **`/nowcast`:** series, range length and start; range total with interval, previous range and direction (as `/api/nowcast/range`); arrivals what-if sliders (domestic, international, selected market); nationality list.
 
-### 7.1 Nowcast API
+### 7.1 Earlier web UI: `twin serve`
+
+`twin serve --port 8080` (or `python -m app.server`, port from `PORT`) serves `src/app/static/index.html`, no build step: market, season and lever controls (seat-percentage shift is CLI/API only), KPI cards, waterfall, conversion chain, tornado. JSON API: `GET /api/simulate` (`market`, `season`, `delta_freq`, `gauge`, `delta_seats_pct`, `delta_lf`, `delta_p2p`, `delta_mult_pct`, `delta_los`; invalid season → 400); `GET /api/benchmark`.
+
+### 7.2 Nowcast API
 
 Answers come from `output/predictions/nowcast_serving.json` (written by `twin predict`); nothing is refitted per request. Without the bundle the endpoints return 503; ranges outside the predicted period return 400.
 
@@ -236,7 +245,7 @@ Results are in the [README](../README.md#32-weekly-planning-model-forward-holdou
 pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 ```
 
-87 tests: 63 product tests in folders that mirror the packages, and 24 for the audit tool; all pass (the prediction-validator test skips without the raw test workbooks). Run one area with `pytest tests/<area>`:
+91 tests: 67 product tests in folders that mirror the packages, and 24 for the audit tool; all pass (the prediction-validator test skips without the raw test workbooks). `make web-test` runs 7 web parity tests (`web/src/engine/parity.test.ts`). Run one area with `pytest tests/<area>`:
 
 | Folder | Tests | Covers |
 | :--- | ---: | :--- |
@@ -245,6 +254,7 @@ pytest tests/ -v    # or: make test, or .venv/bin/pytest -q
 | `tests/models/` | 37 | components (known-answer recovery), fitting and weights, specs, back-test harness and noise model, fitted-model evaluation |
 | `tests/nowcast/` | 6 | baselines, submission validator, outputs, serving, same-day guests |
 | `tests/planning/` | 4 | waterfall identity, planning rules, scenario residual |
+| `tests/reporting/` | 4 | presentation deck |
 | `tests/app/` | 1 | web API |
 | `tests/test_architecture.py` | 2 | layering, no row loops |
 | `tests/audit/` | 24 | audit tool |
@@ -262,6 +272,7 @@ Shared fixtures are in `tests/conftest.py` and synthetic data with a known answe
 | Noise model | AR(1) recovery and its closed-form variance; a fold's own errors never set its own bounds |
 | Architecture | `nowcast` and `planning` never import each other; packages import only lower layers (any import form); no row loops in model packages |
 | Competition predictions | The validator accepts mirrored files and flags bad ones (including Guests below max(New Arrivals, 10)); absent test days get below-threshold arrivals; full weeks with an AR(1)-based direction probability; the direction back-test scores each week once against its baselines; the serving bundle answers range questions; the same-day GLM recovers a weekday effect and reads `*` as 0 |
+| Web engine (`parity.test.ts`) | What-if guests reproduce every market's prediction (1e-9) and the fitted model for scaled arrivals (1e-6); range intervals match `NoiseModel.range_interval`; conversion chain, waterfall, hybrid, conformal bands and tornado match Python (1e-9); the weekly back-test reproduces 21.74% WMAPE; scenario weeks move by the season's change from the start week |
 | Simulator and API | The API rejects an invalid season and serves a scenario; waterfall = lift within 1e-9 for every calibrated market + `SWEDEN`, season and 6 lever sets, and relatively for 1e7-guest scenarios; route closure, domestic decoupling, added capacity never lowers demand, cold-start priors (SWEDEN, PAKISTAN) and tornado, deterministic Monte Carlo; planning and simulation share one arrivals rule; the scenario residual is the season's mean fit |
 
 ---
