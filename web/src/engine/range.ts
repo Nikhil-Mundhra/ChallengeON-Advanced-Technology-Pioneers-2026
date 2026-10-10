@@ -2,7 +2,7 @@ import { rangeInterval } from "./noise";
 import type { Nowcast } from "./types";
 
 /** |change| below this is reported as "no clear change": over 2-week ranges the size of a change
- *  is off by 3-4 pp (docs/model_design.md §4.8). */
+ *  is off by 3-4 pp (docs/evidence/range-totals.md). */
 export const DIRECTION_THRESHOLD = 0.08;
 
 export type Direction = "up" | "down" | "no clear change";

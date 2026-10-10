@@ -61,7 +61,7 @@ class Uniform(_ValueWeighting):
 
 class Recency(_ValueWeighting):
     """Exponential decay with age: a row `half_life_days` older than the newest training row
-    counts half as much. For slowly drifting relations (guests per arrival, docs/model_design.md §4.7)."""
+    counts half as much. For slowly drifting relations (guests per arrival, docs/evidence/test-period-data.md)."""
 
     def __init__(self, half_life_days: float, date_column: str = "date") -> None:
         if half_life_days <= 0:

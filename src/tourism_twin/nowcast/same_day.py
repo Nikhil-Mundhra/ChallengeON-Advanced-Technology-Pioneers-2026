@@ -1,4 +1,4 @@
-"""Same-day guests: a separate count target (docs/model_design.md §5.7), modelled per market with a
+"""Same-day guests: a separate count target (docs/model/nowcast.md), modelled per market with a
 Poisson GLM on day of week, holiday weeks and log new arrivals.
 
 A suppressed nationality value ('*') counts as 0. Evidence in the training data: no observed

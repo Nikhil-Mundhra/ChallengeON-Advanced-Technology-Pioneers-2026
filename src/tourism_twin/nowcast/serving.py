@@ -6,7 +6,7 @@ A range total's interval comes from NoiseModel.range_interval (AR(1) covariance 
 range's days). Its direction is stated against the same-length range just before it (actual
 guests for training days, predictions for test days) only when the change is at least
 DIRECTION_THRESHOLD: over 2-week ranges the direction is right about 90% of the time but the size
-of the change is off by 3-4 pp (docs/model_design.md §4.8).
+of the change is off by 3-4 pp (docs/evidence/range-totals.md).
 """
 
 from __future__ import annotations

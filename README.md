@@ -1,8 +1,8 @@
 # Abu Dhabi Hotel Outlook
 
-**Flights in, hotel demand out.** A decision tool for DCT Abu Dhabi, built for ChallengeON ATP 2026.
+Flights in, hotel demand out. A decision tool for DCT Abu Dhabi, built for ChallengeON ATP 2026.
 
-**Live site**: https://abu-dhabi-hotel-outlook.vercel.app · **User guide**: [docs/user_guide.md](docs/user_guide.md) · **Model design**: [docs/model_design.md](docs/model_design.md) · **Solution document**: [docs/solution_documentation.md](docs/solution_documentation.md) · **Challenge**: [DCT challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en)
+Live site: https://abu-dhabi-hotel-outlook.vercel.app · Docs: [docs/index.md](docs/index.md) · User guide: [docs/guide/index.md](docs/guide/index.md) · Results: [docs/results/index.md](docs/results/index.md) · Challenge: [DCT challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en)
 
 ---
 
@@ -10,19 +10,19 @@ Abu Dhabi Hotel Outlook turns air-connectivity decisions into hotel guests: a we
 
 ## Key features
 
-* **Answers planning questions**: a new route, more flights, more seats, fuller flights, a different seasonal market mix.
-* **Transparent chain**: seats → passengers → visitors → hotel nights, every step a lever you can move.
-* **Validated**: time-ordered validation origins and a frozen test period scored once, never shuffled.
-* **Honest ranges**: every number comes with its ±error.
-* **Reproducible**: one command rebuilds the lake, the models, the charts and the report from the raw workbooks.
-* **Fast and static**: the site computes scenarios in the browser from a versioned data bundle. No server.
+* Answers planning questions: a new route, more flights, more seats, fuller flights, a different seasonal market mix.
+* Transparent chain: seats → passengers → visitors → hotel nights, every step a lever you can move.
+* Validated: time-ordered validation origins and a frozen test period scored once, never shuffled.
+* Ranges: every forecast number comes with its ±error.
+* Reproducible: one command rebuilds the lake, the models, the charts and the report from the raw workbooks.
+* Static site: scenarios are computed in the browser from a versioned data bundle; no server runs at request time.
 
 ## Requirements
 
 * Python 3.10+ (developed on 3.12) and Node 20+.
 * The five competition workbooks in `01a - DCT Dataset/` (or `TWIN_SOURCE_DIR`): `data domestic_train.xlsx`, `data domestic_test.xlsx`, `data international_train.xlsx`, `data international_test.xlsx`, `flight_data.xlsx`. They are not included: they are licensed for the competition only.
 
-The curated lake and the weekly model artifacts are committed, so the simulator, the web app and the tests run without the workbooks.
+The curated lake and the weekly model artifacts are committed; the simulator, the web app and the tests run without the workbooks.
 
 ## Installation
 
@@ -55,10 +55,10 @@ Web app: http://localhost:5180. JSON API: http://127.0.0.1:8090. Stop both with 
 
 ### Check it
 
-* **Outlook** (`/`): each coming month against the same month a year earlier, the markets growing and slowing most, and answers to the five planning questions.
-* **Flight scenarios** (`/simulate`): levers per market, a moving map of visitors week by week, the conversion chain, the waterfall and the biggest levers.
-* **Daily forecast** (`/nowcast`): guests for any date range with its error, an arrivals what-if, and the nationality list.
-* **How it works** (`/report`): the method, the validation and the limits, with the source of every number.
+* Outlook (`/`): each coming month against the same month a year earlier, the markets growing and slowing most, and answers to the five planning questions.
+* Flight scenarios (`/simulate`): levers per market, a moving map of visitors week by week, the conversion chain, the waterfall and the biggest levers.
+* Daily forecast (`/nowcast`): guests for any date range with its error, an arrivals what-if, and the nationality list.
+* How it works (`/report`): the method, the validation and the limits, with the source of every number.
 
 ## Try a scenario
 
@@ -85,10 +85,10 @@ The full briefing adds the waterfall by lever, the range and the tornado ranking
 
 | Model | Measure | Result |
 | :--- | :--- | :--- |
-| Daily nowcast (`twin_daily`) | Validation WAPE, domestic / international | **4.18% / 4.59%** |
-| Weekly planning model (hybrid) | Forward-holdout WMAPE, 21 markets | **20.62%** |
+| Daily nowcast (`twin_daily`) | Validation WAPE of daily segment totals, 7 monthly origins (Feb to Aug 2024), domestic and international | [nowcast validation](docs/results/nowcast-validation.md) |
+| Weekly planning model (hybrid) | Forward-holdout WMAPE, 21 markets, 30 weeks without their arrivals | [planning holdout](docs/results/planning-holdout.md) |
 
-The nowcast is scored on daily segment totals over 7 monthly validation origins (Feb to Aug 2024), each trained up to 21 days before the origin; it uses the predicted period's new arrivals. The planning model is calibrated on 104 weeks and scored on the next 30 weeks without any of their arrivals. Full tables: [daily nowcast](docs/solution_documentation.md#93-daily-nowcast), [weekly planning model](docs/solution_documentation.md#92-results-weekly-planning-model-forward-holdout).
+The nowcast uses the predicted period's new arrivals; the planning model does not.
 
 ## Project layout
 
@@ -106,7 +106,7 @@ src/tourism_twin/
   cli/         the twin command
 src/app/       earlier web UI and JSON API
 web/           static React site and its TypeScript model engine
-docs/          user guide, model design, solution document
+docs/          facts: data, architecture, model, evidence, results, user guide
 tests/         Python tests, one folder per package
 lake/          curated tables and model artifacts
 meta/          audits, research notes, deck source
@@ -125,7 +125,7 @@ meta/          audits, research notes, deck source
 | `twin validate` | Daily validation numbers (`output/validation_summary.json`) |
 | `twin export` | Versioned data bundle for the web app |
 
-Full list, options and outputs: [docs/user_guide.md](docs/user_guide.md#12-setup-pipeline-and-configuration).
+Full list, options and outputs: [docs/guide/cli.md](docs/guide/cli.md).
 
 ## Dependencies
 

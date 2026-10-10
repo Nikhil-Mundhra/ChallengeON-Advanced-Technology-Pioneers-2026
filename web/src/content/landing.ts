@@ -6,5 +6,5 @@ export const CHAPTERS = [
   { id: "trust", number: "04", label: "How sure we are", kicker: "Accuracy" },
 ] as const;
 
-/** Daily accuracy on validation periods (solution documentation §9.3, shipped nowcast), as shown on the report page. */
+/** Daily accuracy on validation periods (docs/results/nowcast-validation.md, shipped nowcast), as shown on the report page. */
 export const DAILY_ERROR = { domestic: 4.18, international: 4.59 };

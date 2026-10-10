@@ -22,7 +22,7 @@ class Component(Protocol):
     name: str
     requires: Tuple[str, ...]
     owns_level: bool
-    group: str  # model block: flow, time, holiday, flight or residual (docs/model_design.md §3.1)
+    group: str  # model block: flow, time, holiday, flight or residual (docs/model/nowcast.md#blocks)
 
     def fit(self, panel: pd.DataFrame, offset: pd.Series, y: pd.Series,
             weights: Optional[np.ndarray] = None) -> "Component":

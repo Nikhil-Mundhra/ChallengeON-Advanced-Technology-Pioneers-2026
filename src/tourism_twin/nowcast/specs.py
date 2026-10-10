@@ -51,9 +51,9 @@ FLOW_ONLY = ModelSpec(components=(KERNEL,), fitter=BACKFIT, rules=NOWCAST_ROWS)
 # nationality's 90-day arrivals. Validation (#11 protocol, 7 origins): international nationality
 # WAPE 12.24 vs 12.79 for the market model + arrival-share split, -0.55 pp [-0.79, -0.32], 7/7
 # folds; frozen test 11.16 vs 11.38, -0.22 pp [-0.45, +0.02]. Training rows are weighted by recency
-# (half-life 365 days): guests per arrival drift by nationality (§4.7). Validation, 30 pooled-market
-# nationalities, nationality-day grain: guest-weighted WAPE 13.83 vs 14.23 unweighted, -0.40 pp
-# [-0.64, -0.19], 7/7 folds; mean |bias| per nationality 6.15% vs 7.32% (Morocco -3.3% vs -9.1%).
+# (half-life 365 days): guests per arrival drift by nationality (docs/evidence/test-period-data.md).
+# Validation, 30 pooled-market nationalities, nationality-day grain: guest-weighted WAPE 13.83 vs 14.23
+# unweighted, -0.40 pp [-0.64, -0.19], 7/7 folds; mean |bias| per nationality 6.15% vs 7.32% (Morocco -3.3% vs -9.1%).
 # Grid (validation): Recency(180) -0.40 but 5/7 folds; ridge 1/10/1000 worse; data-driven families
 # worse; adding the MOROCCO-scoped morocco_winter_block kernel +0.15 vs this spec.
 SHORT_STAY_FAMILY = ("SAUDI ARABIA", "KUWAIT", "OMAN", "BAHRAIN", "QATAR")
@@ -73,7 +73,7 @@ def routed(domestic: ModelSpec, international: ModelSpec) -> Callable[[], Model]
     return lambda: MarketRouter(domestic.build, international.build)
 
 
-# Block ablation (docs/model_design.md §3.1): time only, flow only, flow + time, and twin_daily
+# Block ablation (docs/model/nowcast.md#blocks): time only, flow only, flow + time, and twin_daily
 # (flow + time + holiday; domestic has no holiday block, so its last two rows coincide).
 BLOCK_ABLATION = ("naive_364", "time_only", "flow_only", "flow_time", "twin_daily")
 

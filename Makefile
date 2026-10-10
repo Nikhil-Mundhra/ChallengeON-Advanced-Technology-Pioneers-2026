@@ -7,7 +7,7 @@ OUTPUT_DIR := $(or $(TWIN_OUTPUT_DIR),output)
 
 .PHONY: all install lake panel evaluate train charts report test clean \
         backend export validate frontend web-install web-dev web-build web-test deploy \
-        up down status logs api-up api-down web-up web-down
+        up down status logs api-up api-down web-up web-down docs-lint
 
 ## Rebuild every metric and artifact from the raw workbooks (one-command reproducibility).
 ## Needs the organizer-provided dataset in '01a - DCT Dataset/' (or TWIN_SOURCE_DIR).
@@ -131,3 +131,7 @@ clean:
 	rm -rf $(OUTPUT_DIR)/figures $(OUTPUT_DIR)/pdf $(LAKE_DIR)/.staging_build
 	rm -f $(LAKE_DIR)/analytics.duckdb $(LAKE_DIR)/analytics.duckdb.wal
 	@echo "Cleaned generated artifacts in $(OUTPUT_DIR)/ and $(LAKE_DIR)/."
+
+## Guide and docs graph checks (report-only; scripts/docs_lint.py --strict fails on findings)
+docs-lint:
+	python3 scripts/docs_lint.py

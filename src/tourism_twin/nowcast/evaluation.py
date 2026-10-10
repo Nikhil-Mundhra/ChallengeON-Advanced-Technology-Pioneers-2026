@@ -1,5 +1,5 @@
 """Nowcast evaluations on rolling origins, segment by segment (domestic and international are
-never pooled): the block ablation of docs/model_design.md §3.1, and the week-to-week direction
+never pooled): the block ablation of docs/model/nowcast.md#blocks, and the week-to-week direction
 back-test of the outputs document."""
 
 from __future__ import annotations

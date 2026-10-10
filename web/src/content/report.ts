@@ -1,6 +1,6 @@
 /** Report copy: facts only, with the source of every number. Edit text here, not in components.
- *  Numbers: docs/solution_documentation.md §9.3 (daily validation, issue #11 protocol),
- *  §9.2 (weekly planning holdout) and §11 (limitations). */
+ *  Numbers: docs/results/nowcast-validation.md (daily validation, issue #11 protocol),
+ *  docs/results/planning-holdout.md (weekly planning holdout) and docs/results/limitations.md. */
 
 export interface ReportSection {
   id: string;
@@ -24,7 +24,6 @@ export const SECTIONS: ReportSection[] = [
     body: [
       "Weekly guests for a source market and season follow one equation per link: seats × load factor × point-to-point share × response multiplier × guests-per-arrival factor. Each factor is calibrated per market and season from 104 training weeks.",
       "A scenario changes one or more links. The change in guests is attributed step by step (seats, load factor, P2P share, multiplier, guests-per-arrival factor); the five parts sum to the total change exactly.",
-      "Real-world aviation and hotel dynamics are reflected through three empirical mechanics calibrated from the data lake: a frequency S-curve that models increasing returns up to daily service (7 flights a week), route dilution that accounts for diminishing returns when seat surges spill into connecting transit, and destination hotel capacity ceilings that prevent runaway demand during peak seasons.",
       "Markets without flights in the data use their archetype's priors (cold start) and are flagged.",
       "Over time, the same model is back-tested week by week (fitted before 30 holdout weeks, then scored on them) and projected three years ahead from each market's calibrated seasonal service. A scenario moves every week from a chosen start date by the change for that week's season.",
     ],
@@ -100,6 +99,7 @@ export const LIMITATIONS = [
   "The guests-per-arrival factor is a stock-to-flow ratio, not a measured length of stay.",
   "Markets without flights use archetype defaults (cold start).",
   "The weekly model has no growth term: multi-year projections repeat the fitted seasonal profile, and growth is an assumption the user sets. Holiday-week flags end in November 2026.",
-  "No bookings, room rates, marketing spend, airfares, or visa data; hotel room saturation is modeled via empirical peak ceilings rather than live room inventory feeds.",
+  "No bookings, room rates, marketing spend, airfares, visa or macroeconomic data; no room inventory, so no occupancy.",
+  "The flight response includes hand-set adjustments for frequency, seat surges and peak demand; they are assumptions, not fitted to the data.",
   "Observational data: results are planning estimates, not causal effects.",
 ];
