@@ -189,9 +189,9 @@ class DigitalTwinHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def run_server(port: int = 8080):
-    server = HTTPServer(("127.0.0.1", port), DigitalTwinHandler)
-    print(f"Abu Dhabi Tourism Digital Twin UI serving at: http://127.0.0.1:{port}")
+def run_server(port: int = 8080, host: str = "127.0.0.1"):
+    server = HTTPServer((host, port), DigitalTwinHandler)
+    print(f"Abu Dhabi Tourism Digital Twin UI serving at: http://{host}:{port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -202,4 +202,4 @@ def run_server(port: int = 8080):
 if __name__ == "__main__":
     import os
 
-    run_server(int(os.environ.get("PORT", "8080")))
+    run_server(int(os.environ.get("PORT", "8080")), os.environ.get("HOST", "127.0.0.1"))
