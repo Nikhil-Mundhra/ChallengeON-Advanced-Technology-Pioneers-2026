@@ -4,7 +4,7 @@
  * simulator's change for each week's season, so the timeline and the scenario cards agree:
  *   guests_w = max(0, structural_w + residual_w + delta_season(w)) * growth_w
  * The model has no growth term; `growthPct` is a stated assumption, compounded per year after the
- * last actual week and applied to projected weeks only.
+ * first projected week (no flight schedule) and applied to projected weeks only, so there is no step.
  */
 import { conformalBands, NO_CHANGE, simulate, type Lever, type Planning } from "./planning";
 
@@ -47,7 +47,8 @@ export function timeline(planning: Planning, weekly: Weekly, market: string, lev
   const delta: Record<string, number> = {};
   const margin = conformalBands(planning, simulate(planning, market, m.season[0], lever)).margin;
   for (const season of new Set(m.season)) delta[season] = simulate(planning, market, season, lever).delta_guests;
-  const anchor = Date.parse(weekly.last_actual_week);
+  const firstProjected = m.week[m.kind.indexOf("projected")];   // growth starts here, so the forecast has no step
+  const anchor = Date.parse(firstProjected ?? weekly.last_actual_week);
   const growth = 1 + (options.growthPct ?? 0) / 100;
   return m.week.map((week, w) => {
     const base = m.structural[w] + m.residual[w];

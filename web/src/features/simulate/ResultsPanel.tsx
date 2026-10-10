@@ -23,11 +23,10 @@ export function ResultsPanel({ pb, week, market }: { pb: Playback; week: number;
   const top = world.byMarket.filter((m) => m.market !== "DOMESTIC").slice(0, 8);
   const max = top[0]?.visitors || 1;
   const sinceOptions = pb.weeks.map((w, i) => ({ w, i })).filter(({ w }) => w.slice(8, 10) <= "07").map(({ w, i }) => ({ value: String(i), label: formatMonth(w) }));
-  const label = mode === "week" ? `Week of ${formatDate(pb.weeks[period.from])}`
-    : mode === "month" ? formatMonth(pb.weeks[period.from])
-    : mode === "year" ? pb.weeks[period.from].slice(0, 4)
-    : `${formatMonth(pb.weeks[period.from])} to ${formatDate(pb.weeks[period.to])}`;
-
+  const label = mode === "week" ? `Week of ${formatDate(period.first)}`
+    : mode === "month" ? formatMonth(period.first)
+    : mode === "year" ? period.first.slice(0, 4)
+    : `${formatMonth(period.first)} to ${formatDate(period.last)}`;
   return (
     <>
       <Card title="Totals" subtitle={label} actions={<Badge tone="neutral">{DATA_LABEL[sum.data]}</Badge>}>
@@ -38,6 +37,7 @@ export function ResultsPanel({ pb, week, market }: { pb: Playback; week: number;
           <div><dt>Hotel nights</dt><dd>{formatCount(sum.guests)}</dd></div>
           {Math.abs(added) >= 1 && <div><dt>From your changes</dt><dd className={toneOf(added)}>{formatSigned(added, formatCount)} visitors</dd></div>}
         </dl>
+        {!sum.covered && <p className="note">Only part of this period has data, so the totals cover the weeks we have.</p>}
         <p className="note">{known || market === ALL_MARKETS ? marketName(market) : `All markets (${marketName(market)} has no hotel history yet)`}. Follows the week on the map; press play and it moves.</p>
       </Card>
       <Card title="Where visitors come from" subtitle={`Same period, all markets (countries and regions)`}>

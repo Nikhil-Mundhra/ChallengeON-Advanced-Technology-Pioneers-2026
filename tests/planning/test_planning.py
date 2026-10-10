@@ -45,10 +45,14 @@ def test_waterfall_reconciles_exactly_for_every_market_season_and_lever(twin):
 
 def test_scenarios_follow_the_planning_rules(twin):
     engine = twin.structural_engine
-    for market in ("UNITED KINGDOM", "GERMANY", "INDIA"):  # closing a route removes all aviation demand
+    for market in ("UNITED KINGDOM", "GERMANY", "INDIA"):  # closing a route removes its own passengers' arrivals only
         closed = engine.simulate(market, "Winter_Peak", ScenarioLever(market, delta_seats_pct=-1.0))
-        assert (closed.sim_seats, closed.sim_pax, closed.sim_p2p, closed.sim_arrivals, closed.sim_guests) == (0.0,) * 5
-        assert closed.waterfall_seats == pytest.approx(-closed.base_guests, abs=1e-4)
+        assert (closed.sim_seats, closed.sim_pax, closed.sim_p2p) == (0.0,) * 3
+        other_routes = closed.base_p2p * max(closed.base_multiplier - 1.0, 0.0)  # visitors arriving by other routes stay
+        assert closed.sim_arrivals == pytest.approx(other_routes)
+        assert closed.waterfall_seats == pytest.approx(-closed.base_p2p * min(closed.base_multiplier, 1.0) * closed.base_los)
+    new = engine.simulate("SWEDEN", "Winter_Peak", ScenarioLever("SWEDEN", delta_frequency=3.0, aircraft_gauge=300.0))
+    assert new.delta_arrivals <= new.sim_p2p + 1e-9  # a new route adds at most one hotel visitor per passenger who stays
     domestic = engine.simulate("DOMESTIC", "Winter_Peak", ScenarioLever(
         "DOMESTIC", delta_frequency=5.0, aircraft_gauge=300.0, delta_load_factor=0.05, delta_multiplier_pct=0.10, delta_los=0.2))
     assert (domestic.sim_seats, domestic.waterfall_seats, domestic.waterfall_lf, domestic.waterfall_p2p) == (0.0,) * 4

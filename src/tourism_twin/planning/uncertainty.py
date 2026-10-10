@@ -145,15 +145,20 @@ def _draw(rng: np.random.Generator, sim_res: SimulationResult, history: np.ndarr
 
 
 def _trajectories(sim_res: SimulationResult, draws: Draws) -> Tuple[np.ndarray, np.ndarray]:
-    """Scenario and base guests per draw; both share the draws, the scenario shifted by its lever deltas."""
+    """Scenario and base guests per draw; both share the draws, the scenario shifted by its lever
+    deltas. As in the structural chain, today's P2P passengers convert at the multiplier and the
+    change in P2P passengers at most one hotel arrival each."""
     lf = np.clip(draws.base_lf + (sim_res.sim_lf - sim_res.base_lf), 0.05, 1.0)
     p2p_share = np.clip(draws.base_p2p_share + (sim_res.sim_p2p_share - sim_res.base_p2p_share), 0.01, 1.0)
-    shocks = draws.mult_shocks
-    sim_unserved = sim_res.sim_seats == 0 and sim_res.base_seats == 0
-    sim = _guests(sim_res.sim_seats, lf, p2p_share, sim_res.sim_multiplier, sim_res.sim_los,
-                  sim_res.sim_arrivals * shocks if sim_unserved else 0.0, draws)
+    unserved_arrivals = sim_res.base_arrivals * draws.mult_shocks if sim_res.base_seats == 0 else 0.0
     base = _guests(sim_res.base_seats, draws.base_lf, draws.base_p2p_share, sim_res.base_multiplier, sim_res.base_los,
-                   sim_res.base_arrivals * shocks if sim_res.base_seats == 0 else 0.0, draws)
+                   unserved_arrivals, draws)
+    m = np.maximum(0.01, sim_res.sim_multiplier * draws.mult_shocks)
+    base_p2p = sim_res.base_seats * draws.base_lf * draws.base_p2p_share
+    sim_p2p = sim_res.sim_seats * lf * p2p_share
+    arrivals = np.maximum(0.0, np.where(base_p2p > 0, base_p2p * m, unserved_arrivals) + (sim_p2p - base_p2p) * np.minimum(m, 1.0))
+    stay = np.maximum(1.0, sim_res.sim_los * draws.los_shocks)
+    sim = np.maximum(0.0, arrivals * stay + draws.residuals)
     return sim, base
 
 

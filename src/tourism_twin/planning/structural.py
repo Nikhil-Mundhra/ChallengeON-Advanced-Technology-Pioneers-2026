@@ -246,28 +246,40 @@ def _domestic_scenario(base: Chain, lever: ScenarioLever) -> Chain:
     return Chain(0.0, 0.0, 0.0, 0.0, 0.0, multiplier, arrivals, los, arrivals * los)
 
 
+def _marginal(multiplier: float) -> float:
+    """Hotel arrivals per added (or removed) point-to-point passenger: the response multiplier, at
+    most 1. The calibrated multiplier is an average ratio of a market's hotel arrivals to the P2P
+    passengers on its flights; above 1 it carries visitors arriving by other routes, who do not
+    scale with this route's seats."""
+    return min(multiplier, 1.0)
+
+
 def _international_scenario(p: MarketSeasonParams, base: Chain, lever: ScenarioLever) -> Chain:
-    """Each lever shifts its stage; a zero delta keeps the baseline value exactly. Closing a served
-    route removes its arrivals; an unserved market gains aviation arrivals only from new capacity."""
+    """Each lever shifts its stage; a zero delta keeps the baseline value exactly. A change in P2P
+    passengers changes arrivals by at most one each (_marginal); arrivals already arriving by other
+    routes stay, scaled only by the multiplier lever."""
     seats = max(0.0, (base.seats + lever.delta_frequency * lever.aircraft_gauge) * (1.0 + lever.delta_seats_pct))
     lf = float(np.clip(base.lf + lever.delta_load_factor, 0.05, 1.0)) if lever.delta_load_factor != 0.0 else base.lf
     pax = seats * lf
     share = float(np.clip(base.p2p_share + lever.delta_p2p_share, 0.01, 1.0)) if lever.delta_p2p_share != 0.0 else base.p2p_share
     p2p = pax * share
     multiplier = max(0.01, base.multiplier * (1.0 + lever.delta_multiplier_pct)) if lever.delta_multiplier_pct != 0.0 else base.multiplier
-    arrivals = p.arrivals_from(p2p, multiplier)
+    arrivals = max(0.0, p.arrivals_from(base.p2p, multiplier) + (p2p - base.p2p) * _marginal(multiplier))
     los = _shifted_los(base, lever)
     return Chain(seats, lf, pax, share, p2p, multiplier, arrivals, los, arrivals * los)
 
 
 def _waterfall(base: Chain, sim: Chain, domestic: bool) -> tuple:
     """Sequential attribution of the guest change to seats, load factor, P2P share, multiplier and
-    stay; each step changes one stage with the earlier stages at their scenario values."""
-    seats = (sim.seats - base.seats) * base.lf * base.p2p_share * base.multiplier * base.los
-    lf = sim.seats * (sim.lf - base.lf) * base.p2p_share * base.multiplier * base.los
-    p2p = sim.pax * (sim.p2p_share - base.p2p_share) * base.multiplier * base.los
+    stay; each step changes one stage with the earlier stages at their scenario values. Passenger
+    steps convert at the marginal rate (_marginal); the multiplier step takes the rest of the
+    arrivals change."""
+    rate = _marginal(base.multiplier) * base.los
+    seats = (sim.seats - base.seats) * base.lf * base.p2p_share * rate
+    lf = sim.seats * (sim.lf - base.lf) * base.p2p_share * rate
+    p2p = sim.pax * (sim.p2p_share - base.p2p_share) * rate
     if domestic:  # arrivals do not come from P2P, so the multiplier step is the whole arrivals change
         multiplier = (sim.arrivals - base.arrivals) * base.los
     else:
-        multiplier = sim.p2p * (sim.multiplier - base.multiplier) * base.los
+        multiplier = (sim.arrivals - base.arrivals) * base.los - (seats + lf + p2p)
     return seats, lf, p2p, multiplier, sim.arrivals * (sim.los - base.los)

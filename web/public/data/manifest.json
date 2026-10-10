@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "version": "20261010-123713-7f63c91",
-  "created": "2026-10-10T12:37:13+00:00",
-  "git_sha": "7f63c91",
+  "version": "20261010-151403-2158532",
+  "created": "2026-10-10T15:14:03+00:00",
+  "git_sha": "2158532",
   "spec": "twin_daily",
   "coverage": 0.8,
   "predicted_period": {
@@ -10,17 +10,23 @@
     "end": "2026-02-28"
   },
   "files": {
-    "nowcast": "20261010-123713-7f63c91/nowcast.json",
-    "whatif": "20261010-123713-7f63c91/whatif.json",
-    "planning": "20261010-123713-7f63c91/planning.json",
-    "weekly": "20261010-123713-7f63c91/weekly.json",
-    "golden": "20261010-123713-7f63c91/golden.json"
+    "nowcast": "20261010-151403-2158532/nowcast.json",
+    "whatif": "20261010-151403-2158532/whatif.json",
+    "planning": "20261010-151403-2158532/planning.json",
+    "weekly": "20261010-151403-2158532/weekly.json",
+    "golden": "20261010-151403-2158532/golden.json"
   },
   "sha256": {
     "nowcast": "5f95e855a9667893e80498616a9614a19bc682ae560c5f979a78dc18b1483a4f",
     "whatif": "76f28e5202a1f47ed9aac9855192946bc1c076d3f09343acf41c964f9b91c899",
     "planning": "d674e11bef490482de5c6d73935efe144c69ab21c9ae413e5c949a4521488613",
-    "weekly": "2fcd5097dd3500a58bb56e8a335e8c9cc227cd0328741e9bdef3956a64d5a3c4",
-    "golden": "17ee6b9321c26b316ed12a1b9613c638f105bdd015c089755ccd65921c6325b2"
+    "weekly": "34ef685b6c4e6f5122468d9d4a8533f2ec159ad920c9df1a4881d58f0e9aafd1",
+    "golden": "99bd0bb4cabfb020a94cbd508a4d2d2cf7b21dedc645b5f0b690ed268ccd53c5"
+  },
+  "weights": {
+    "structural_calibration": "70d64ca0edea84fcb9cf691300c289750f7ef8d0dc6c7fdf47accd9a1232c663",
+    "residual_engine": "56e25c9356f30ec33351613f9daabb1eefee128331e21b4dd94e775d03850337",
+    "conformal_calibrator": "913ddbbaa9520fb043745e04e09a7f61ab4b6e8007694c039123d9be65304788",
+    "evaluation_results": "fb3422b72ff42c2d5ac7529005ac812777b7524f14bca6a4a2ff70c97ec7ef4d"
   }
 }

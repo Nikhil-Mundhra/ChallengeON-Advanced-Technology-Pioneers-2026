@@ -104,6 +104,9 @@ function domesticScenario(base: Chain, lever: Lever): Chain {
   return { seats: 0, lf: 0, pax: 0, p2pShare: 0, p2p: 0, multiplier, arrivals, los, guests: arrivals * los };
 }
 
+/** Hotel arrivals per added (or removed) P2P passenger: the multiplier, at most 1 (planning/structural._marginal). */
+const marginal = (multiplier: number) => Math.min(multiplier, 1);
+
 function internationalScenario(p: MarketSeasonParams, base: Chain, lever: Lever): Chain {
   const seats = Math.max(0, (base.seats + lever.delta_frequency * lever.aircraft_gauge) * (1 + lever.delta_seats_pct));
   const lf = lever.delta_load_factor !== 0 ? clip(base.lf + lever.delta_load_factor, 0.05, 1) : base.lf;
@@ -111,7 +114,7 @@ function internationalScenario(p: MarketSeasonParams, base: Chain, lever: Lever)
   const p2pShare = lever.delta_p2p_share !== 0 ? clip(base.p2pShare + lever.delta_p2p_share, 0.01, 1) : base.p2pShare;
   const p2p = pax * p2pShare;
   const multiplier = lever.delta_multiplier_pct !== 0 ? Math.max(0.01, base.multiplier * (1 + lever.delta_multiplier_pct)) : base.multiplier;
-  const arrivals = arrivalsFrom(p, p2p, multiplier);
+  const arrivals = Math.max(0, arrivalsFrom(p, base.p2p, multiplier) + (p2p - base.p2p) * marginal(multiplier));
   const los = shiftedLos(base, lever);
   return { seats, lf, pax, p2pShare, p2p, multiplier, arrivals, los, guests: arrivals * los };
 }
@@ -123,11 +126,13 @@ export function simulate(planning: Planning, market: string, season: string, lev
   const domestic = name === DOMESTIC || p.archetype === DOMESTIC_ARCHETYPE;
   const base = baselineChain(p, domestic);
   const sim = domestic ? domesticScenario(base, lever) : internationalScenario(p, base, lever);
+  const rate = marginal(base.multiplier) * base.los;
+  const seats = (sim.seats - base.seats) * base.lf * base.p2pShare * rate;
+  const lf = sim.seats * (sim.lf - base.lf) * base.p2pShare * rate;
+  const p2p = sim.pax * (sim.p2pShare - base.p2pShare) * rate;
   const waterfall = {
-    seats: (sim.seats - base.seats) * base.lf * base.p2pShare * base.multiplier * base.los,
-    lf: sim.seats * (sim.lf - base.lf) * base.p2pShare * base.multiplier * base.los,
-    p2p: sim.pax * (sim.p2pShare - base.p2pShare) * base.multiplier * base.los,
-    multiplier: domestic ? (sim.arrivals - base.arrivals) * base.los : sim.p2p * (sim.multiplier - base.multiplier) * base.los,
+    seats, lf, p2p,
+    multiplier: domestic ? (sim.arrivals - base.arrivals) * base.los : (sim.arrivals - base.arrivals) * base.los - (seats + lf + p2p),
     los: sim.arrivals * (sim.los - base.los),
   };
   return { market: name, season, is_cold_start: p.is_cold_start, base, sim, delta_guests: sim.guests - base.guests, waterfall };

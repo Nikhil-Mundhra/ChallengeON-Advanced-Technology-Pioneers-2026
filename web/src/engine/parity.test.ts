@@ -172,7 +172,8 @@ describe("period totals", () => {
     const pb = playback(planning, weekly, "ALL", NO_CHANGE, opts);
     const w = pb.weeks.indexOf("2025-12-01");
     const month = periodAt(pb.weeks, w, "month");
-    expect(pb.weeks.slice(month.from, month.to + 1).every((d) => d.startsWith("2025-12"))).toBe(true);
+    expect([...month.weights.values()].reduce((a, b) => a + b, 0) * 7).toBeCloseTo(31, 9);   // December: 31 days of weeks
+    expect(month.first).toBe("2025-12-01");
     const weekSum = summarise(pb, periodAt(pb.weeks, w, "week"));
     expect(weekSum.guests).toBeCloseTo(pb.total[w], 6);
     expect(weekSum.visitorsBase).toBeCloseTo(weekSum.visitors, 6);   // no changes
@@ -196,5 +197,17 @@ describe("five questions", () => {
     expect(a.newRoute.perWeek).toBeGreaterThan(0);
     const all = seasonMix(planning, "Winter_Peak", 99).top.reduce((t, r) => t + r.share, 0);
     expect(all).toBeCloseTo(1, 9);
+  });
+});
+
+describe("growth assumption", () => {
+  it("starts at the first projected week without a step", () => {
+    const weekly = read<Weekly>(manifest.files.weekly);
+    const planning = read<Planning>(manifest.files.planning);
+    const flat = timeline(planning, weekly, "UNITED KINGDOM", NO_CHANGE, { start: "9999", growthPct: 0 });
+    const grown = timeline(planning, weekly, "UNITED KINGDOM", NO_CHANGE, { start: "9999", growthPct: 10 });
+    const i = flat.findIndex((p) => p.kind === "projected");
+    expect(grown[i].model).toBeCloseTo(flat[i].model, 9);
+    expect(grown[i + 52].model / flat[i + 52].model).toBeCloseTo(1.1, 2);
   });
 });

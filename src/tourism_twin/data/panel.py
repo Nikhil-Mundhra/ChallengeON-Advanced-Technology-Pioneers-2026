@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 from tourism_twin.config import SETTINGS
@@ -54,6 +55,21 @@ def training_window(panel: pd.DataFrame, max_date: str = TRAINING_CUTOFF) -> pd.
         (panel["is_complete_guest_inputs"] == 1) &
         (panel["week_start"] <= pd.to_datetime(max_date).date())
     ].copy()
+
+
+def calendar_weeks(panel: pd.DataFrame, min_days: int = 4) -> pd.DataFrame:
+    """One row per market and Monday week for forecasting and display: a week split across the
+    train/test boundary is joined, scheduled seats of a partial edge week are scaled to 7 days, and
+    weeks with fewer than `min_days` days are dropped. `dataset_split` is "train" only when every
+    day is in the train split. Training uses training_window (complete weeks), not this."""
+    frame = panel.assign(week_start=pd.to_datetime(panel["week_start"]))
+    weeks = (frame.groupby(["market", "week_start"], as_index=False)
+                  .agg(seats=("seats", "sum"), days=("days_in_week", "sum"),
+                       all_train=("dataset_split", lambda s: bool((s == "train").all()))))
+    weeks = weeks[weeks["days"] >= min_days].copy()
+    weeks["seats"] = weeks["seats"] * 7.0 / weeks["days"].clip(upper=7)
+    weeks["dataset_split"] = np.where(weeks["all_train"], "train", "test")
+    return weeks.drop(columns=["all_train"]).reset_index(drop=True)
 
 
 def build_market_case(top15_tuple: tuple) -> str:

@@ -10,6 +10,7 @@ export interface Manifest {
   predicted_period: { start: string; end: string };
   files: Record<"nowcast" | "whatif" | "planning" | "weekly" | "golden", string>;
   sha256: Record<"nowcast" | "whatif" | "planning" | "weekly" | "golden", string>;
+  weights?: Record<string, string>;   // sha256 of the saved planning artifacts the bundle was built from
 }
 
 export interface NoiseParams {

@@ -179,7 +179,7 @@ def weekly_part(weekly_panel: pd.DataFrame) -> Dict[str, Any]:
     residual ridge, as the simulator uses them). Weeks with a schedule use its seats; projected
     weeks use the calibrated seasonal seats. The model has no growth term: projected years repeat
     the seasonal profile, and holiday flags exist only as far as domain/events.HOLIDAY_WEEKS."""
-    from tourism_twin.data.panel import training_window
+    from tourism_twin.data.panel import calendar_weeks, training_window
     from tourism_twin.domain.events import HOLIDAY_WEEKS, MAJOR_EVENT_WEEKS
     from tourism_twin.planning.baselines import LegacyHybrid
     from tourism_twin.planning.calendar_features import event_exposure_matrix
@@ -195,7 +195,8 @@ def weekly_part(weekly_panel: pd.DataFrame) -> Dict[str, Any]:
     future = PANEL_FEATURES.apply(pd.DataFrame([(m, w) for m in markets for w in future_weeks], columns=["market", "week_start"]),
                                   CALENDAR_COLUMNS, anchor="week_start")
     future["seats"] = [structural.get_or_create_params(m, s).baseline_weekly_seats for m, s in zip(future["market"], future["season"])]
-    frame = pd.concat([panel[panel["market"].isin(markets)][["market", "week_start", "seats", "dataset_split", *CALENDAR_COLUMNS]],
+    observed = PANEL_FEATURES.apply(calendar_weeks(panel[panel["market"].isin(markets)]).drop(columns=["days"]), CALENDAR_COLUMNS, anchor="week_start")
+    frame = pd.concat([observed[["market", "week_start", "seats", "dataset_split", *CALENDAR_COLUMNS]],
                        future.assign(dataset_split="projected")], ignore_index=True)
     frame["structural"] = structural.planning_guests_for(frame)
     frame["residual"] = residual.predict_residual(frame).to_numpy()
@@ -261,6 +262,14 @@ def _git_sha() -> str:
         return "unknown"
 
 
+def _weights_digests() -> Dict[str, str]:
+    """sha256 of each saved planning artifact the bundle was built from, so the web data can be
+    traced to the exact weights (the daily nowcast is refitted at export, recorded by git_sha)."""
+    paths = {"structural_calibration": SETTINGS.calibration_path, "residual_engine": SETTINGS.residual_model_path,
+             "conformal_calibrator": SETTINGS.conformal_path, "evaluation_results": SETTINGS.evaluation_results_path}
+    return {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in paths.items() if path.exists()}
+
+
 def write_bundle(predictions: TestPredictions, panel: pd.DataFrame, weekly_panel: pd.DataFrame, out_dir: Path, spec: str,
                  coverage: float = 0.8) -> Path:
     """Write <out_dir>/<version>/{nowcast,whatif,planning,weekly,golden}.json and <out_dir>/manifest.json
@@ -285,6 +294,7 @@ def write_bundle(predictions: TestPredictions, panel: pd.DataFrame, weekly_panel
                 "git_sha": _git_sha(), "spec": spec, "coverage": coverage,
                 "predicted_period": {"start": str(daily["date"].min().date()), "end": str(daily["date"].max().date())},
                 "files": {name: f"{version}/{name}.json" for name in parts},
-                "sha256": digests}
+                "sha256": digests,
+                "weights": _weights_digests()}
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return target
