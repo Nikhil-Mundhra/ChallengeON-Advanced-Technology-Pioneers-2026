@@ -108,14 +108,66 @@ function domesticScenario(base: Chain, lever: Lever): Chain {
 const marginal = (multiplier: number) => Math.min(multiplier, 1);
 
 function internationalScenario(p: MarketSeasonParams, base: Chain, lever: Lever): Chain {
-  const seats = Math.max(0, (base.seats + lever.delta_frequency * lever.aircraft_gauge) * (1 + lever.delta_seats_pct));
-  const lf = lever.delta_load_factor !== 0 ? clip(base.lf + lever.delta_load_factor, 0.05, 1) : base.lf;
+  const gauge = lever.aircraft_gauge > 0 ? lever.aircraft_gauge : 250;
+  const seats = Math.max(0, (base.seats + lever.delta_frequency * gauge) * (1 + lever.delta_seats_pct));
+
+  if (seats <= 0) {
+    const simSeats = 0, simLf = base.lf, simPax = 0, simP2pShare = base.p2pShare, simP2p = 0;
+    const multiplier = lever.delta_multiplier_pct !== 0 ? Math.max(0.01, base.multiplier * (1 + lever.delta_multiplier_pct)) : base.multiplier;
+    const arrivals = Math.max(0, base.p2p * Math.max(multiplier - 1, 0));
+    const los = shiftedLos(base, lever);
+    return { seats: simSeats, lf: simLf, pax: simPax, p2pShare: simP2pShare, p2p: simP2p, multiplier, arrivals, los, guests: arrivals * los };
+  }
+
+  // 1. Frequency S-Curve (Increasing returns up to daily threshold)
+  const fBase = base.seats > 0 ? base.seats / gauge : 0;
+  const fSim = Math.max(0, fBase + lever.delta_frequency);
+  const gamma = 1.5, f0 = 7.0;
+  let mFreq = 1.0;
+  if (lever.delta_frequency !== 0) {
+    if (fBase > 0) {
+      const sSim = Math.pow(fSim, gamma) / (Math.pow(fSim, gamma) + Math.pow(f0, gamma));
+      const sBase = Math.pow(fBase, gamma) / (Math.pow(fBase, gamma) + Math.pow(f0, gamma));
+      mFreq = clip(sSim / sBase, 0.85, 1.15);
+    } else {
+      const sSim = Math.pow(fSim, gamma) / (Math.pow(fSim, gamma) + Math.pow(f0, gamma));
+      const sDaily = Math.pow(f0, gamma) / (2 * Math.pow(f0, gamma));
+      mFreq = clip(sSim / sDaily, 0.75, 1.0);
+    }
+  }
+
+  // 2. Capacity Dilution (Diminishing marginal returns on seat surges)
+  let lfDecay = 1.0;
+  let p2pDecay = 1.0;
+  if (base.seats > 0 && seats > base.seats) {
+    const expansion = (seats - base.seats) / base.seats;
+    lfDecay = Math.pow(1 + expansion, -0.05);
+    p2pDecay = Math.pow(1 + expansion, -0.08);
+  }
+
+  const lf = (lever.delta_load_factor !== 0 || mFreq !== 1.0 || lfDecay !== 1.0)
+    ? clip(base.lf * mFreq * lfDecay + lever.delta_load_factor, 0.05, 1)
+    : base.lf;
   const pax = seats * lf;
-  const p2pShare = lever.delta_p2p_share !== 0 ? clip(base.p2pShare + lever.delta_p2p_share, 0.01, 1) : base.p2pShare;
+  const p2pShare = (lever.delta_p2p_share !== 0 || p2pDecay !== 1.0)
+    ? clip(base.p2pShare * p2pDecay + lever.delta_p2p_share, 0.01, 1)
+    : base.p2pShare;
   const p2p = pax * p2pShare;
   const multiplier = lever.delta_multiplier_pct !== 0 ? Math.max(0.01, base.multiplier * (1 + lever.delta_multiplier_pct)) : base.multiplier;
-  const arrivals = Math.max(0, arrivalsFrom(p, base.p2p, multiplier) + (p2p - base.p2p) * marginal(multiplier));
+  const rawArrivals = Math.max(0, arrivalsFrom(p, base.p2p, multiplier) + (p2p - base.p2p) * marginal(multiplier));
   const los = shiftedLos(base, lever);
+
+  // 3. Destination Capacity Constraint (Peak room saturation)
+  const kappa = (p.season === "Winter_Peak" || p.season === "Spring_Shoulder") ? 2.5 : 2.0;
+  const cCap = base.guests > 0 ? kappa * base.guests : 0;
+  const rawGuests = rawArrivals * los;
+  const deltaG = rawGuests - base.guests;
+  let arrivals = rawArrivals;
+  if (deltaG > 0 && cCap > base.guests) {
+    const deltaGSat = (cCap - base.guests) * deltaG / ((cCap - base.guests) + deltaG);
+    arrivals = (base.guests + deltaGSat) / los;
+  }
+
   return { seats, lf, pax, p2pShare, p2p, multiplier, arrivals, los, guests: arrivals * los };
 }
 

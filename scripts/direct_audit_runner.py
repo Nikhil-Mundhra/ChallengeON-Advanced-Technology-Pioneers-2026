@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,38 @@ def build_evidence(source: str, locator: str, observation: str, evidence_level: 
         "observation": observation,
         "evidence_level": evidence_level,
     }
+
+
+def build_criterion_result(criterion: str, status: str, evidence: str) -> dict[str, Any]:
+    return {
+        "criterion": criterion,
+        "status": status,
+        "evidence": evidence,
+    }
+
+
+def build_audit_report(
+    task_id: str,
+    summary: str,
+    checks_performed: list[str],
+    evidence: list[dict[str, Any]],
+    *,
+    status: str = "completed",
+    findings: list[dict[str, Any]] | None = None,
+    limitations: list[str] | None = None,
+    criterion_results: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    return {
+        "task_id": task_id,
+        "status": status,
+        "summary": summary,
+        "checks_performed": checks_performed,
+        "evidence": evidence,
+        "findings": findings or [],
+        "limitations": limitations or [],
+        "criterion_results": criterion_results or [],
+    }
+
 
 
 def audit_REPRO_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -66,23 +99,20 @@ def audit_REPRO_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dic
         build_evidence("code_inspection", "engine/uncertainty.py:94-96", "Deterministic SHA-256 digest scenario key seeding replaces randomized Python hash()", "INSPECTED"),
     ]
 
-    return {
-        "task_id": "REPRO-003",
-        "status": "completed",
-        "summary": "Verified that scenario simulations and model calibrations are strictly deterministic across fresh processes and invariant to in-process execution order. P0-B fix using SHA-256 digest scenario keys successfully eliminates PYTHONHASHSEED drift.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="REPRO-003",
+        summary="Verified that scenario simulations and model calibrations are strictly deterministic across fresh processes and invariant to in-process execution order. P0-B fix using SHA-256 digest scenario keys successfully eliminates PYTHONHASHSEED drift.",
+        checks_performed=[
             "Executed run_scenario in separate processes and compared outputs",
             "Permuted market evaluation order in-memory and compared percentiles",
             "Inspected uncertainty engine seed derivation logic",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Deterministic seeds across fresh processes", "status": "verified", "evidence": "Output hash identical across process launches"},
-            {"criterion": "Execution order independence", "status": "verified", "evidence": "UK/Germany scenario permutations produced identical p50/p10/p90"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Deterministic seeds across fresh processes", "verified", "Output hash identical across process launches"),
+            build_criterion_result("Execution order independence", "verified", "UK/Germany scenario permutations produced identical p50/p10/p90"),
         ],
-    }
+    )
 
 
 def audit_REPRO_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -125,27 +155,25 @@ def audit_REPRO_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dic
         "confidence": "high",
     }
 
-    return {
-        "task_id": "REPRO-004",
-        "status": "completed",
-        "summary": "Verified working directory independence when executing major scripts from /tmp. Identified that model loading methods lack schema versioning and user-friendly diagnostics for missing or incompatible artifacts.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="REPRO-004",
+        summary="Verified working directory independence when executing major scripts from /tmp. Identified that model loading methods lack schema versioning and user-friendly diagnostics for missing or incompatible artifacts.",
+        checks_performed=[
             "Executed scenario and reporting scripts with cwd=/tmp",
             "Tested StructuralEngine.load with missing and malformed paths",
             "Inspected ResidualMLEngine pickle loading deserialization safety",
         ],
-        "evidence": [
+        evidence=[
             build_evidence("cli_execution", "cwd=/tmp", f"Scripts run successfully from non-root cwd: {cwd_success}", "REPRODUCED"),
             build_evidence("code_inspection", "engine/structural.py:186-191", "StructuralEngine.load raises raw FileNotFoundError on missing artifact", "INSPECTED"),
             build_evidence("code_inspection", "engine/residual.py", "ResidualMLEngine.load performs unvalidated pickle deserialization", "INSPECTED"),
         ],
-        "findings": [finding],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Working directory independence", "status": "verified" if cwd_success else "failed", "evidence": f"simulate, evaluate, report solution run from cwd=/tmp against a scratch lake: {'all succeeded' if cwd_success else 'at least one failed'}; paths resolve through tourism_twin.config.SETTINGS"},
-            {"criterion": "Artifact error actionability", "status": "failed", "evidence": "Raw low-level exceptions without build instructions"},
+        findings=[finding],
+        criterion_results=[
+            build_criterion_result("Working directory independence", "verified" if cwd_success else "failed", f"simulate, evaluate, report solution run from cwd=/tmp against a scratch lake: {'all succeeded' if cwd_success else 'at least one failed'}; paths resolve through tourism_twin.config.SETTINGS"),
+            build_criterion_result("Artifact error actionability", "failed", "Raw low-level exceptions without build instructions"),
         ],
-    }
+    )
 
 
 def audit_TEST_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -163,21 +191,18 @@ def audit_TEST_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict
         build_evidence("test_inspection", "tests/test_audit_agent.py", "24 tests cover audit tool safety, markdown rendering, model parsing, and escalation logic", "INSPECTED"),
     ]
 
-    return {
-        "task_id": "TEST-001",
-        "status": "completed",
-        "summary": f"Completed inventory of all {len(tests)} test cases across test_audit_agent.py (24 tests) and test_digital_twin.py (14 tests). Verified evidence levels: unit structural identities, property checks, and API validation are tested; raw ingestion and evaluation metrics calculations are unrepresented.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="TEST-001",
+        summary=f"Completed inventory of all {len(tests)} test cases across test_audit_agent.py (24 tests) and test_digital_twin.py (14 tests). Verified evidence levels: unit structural identities, property checks, and API validation are tested; raw ingestion and evaluation metrics calculations are unrepresented.",
+        checks_performed=[
             "Collected full pytest inventory across all test files",
             "Classified tests by target component, evidence level, and assertion type",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Inventory of all test assertions", "status": "verified", "evidence": f"38 test cases categorized across 2 test modules"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Inventory of all test assertions", "verified", "38 test cases categorized across 2 test modules"),
         ],
-    }
+    )
 
 
 def audit_TEST_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -195,27 +220,25 @@ def audit_TEST_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict
         "confidence": "high",
     }
 
-    return {
-        "task_id": "TEST-002",
-        "status": "completed",
-        "summary": "Identified tautological file-existence assertions in test_deterministic_artifacts, loose market count thresholds in test_panel_integrity, and completely absent automated tests for evaluation metric computation and raw ingestion edge cases.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="TEST-002",
+        summary="Identified tautological file-existence assertions in test_deterministic_artifacts, loose market count thresholds in test_panel_integrity, and completely absent automated tests for evaluation metric computation and raw ingestion edge cases.",
+        checks_performed=[
             "Audited assertion strength across test_digital_twin.py",
             "Cross-referenced untested modules in scripts/ and engine/",
             "Verified test sensitivity to known historical defects",
         ],
-        "evidence": [
+        evidence=[
             build_evidence("code_inspection", "tests/test_digital_twin.py:96-110", "test_deterministic_artifacts only asserts .exists() and '_demonstrated_holdout_coverage' in dict", "INSPECTED"),
             build_evidence("code_inspection", "tests/test_digital_twin.py:30", "test_panel_integrity asserts >= 17 markets instead of exact 22", "INSPECTED"),
             build_evidence("code_inspection", "scripts/evaluate_models.py", "WMAPE and directional bias calculation functions have no unit tests", "INSPECTED"),
         ],
-        "findings": [finding],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Detect tautological assertions", "status": "verified", "evidence": "File existence checks identified in test_deterministic_artifacts"},
-            {"criterion": "Identify missing critical tests", "status": "verified", "evidence": "Evaluation metrics and ingestion pipeline lack automated test coverage"},
+        findings=[finding],
+        criterion_results=[
+            build_criterion_result("Detect tautological assertions", "verified", "File existence checks identified in test_deterministic_artifacts"),
+            build_criterion_result("Identify missing critical tests", "verified", "Evaluation metrics and ingestion pipeline lack automated test coverage"),
         ],
-    }
+    )
 
 
 def audit_TEST_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -233,24 +256,22 @@ def audit_TEST_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict
         "confidence": "high",
     }
 
-    return {
-        "task_id": "TEST-003",
-        "status": "completed",
-        "summary": "Verified that no automated end-to-end integration test exists crossing all lifecycle stages from raw source spreadsheets to scenario outputs. The current test suite assumes curated parquets already exist.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="TEST-003",
+        summary="Verified that no automated end-to-end integration test exists crossing all lifecycle stages from raw source spreadsheets to scenario outputs. The current test suite assumes curated parquets already exist.",
+        checks_performed=[
             "Searched tests/ for references to build_lake, build_panels, or raw dataset files",
             "Evaluated lifecycle test coverage across ingestion, curation, training, and simulation",
         ],
-        "evidence": [
+        evidence=[
             build_evidence("code_search", "tests/", "Zero occurrences of build_lake, build_panels, or raw xlsx ingestion in tests", "INSPECTED"),
             build_evidence("test_inspection", "tests/test_digital_twin.py:23-24", "Tests load pre-existing weekly_market_panel.parquet directly from lake/curated/", "INSPECTED"),
         ],
-        "findings": [finding],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Verify independent end-to-end test", "status": "failed", "evidence": "Zero end-to-end tests exist covering raw-to-scenario lifecycle"},
+        findings=[finding],
+        criterion_results=[
+            build_criterion_result("Verify independent end-to-end test", "failed", "Zero end-to-end tests exist covering raw-to-scenario lifecycle"),
         ],
-    }
+    )
 
 
 def audit_CONS_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -259,8 +280,11 @@ def audit_CONS_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict
     eval_data = json.loads(eval_path.read_text())
 
     # Extract metrics
-    hybrid_wmape = eval_data["benchmark"]["4. Hybrid Digital Twin (Bias/RMSE Trade-off)"]["wmape"] * 100
-    struct_wmape = eval_data["benchmark"]["3. Structural-Only Engine (WMAPE Champion)"]["wmape"] * 100
+    benchmarks = eval_data["benchmark"]
+    hybrid_entry = benchmarks.get("4. Hybrid Digital Twin (Bias/RMSE Trade-off)") or benchmarks["4. Hybrid Digital Twin"]
+    struct_entry = benchmarks.get("3. Structural-Only Engine (WMAPE Champion)") or benchmarks["3. Structural-Only Engine"]
+    hybrid_wmape = hybrid_entry["wmape"] * 100
+    struct_wmape = struct_entry["wmape"] * 100
     intl_wmape = eval_data["diagnostics"]["international_planning_mode"]["wmape"] * 100
     dom_wmape = eval_data["diagnostics"]["domestic_forecast_mode"]["wmape"] * 100
     cov = eval_data["demonstrated_coverage_pct"]
@@ -271,23 +295,20 @@ def audit_CONS_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict
         build_evidence("json_inspect", "lake/curated/evaluation_results.json:74", f"Demonstrated coverage is {cov}%, below nominal 80.0% target", "INSPECTED"),
     ]
 
-    return {
-        "task_id": "CONS-001",
-        "status": "completed",
-        "summary": f"Compared headline metrics across README.md, solution_documentation.md, and evaluation_results.json. Verified numerical consistency of headline {hybrid_wmape:.2f}% WMAPE, {intl_wmape:.2f}% international planning WMAPE, and {dom_wmape:.2f}% domestic WMAPE. Confirmed that demonstrated coverage on holdout is {cov:.1f}% vs nominal 80.0% target.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="CONS-001",
+        summary=f"Compared headline metrics across README.md, solution_documentation.md, and evaluation_results.json. Verified numerical consistency of headline {hybrid_wmape:.2f}% WMAPE, {intl_wmape:.2f}% international planning WMAPE, and {dom_wmape:.2f}% domestic WMAPE. Confirmed that demonstrated coverage on holdout is {cov:.1f}% vs nominal 80.0% target.",
+        checks_performed=[
             "Extracted all numeric metric values from evaluation_results.json",
             "Matched against reported tables in README.md and solution_documentation.md",
             "Checked conformal interval nominal vs demonstrated coverage claims",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Compare headline metrics", "status": "verified", "evidence": f"{hybrid_wmape:.2f}% WMAPE and diagnostic metrics match across all surfaces"},
-            {"criterion": "Verify coverage claims", "status": "verified", "evidence": f"Demonstrated {cov:.1f}% vs nominal 80.0% verified"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Compare headline metrics", "verified", f"{hybrid_wmape:.2f}% WMAPE and diagnostic metrics match across all surfaces"),
+            build_criterion_result("Verify coverage claims", "verified", f"Demonstrated {cov:.1f}% vs nominal 80.0% verified"),
         ],
-    }
+    )
 
 
 def audit_CONS_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -310,23 +331,20 @@ def audit_CONS_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict
         build_evidence("cross_reference", "stale_parquet_vs_code", f"Parquet has {n_markets} markets; engine definitions have 22 markets (ISSUE-0003 drift)", "INSPECTED"),
     ]
 
-    return {
-        "task_id": "CONS-002",
-        "status": "completed",
-        "summary": f"Recomputed authoritative observation counts: 104 train weeks (1,724 obs), 30 test weeks (501 obs). Verified that complete-input population matches evaluation_results.json exactly. Re-confirmed market count drift between engine definitions (22) and committed parquet ({n_markets}).",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="CONS-002",
+        summary=f"Recomputed authoritative observation counts: 104 train weeks (1,724 obs), 30 test weeks (501 obs). Verified that complete-input population matches evaluation_results.json exactly. Re-confirmed market count drift between engine definitions (22) and committed parquet ({n_markets}).",
+        checks_performed=[
             "Recomputed train and test observation counts from weekly_market_panel.parquet",
             "Separated complete-input population from theoretical total matrix",
             "Cross-referenced date ranges and window boundaries across documentation",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Recompute authoritative counts", "status": "verified", "evidence": "1724 train obs and 501 test obs verified"},
-            {"criterion": "Verify market count consistency", "status": "verified", "evidence": "Documented 17 vs 22 market drift"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Recompute authoritative counts", "verified", "1724 train obs and 501 test obs verified"),
+            build_criterion_result("Verify market count consistency", "verified", "Documented 17 vs 22 market drift"),
         ],
-    }
+    )
 
 
 def audit_CONS_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -341,22 +359,19 @@ def audit_CONS_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict
         build_evidence("formula_classification", "conversion_chain", "All five structural conversion stages classified as REPRODUCED and mathematically consistent", "REPRODUCED"),
     ]
 
-    return {
-        "task_id": "CONS-003",
-        "status": "completed",
-        "summary": "Compared conversion-chain equations and feature labels between docs/solution_documentation.md and engine/structural.py. All 5 multiplicative transitions (seats -> pax -> p2p -> arrivals -> guests) are faithfully implemented and align with documented definitions.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="CONS-003",
+        summary="Compared conversion-chain equations and feature labels between docs/solution_documentation.md and engine/structural.py. All 5 multiplicative transitions (seats -> pax -> p2p -> arrivals -> guests) are faithfully implemented and align with documented definitions.",
+        checks_performed=[
             "Extracted mathematical conversion equations from documentation",
             "Compared with implementation in StructuralEngine.simulate",
             "Classified feature names, units, and ratios across pipeline",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Verify conversion-chain equations", "status": "verified", "evidence": "Exact correspondence between documentation and structural engine"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Verify conversion-chain equations", "verified", "Exact correspondence between documentation and structural engine"),
         ],
-    }
+    )
 
 
 def audit_CONS_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -376,23 +391,20 @@ def audit_CONS_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict
         build_evidence("simulation_test", "DOMESTIC lever test", f"Flight capacity levers produce delta_guests={dom_delta_guests} for DOMESTIC market", "REPRODUCED"),
     ]
 
-    return {
-        "task_id": "CONS-004",
-        "status": "completed",
-        "summary": "Compared CLI, API, and UI parameter defaults and verified domestic domain decoupling. Confirmed flight levers have 0 impact on domestic staycation guest volume, and defaults are consistent across entry points.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="CONS-004",
+        summary="Compared CLI, API, and UI parameter defaults and verified domestic domain decoupling. Confirmed flight levers have 0 impact on domestic staycation guest volume, and defaults are consistent across entry points.",
+        checks_performed=[
             "Compared argument parsers in run_scenario.py and server.py",
             "Tested flight lever application on DOMESTIC market",
             "Verified cold-start warning and disclosure banners",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Verify CLI and API defaults", "status": "verified", "evidence": "Aligned default parameters across CLI and server"},
-            {"criterion": "Verify domestic decoupling", "status": "verified", "evidence": "Delta flight levers yield 0 domestic guest change"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Verify CLI and API defaults", "verified", "Aligned default parameters across CLI and server"),
+            build_criterion_result("Verify domestic decoupling", "verified", "Delta flight levers yield 0 domestic guest change"),
         ],
-    }
+    )
 
 
 def audit_SEC_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -416,27 +428,25 @@ def audit_SEC_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[
         "confidence": "high",
     }
 
-    return {
-        "task_id": "SEC-001",
-        "status": "completed",
-        "summary": f"Audited tracked git history and ignore rules. Found {len(raw_files)} raw competition spreadsheets and {len(lake_files)} binary artifacts in lake/curated/ actively tracked in git index despite ignore rules in .gitignore.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="SEC-001",
+        summary=f"Audited tracked git history and ignore rules. Found {len(raw_files)} raw competition spreadsheets and {len(lake_files)} binary artifacts in lake/curated/ actively tracked in git index despite ignore rules in .gitignore.",
+        checks_performed=[
             "Listed git tracked files in '01a - DCT Dataset/' and 'lake/curated/'",
             "Audited .gitignore rules against tracked git tree",
             "Verified presence of proprietary data in git history",
         ],
-        "evidence": [
+        evidence=[
             build_evidence("git_ls_files", "01a - DCT Dataset/", f"{len(raw_files)} raw data files tracked in git", "INSPECTED"),
             build_evidence("git_ls_files", "lake/curated/", f"{len(lake_files)} curated binary artifacts tracked in git", "INSPECTED"),
             build_evidence("file_inspect", ".gitignore:10-13", ".gitignore attempts to ignore lake/curated/*.parquet but files remain tracked in index", "INSPECTED"),
         ],
-        "findings": [finding],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Inventory committed restricted data", "status": "verified", "evidence": "Tracked files enumerated in git tree"},
-            {"criterion": "Audit ignore rule effectiveness", "status": "failed", "evidence": "Ignored patterns are bypassed by pre-existing tracked index entries"},
+        findings=[finding],
+        criterion_results=[
+            build_criterion_result("Inventory committed restricted data", "verified", "Tracked files enumerated in git tree"),
+            build_criterion_result("Audit ignore rule effectiveness", "failed", "Ignored patterns are bypassed by pre-existing tracked index entries"),
         ],
-    }
+    )
 
 
 def audit_SEC_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -459,25 +469,23 @@ def audit_SEC_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[
         "confidence": "high",
     }
 
-    return {
-        "task_id": "SEC-002",
-        "status": "completed",
-        "summary": "Audited API routes, query handling, and static file serving in app/server.py. Discovered an unconstrained directory traversal vulnerability in the /static/ route allowing arbitrary file access outside STATIC_DIR.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="SEC-002",
+        summary="Audited API routes, query handling, and static file serving in app/server.py. Discovered an unconstrained directory traversal vulnerability in the /static/ route allowing arbitrary file access outside STATIC_DIR.",
+        checks_performed=[
             "Enumerated all HTTP handler routes (/, /api/simulate, /api/benchmark, /static/*)",
             "Tested path traversal using '../..' sequences against STATIC_DIR path resolution",
             "Audited CORS headers and error response payloads",
         ],
-        "evidence": [
+        evidence=[
             build_evidence("code_inspection", "app/server.py:36-44", "Direct path joining without is_relative_to boundary check", "INSPECTED"),
             build_evidence("vulnerability_proof", "/static/../../README.md", f"Path traversal resolves to repo root file: {traversal_vulnerable}", "REPRODUCED"),
         ],
-        "findings": [finding],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Audit static route confinement", "status": "failed", "evidence": "Directory traversal allows escaping STATIC_DIR"},
+        findings=[finding],
+        criterion_results=[
+            build_criterion_result("Audit static route confinement", "failed", "Directory traversal allows escaping STATIC_DIR"),
         ],
-    }
+    )
 
 
 def audit_SEC_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -492,29 +500,28 @@ def audit_SEC_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[
         build_evidence("cache_inspection", "tmp/", "No sensitive session keys or temporary access credentials found in tmp/", "INSPECTED"),
     ]
 
-    return {
-        "task_id": "SEC-003",
-        "status": "completed",
-        "summary": "Audited generated PDF reports, figure assets, and pickled model files. Verified absence of local developer paths, usernames, credentials, or row-level PII in published outputs and serialized caches.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="SEC-003",
+        summary="Audited generated PDF reports, figure assets, and pickled model files. Verified absence of local developer paths, usernames, credentials, or row-level PII in published outputs and serialized caches.",
+        checks_performed=[
             "Scanned pickled models with strings utility for absolute paths and user IDs",
             "Inspected PDF report headers, metadata, and generated chart labels",
             "Audited temporary directories and caches for leaked tokens",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Verify absence of local path exposure", "status": "verified", "evidence": "Clean string scan on pickle and PDF artifacts"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Verify absence of local path exposure", "verified", "Clean string scan on pickle and PDF artifacts"),
         ],
-    }
+    )
 
 
 def audit_DOC_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
     """Classify every material implementation and performance claim."""
     eval_path = ROOT_DIR / "lake" / "curated" / "evaluation_results.json"
     eval_data = json.loads(eval_path.read_text())
-    hybrid_wmape = eval_data["benchmark"]["4. Hybrid Digital Twin (Bias/RMSE Trade-off)"]["wmape"] * 100
+    benchmarks = eval_data["benchmark"]
+    hybrid_entry = benchmarks.get("4. Hybrid Digital Twin (Bias/RMSE Trade-off)") or benchmarks["4. Hybrid Digital Twin"]
+    hybrid_wmape = hybrid_entry["wmape"] * 100
     intl_wmape = eval_data["diagnostics"]["international_planning_mode"]["wmape"] * 100
     dom_wmape = eval_data["diagnostics"]["domestic_forecast_mode"]["wmape"] * 100
     obs_test = eval_data["evaluation_window"]["observations_test"]
@@ -526,22 +533,19 @@ def audit_DOC_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[
         build_evidence("claim_verification", "Unified 21 market coverage", "Verified: 21 unified markets (Top 15 + 5 regional clusters + Domestic) consistent across panel, calibration, and models", "REPRODUCED"),
     ]
 
-    return {
-        "task_id": "DOC-001",
-        "status": "completed",
-        "summary": "Audited and classified all material performance, architectural, and data claims across README.md and solution_documentation.md against reproduced evidence. Core error metrics and unified 21-market coverage are strictly verified.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="DOC-001",
+        summary="Audited and classified all material performance, architectural, and data claims across README.md and solution_documentation.md against reproduced evidence. Core error metrics and unified 21-market coverage are strictly verified.",
+        checks_performed=[
             "Extracted atomic claims from documentation tables and narrative",
             "Classified each claim as REPRODUCED, INSPECTED, or CONTRADICTED",
             "Cross-referenced evidence with prior audit task results",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Classify material claims", "status": "verified", "evidence": "All material claims classified with evidence citations"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Classify material claims", "verified", "All material claims classified with evidence citations"),
         ],
-    }
+    )
 
 
 def audit_DOC_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -559,25 +563,23 @@ def audit_DOC_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[
         "confidence": "high",
     }
 
-    return {
-        "task_id": "DOC-002",
-        "status": "completed",
-        "summary": "Audited causal, precision, and certainty terminology across documentation and code comments. Identified multiple instances of causal phrasing ('causal lift', 'exact attribution') applied to observational predictive conversion parameters.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="DOC-002",
+        summary="Audited causal, precision, and certainty terminology across documentation and code comments. Identified multiple instances of causal phrasing ('causal lift', 'exact attribution') applied to observational predictive conversion parameters.",
+        checks_performed=[
             "Searched documentation for keywords: 'causal', 'exact', 'elasticity', 'guaranteed'",
             "Compared claims against estimands and observational identification limits",
             "Checked numerical precision in UI displays against uncertainty widths",
         ],
-        "evidence": [
+        evidence=[
             build_evidence("text_search", "docs/solution_documentation.md", "Occurrences of 'causal response multiplier' and 'causal flight-to-hotel link'", "INSPECTED"),
             build_evidence("methodology_review", "engine/structural.py", "Multiplier is computed as arrivals / p2p without instrumental variable identification", "INSPECTED"),
         ],
-        "findings": [finding],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Audit causal phrasing", "status": "failed", "evidence": "Unwarranted causal claims identified in documentation"},
+        findings=[finding],
+        criterion_results=[
+            build_criterion_result("Audit causal phrasing", "failed", "Unwarranted causal claims identified in documentation"),
         ],
-    }
+    )
 
 
 def audit_DOC_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -592,22 +594,19 @@ def audit_DOC_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[
         build_evidence("file_check", "challengeon_schema_database_report.pdf", "Report exists in output/pdf/ but is missing from lake/manifest.json (ISSUE-0002)", "INSPECTED"),
     ]
 
-    return {
-        "task_id": "DOC-003",
-        "status": "completed",
-        "summary": "Audited documented CLI commands, manifest artifact paths, and owner decision points. Verified that stale file paths in lake/manifest.json and missing report registrations represent the primary documentation maintenance requirements.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="DOC-003",
+        summary="Audited documented CLI commands, manifest artifact paths, and owner decision points. Verified that stale file paths in lake/manifest.json and missing report registrations represent the primary documentation maintenance requirements.",
+        checks_performed=[
             "Verified all documented Makefile and CLI commands in fresh environment",
             "Reconciled lake/manifest.json declared paths against physical filesystem",
             "Compiled register of unresolved policy and data rights questions",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Identify stale guidance", "status": "verified", "evidence": "Stale manifest paths cataloged and linked to open issues"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Identify stale guidance", "verified", "Stale manifest paths cataloged and linked to open issues"),
         ],
-    }
+    )
 
 
 # =====================================================================
@@ -629,22 +628,19 @@ def audit_VS_001(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
         build_evidence("simulation_trace", "TourismDigitalTwin.run_scenario", f"UK Winter_Peak: Base seats={s.base_seats:.0f} -> Sim seats={s.sim_seats:.0f} (+{s.delta_seats:.0f}); Delta guests=+{s.delta_guests:.0f}", "REPRODUCED"),
     ]
 
-    return {
-        "task_id": "VS-001",
-        "status": "completed",
-        "summary": f"Traced UNITED KINGDOM end-to-end through raw ingestion, weekly panel curation, calibration, and scenario simulation. Capacity lift (+{s.delta_seats:.0f} seats) converted via LF ({s.base_lf:.2f}), P2P ({s.base_p2p_share:.2f}), multiplier ({s.base_multiplier:.2f}), and LOS ({s.base_los:.1f}) to +{s.delta_guests:.0f} guests.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="VS-001",
+        summary=f"Traced UNITED KINGDOM end-to-end through raw ingestion, weekly panel curation, calibration, and scenario simulation. Capacity lift (+{s.delta_seats:.0f} seats) converted via LF ({s.base_lf:.2f}), P2P ({s.base_p2p_share:.2f}), multiplier ({s.base_multiplier:.2f}), and LOS ({s.base_los:.1f}) to +{s.delta_guests:.0f} guests.",
+        checks_performed=[
             "Traced raw guest and flight records to curated daily parquets",
             "Audited weekly aggregation and parameter calibration for UK",
             "Verified scenario conversion chain and waterfall identities",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Trace high-volume market end-to-end", "status": "verified", "evidence": "Full traceability from raw spreadsheets to scenario output"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Trace high-volume market end-to-end", "verified", "Full traceability from raw spreadsheets to scenario output"),
         ],
-    }
+    )
 
 
 def audit_VS_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -662,21 +658,18 @@ def audit_VS_002(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
         build_evidence("simulation_trace", "TourismDigitalTwin.run_scenario", f"{market} Winter_Peak: Delta seats=+{s.delta_seats:.0f}, Delta guests=+{s.delta_guests:.0f}, Uncertainty P10={rep.uncertainty_bands.p10:.0f}, P90={rep.uncertainty_bands.p90:.0f}", "REPRODUCED"),
     ]
 
-    return {
-        "task_id": "VS-002",
-        "status": "completed",
-        "summary": f"Traced sparse regional market '{market}' through calibration and scenario forecasting. Validated wider conformal prediction intervals reflecting small-sample volatility and verified fallback stability.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="VS-002",
+        summary=f"Traced sparse regional market '{market}' through calibration and scenario forecasting. Validated wider conformal prediction intervals reflecting small-sample volatility and verified fallback stability.",
+        checks_performed=[
             "Checked observation counts and parameter variances for sparse markets",
             "Simulated frequency additions and checked prediction interval widths",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Trace sparse market end-to-end", "status": "verified", "evidence": "Parameter stability and interval widening verified"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Trace sparse market end-to-end", "verified", "Parameter stability and interval widening verified"),
         ],
-    }
+    )
 
 
 def audit_VS_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -691,21 +684,18 @@ def audit_VS_003(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
         build_evidence("evaluation_trace", "lake/curated/evaluation_results.json:CHINA", "CHINA holdout WMAPE is 43.08% with large negative bias (-43.08%), reflecting bridge sensitivity (ISSUE-0011)", "INSPECTED"),
     ]
 
-    return {
-        "task_id": "VS-003",
-        "status": "completed",
-        "summary": "Traced Hub-Mediated market CHINA end-to-end. Confirmed archetype classification, indirect travel assumptions, and high sensitivity of flight-origin bridge to transfer passenger flows.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="VS-003",
+        summary="Traced Hub-Mediated market CHINA end-to-end. Confirmed archetype classification, indirect travel assumptions, and high sensitivity of flight-origin bridge to transfer passenger flows.",
+        checks_performed=[
             "Audited archetype assignment and indirect travel parameters",
             "Cross-referenced historical evaluation bias and prediction errors for CHINA",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Trace hub-mediated market", "status": "verified", "evidence": "Indirect travel sensitivity and archetype limits documented"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Trace hub-mediated market", "verified", "Indirect travel sensitivity and archetype limits documented"),
         ],
-    }
+    )
 
 
 def audit_VS_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -720,21 +710,18 @@ def audit_VS_004(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
         build_evidence("bridge_trace", "lake/refined/analytics.duckdb", "Flight data does not have an 'OTHER INTERNATIONAL' route; flight keys remain null in daily join", "INSPECTED"),
     ]
 
-    return {
-        "task_id": "VS-004",
-        "status": "completed",
-        "summary": "Traced pooled 'OTHER INTERNATIONAL' population across ingestion, weekly panel, and modeling layers. Confirmed that pooled rows aggregate unclassified nationalities and lack direct flight pairing, leading to complete-case exclusion in flight-linked evaluations.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="VS-004",
+        summary="Traced pooled 'OTHER INTERNATIONAL' population across ingestion, weekly panel, and modeling layers. Confirmed that pooled rows aggregate unclassified nationalities and lack direct flight pairing, leading to complete-case exclusion in flight-linked evaluations.",
+        checks_performed=[
             "Audited composition and row counts of OTHER INTERNATIONAL in panel",
             "Checked join behavior against flight_daily view in analytics.duckdb",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Trace pooled population", "status": "verified", "evidence": "Identified pooling boundaries and absence of flight pairing"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Trace pooled population", "verified", "Identified pooling boundaries and absence of flight pairing"),
         ],
-    }
+    )
 
 
 def audit_VS_005(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -752,22 +739,19 @@ def audit_VS_005(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
         build_evidence("evaluation_trace", "evaluation_results.json:diagnostics", "Domestic segment accounts for 39.4% of total guest volume (ISSUE-0027)", "INSPECTED"),
     ]
 
-    return {
-        "task_id": "VS-005",
-        "status": "completed",
-        "summary": "Traced DOMESTIC demand end-to-end from raw domestic spreadsheets through daily aggregation, weekly panel, and scenario evaluation. Verified that aviation levers are completely decoupled and non-aviation levers (LOS) function correctly.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="VS-005",
+        summary="Traced DOMESTIC demand end-to-end from raw domestic spreadsheets through daily aggregation, weekly panel, and scenario evaluation. Verified that aviation levers are completely decoupled and non-aviation levers (LOS) function correctly.",
+        checks_performed=[
             "Traced domestic raw files to curated guest_daily parquet",
             "Tested non-aviation scenario levers on DOMESTIC market",
             "Verified volume contribution and segment separation in evaluation metrics",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Trace domestic demand end-to-end", "status": "verified", "evidence": "Domain decoupling and non-aviation lever operation confirmed"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Trace domestic demand end-to-end", "verified", "Domain decoupling and non-aviation lever operation confirmed"),
         ],
-    }
+    )
 
 
 def audit_VS_006(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -784,22 +768,19 @@ def audit_VS_006(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
         build_evidence("simulation_result", "TourismDigitalTwin.run_scenario", f"Simulated lift: +{rep.structural_result.delta_guests:.0f} guests; Cold-start tag included in recommendation", "REPRODUCED"),
     ]
 
-    return {
-        "task_id": "VS-006",
-        "status": "completed",
-        "summary": "Traced unmodeled country BRAZIL end-to-end. Verified regional cold-start prior fallback, parameter assignment from Latin America archetype, and cold-start disclosure banners in recommendation summaries.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="VS-006",
+        summary="Traced unmodeled country BRAZIL end-to-end. Verified regional cold-start prior fallback, parameter assignment from Latin America archetype, and cold-start disclosure banners in recommendation summaries.",
+        checks_performed=[
             "Executed scenario simulation for unmodeled country",
             "Verified hierarchical prior resolution and parameter bounds",
             "Checked cold-start disclosure flags in API response",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Trace cold-start market", "status": "verified", "evidence": "Cold-start prior fallback and disclosure verified"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Trace cold-start market", "verified", "Cold-start prior fallback and disclosure verified"),
         ],
-    }
+    )
 
 
 def audit_VS_007(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -816,21 +797,18 @@ def audit_VS_007(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
         build_evidence("split_integrity", "dates_continuity", "Contiguous 7-day week boundary between 2024-12-23 and 2024-12-30 with no overlapping dates", "REPRODUCED"),
     ]
 
-    return {
-        "task_id": "VS-007",
-        "status": "completed",
-        "summary": f"Traced split boundary period between training ({last_train_week}) and evaluation ({first_test_week}). Verified strict temporal segregation with zero overlap, duplicate keys, or leakage across the cutoff boundary.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="VS-007",
+        summary=f"Traced split boundary period between training ({last_train_week}) and evaluation ({first_test_week}). Verified strict temporal segregation with zero overlap, duplicate keys, or leakage across the cutoff boundary.",
+        checks_performed=[
             "Identified boundary week timestamps across train and test splits",
             "Verified date continuity and absence of duplicated days",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Trace split-boundary period", "status": "verified", "evidence": "Strict temporal segregation confirmed across train/test boundary"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Trace split-boundary period", "verified", "Strict temporal segregation confirmed across train/test boundary"),
         ],
-    }
+    )
 
 
 def audit_VS_008(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[str, Any]:
@@ -841,22 +819,19 @@ def audit_VS_008(tools: ReadOnlyTools, checklist_task: dict[str, Any]) -> dict[s
         build_evidence("panel_trace", "lake/curated/weekly_market_panel.parquet", "Weekly panel restricts modeled training window to 2023-01-02 onward, excluding missing flight period", "INSPECTED"),
     ]
 
-    return {
-        "task_id": "VS-008",
-        "status": "completed",
-        "summary": "Traced 2022 missing daily flight schedule period from raw source through curation. Verified that pre-2023 records are cleanly isolated, documented with join flags, and filtered out of flight-coupled training windows.",
-        "checks_performed": [
+    return build_audit_report(
+        task_id="VS-008",
+        summary="Traced 2022 missing daily flight schedule period from raw source through curation. Verified that pre-2023 records are cleanly isolated, documented with join flags, and filtered out of flight-coupled training windows.",
+        checks_performed=[
             "Audited start dates across flight_daily and guest_daily tables",
             "Inspected NULL handling in guest_flight_daily DuckDB view",
             "Confirmed exclusion of missing flight periods from weekly panel training set",
         ],
-        "evidence": evidence,
-        "findings": [],
-        "limitations": [],
-        "criterion_results": [
-            {"criterion": "Trace missing source period", "status": "verified", "evidence": "Pre-2023 flight missingness isolated and documented"},
+        evidence=evidence,
+        criterion_results=[
+            build_criterion_result("Trace missing source period", "verified", "Pre-2023 flight missingness isolated and documented"),
         ],
-    }
+    )
 
 
 TASK_HANDLERS = {
@@ -886,23 +861,138 @@ TASK_HANDLERS = {
 }
 
 
+@dataclass
+class AuditContext:
+    root_dir: Path
+    audit_dir: Path
+    state_path: Path
+    issues_path: Path
+    results_dir: Path
+    decisions_dir: Path
+    output_path: Path
+    checklist_path: Path
+    tools: ReadOnlyTools
+
+    @classmethod
+    def from_root(cls, root_dir: Path) -> AuditContext:
+        audit_dir = root_dir / "audit"
+        results_dir = audit_dir / "task_results"
+        decisions_dir = audit_dir / "manager_decisions"
+        results_dir.mkdir(parents=True, exist_ok=True)
+        decisions_dir.mkdir(parents=True, exist_ok=True)
+        return cls(
+            root_dir=root_dir,
+            audit_dir=audit_dir,
+            state_path=audit_dir / "run_state.json",
+            issues_path=audit_dir / "issues.json",
+            results_dir=results_dir,
+            decisions_dir=decisions_dir,
+            output_path=root_dir / "audit" / "issues.md",
+            checklist_path=root_dir / "meta" / "audits" / "data_issues" / "checklist.json",
+            tools=ReadOnlyTools(root_dir),
+        )
+
+
+def process_task_findings(
+    task_id: str,
+    findings: list[dict[str, Any]],
+    issues: list[dict[str, Any]],
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Evaluate task findings against existing issues, determining MERGE vs ADD decisions."""
+    accepted_issue_ids: list[str] = []
+    decisions: list[dict[str, Any]] = []
+
+    for finding in findings:
+        candidates = candidate_issues(finding, issues)
+        matching_candidate = None
+        finding_fingerprints = set(finding.get("fingerprints", []))
+        for c in candidates:
+            if set(c.get("fingerprints", [])) & finding_fingerprints:
+                matching_candidate = c["id"]
+                break
+
+        if matching_candidate:
+            decision_obj = {
+                "decision": "MERGE",
+                "target_issue_id": matching_candidate,
+                "rationale": f"Finding matches existing issue {matching_candidate} by fingerprint overlap.",
+            }
+        else:
+            decision_obj = {
+                "decision": "ADD",
+                "target_issue_id": None,
+                "rationale": "Finding identifies a distinct data issue or security vulnerability not covered by prior issues.",
+                "issue": {
+                    "title": finding["title"],
+                    "priority": finding.get("priority", "P2"),
+                    "category": finding.get("category", "unspecified"),
+                    "summary": finding.get("claim", finding.get("title")),
+                    "why_it_matters": finding.get("why_it_matters", ""),
+                    "smallest_remedy": finding.get("smallest_remedy", ""),
+                    "fingerprints": finding.get("fingerprints", []),
+                    "affected_paths": finding.get("affected_paths", []),
+                    "evidence": [finding.get("evidence", "")],
+                },
+            }
+
+        issue_id = apply_decision(issues, decision_obj, finding, task_id)
+        if issue_id:
+            accepted_issue_ids.append(issue_id)
+        decisions.append({
+            "finding": finding,
+            "candidates": [c["id"] for c in candidates],
+            "decision": decision_obj,
+        })
+
+    return accepted_issue_ids, decisions
+
+
+def execute_single_task(
+    task: dict[str, Any],
+    handler: Any,
+    ctx: AuditContext,
+    state: dict[str, Any],
+    issues: list[dict[str, Any]],
+) -> None:
+    task_id = task["id"]
+    print(f"\n[{task_id}] EXECUTING DIRECT AUDIT: {task.get('title')}")
+    record = state["tasks"][task_id]
+    record["status"] = "running"
+    record["started_at"] = utc_now()
+    record["controller_pid"] = os.getpid()
+    record["attempts"] = record.get("attempts", 0) + 1
+    atomic_write_json(ctx.state_path, state)
+
+    # Run handler
+    report = handler(ctx.tools, task)
+    atomic_write_json(ctx.results_dir / f"{task_id}.json", report)
+
+    # Review findings
+    accepted_issue_ids, decisions = process_task_findings(
+        task_id, report.get("findings", []), issues
+    )
+
+    if decisions:
+        atomic_write_json(ctx.decisions_dir / f"{task_id}.json", decisions)
+        atomic_write_json(ctx.issues_path, issues)
+        render_markdown(issues, ctx.output_path)
+
+    record["status"] = report.get("status", "completed")
+    record["completed_at"] = utc_now()
+    record["accepted_issue_ids"] = accepted_issue_ids
+    record["finder_backend"] = "direct_audit"
+    record["controller_pid"] = None
+    state["updated_at"] = utc_now()
+    atomic_write_json(ctx.state_path, state)
+
+    print(f"[{task_id}] COMPLETED with status={record['status']}; accepted issues={accepted_issue_ids or 'none'}")
+
+
 def run_pipeline() -> None:
-    audit_dir = ROOT_DIR / "audit"
-    state_path = audit_dir / "run_state.json"
-    issues_path = audit_dir / "issues.json"
-    results_dir = audit_dir / "task_results"
-    decisions_dir = audit_dir / "manager_decisions"
-    output_path = ROOT_DIR / "audit" / "issues.md"
-    checklist_path = ROOT_DIR / "meta" / "audits" / "data_issues" / "checklist.json"
-
-    results_dir.mkdir(parents=True, exist_ok=True)
-    decisions_dir.mkdir(parents=True, exist_ok=True)
-
-    tools = ReadOnlyTools(ROOT_DIR)
-
-    checklist = load_checklist(checklist_path)
-    state = read_json(state_path)
-    issues = read_json(issues_path, default=[])
+    ctx = AuditContext.from_root(ROOT_DIR)
+    checklist = load_checklist(ctx.checklist_path)
+    state = read_json(ctx.state_path)
+    issues = read_json(ctx.issues_path, default=[])
 
     print("=" * 80)
     print("STARTING DIRECT AUDIT PIPELINE EXECUTION (ALL STEPS IN ORDER)")
@@ -920,78 +1010,7 @@ def run_pipeline() -> None:
             print(f"[{task_id}] No direct handler implemented; skipping or already terminal.")
             break
 
-        print(f"\n[{task_id}] EXECUTING DIRECT AUDIT: {task.get('title')}")
-        record = state["tasks"][task_id]
-        record["status"] = "running"
-        record["started_at"] = utc_now()
-        record["controller_pid"] = os.getpid()
-        record["attempts"] = record.get("attempts", 0) + 1
-        atomic_write_json(state_path, state)
-
-        # Run handler
-        report = handler(tools, task)
-        atomic_write_json(results_dir / f"{task_id}.json", report)
-
-        # Review findings
-        accepted_issue_ids: list[str] = []
-        decisions: list[dict[str, Any]] = []
-
-        for finding in report.get("findings", []):
-            candidates = candidate_issues(finding, issues)
-            # Determine if candidate is an exact match to merge
-            matching_candidate = None
-            for c in candidates:
-                if set(c.get("fingerprints", [])) & set(finding.get("fingerprints", [])):
-                    matching_candidate = c["id"]
-                    break
-
-            if matching_candidate:
-                decision_obj = {
-                    "decision": "MERGE",
-                    "target_issue_id": matching_candidate,
-                    "rationale": f"Finding matches existing issue {matching_candidate} by fingerprint overlap.",
-                }
-            else:
-                decision_obj = {
-                    "decision": "ADD",
-                    "target_issue_id": None,
-                    "rationale": "Finding identifies a distinct data issue or security vulnerability not covered by prior issues.",
-                    "issue": {
-                        "title": finding["title"],
-                        "priority": finding.get("priority", "P2"),
-                        "category": finding.get("category", "unspecified"),
-                        "summary": finding.get("claim", finding.get("title")),
-                        "why_it_matters": finding.get("why_it_matters", ""),
-                        "smallest_remedy": finding.get("smallest_remedy", ""),
-                        "fingerprints": finding.get("fingerprints", []),
-                        "affected_paths": finding.get("affected_paths", []),
-                        "evidence": [finding.get("evidence", "")],
-                    },
-                }
-
-            issue_id = apply_decision(issues, decision_obj, finding, task_id)
-            if issue_id:
-                accepted_issue_ids.append(issue_id)
-            decisions.append({
-                "finding": finding,
-                "candidates": [c["id"] for c in candidates],
-                "decision": decision_obj,
-            })
-
-        if decisions:
-            atomic_write_json(decisions_dir / f"{task_id}.json", decisions)
-            atomic_write_json(issues_path, issues)
-            render_markdown(issues, output_path)
-
-        record["status"] = report.get("status", "completed")
-        record["completed_at"] = utc_now()
-        record["accepted_issue_ids"] = accepted_issue_ids
-        record["finder_backend"] = "direct_audit"
-        record["controller_pid"] = None
-        state["updated_at"] = utc_now()
-        atomic_write_json(state_path, state)
-
-        print(f"[{task_id}] COMPLETED with status={record['status']}; accepted issues={accepted_issue_ids or 'none'}")
+        execute_single_task(task, handler, ctx, state, issues)
 
     print("\n" + "=" * 80)
     print("DIRECT AUDIT PIPELINE COMPLETE")

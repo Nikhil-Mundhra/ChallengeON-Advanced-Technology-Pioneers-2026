@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "version": "20261010-151403-2158532",
-  "created": "2026-10-10T15:14:03+00:00",
-  "git_sha": "2158532",
+  "version": "20261010-163810-fa648af",
+  "created": "2026-10-10T16:38:10+00:00",
+  "git_sha": "fa648af",
   "spec": "twin_daily",
   "coverage": 0.8,
   "predicted_period": {
@@ -10,23 +10,23 @@
     "end": "2026-02-28"
   },
   "files": {
-    "nowcast": "20261010-151403-2158532/nowcast.json",
-    "whatif": "20261010-151403-2158532/whatif.json",
-    "planning": "20261010-151403-2158532/planning.json",
-    "weekly": "20261010-151403-2158532/weekly.json",
-    "golden": "20261010-151403-2158532/golden.json"
+    "nowcast": "20261010-163810-fa648af/nowcast.json",
+    "whatif": "20261010-163810-fa648af/whatif.json",
+    "planning": "20261010-163810-fa648af/planning.json",
+    "weekly": "20261010-163810-fa648af/weekly.json",
+    "golden": "20261010-163810-fa648af/golden.json"
   },
   "sha256": {
-    "nowcast": "5f95e855a9667893e80498616a9614a19bc682ae560c5f979a78dc18b1483a4f",
-    "whatif": "76f28e5202a1f47ed9aac9855192946bc1c076d3f09343acf41c964f9b91c899",
+    "nowcast": "db02f7765f04e22514649e3f28beede08ade288e21c3bf453210fcf57a81723b",
+    "whatif": "b0edb8fe5578b03438d0c88b4649fc097e3a8deb3843aaec6b511b4c8b6e159f",
     "planning": "d674e11bef490482de5c6d73935efe144c69ab21c9ae413e5c949a4521488613",
-    "weekly": "34ef685b6c4e6f5122468d9d4a8533f2ec159ad920c9df1a4881d58f0e9aafd1",
-    "golden": "99bd0bb4cabfb020a94cbd508a4d2d2cf7b21dedc645b5f0b690ed268ccd53c5"
+    "weekly": "1766218a77c3a04da59fdc7e051b1ac3230e42d227181f4d5f11d2afd06d8dfd",
+    "golden": "b3209d1b6fd3dedf96de2ec4efb553143fd45427c4d9f7edb77e6229a43512e7"
   },
   "weights": {
     "structural_calibration": "70d64ca0edea84fcb9cf691300c289750f7ef8d0dc6c7fdf47accd9a1232c663",
     "residual_engine": "56e25c9356f30ec33351613f9daabb1eefee128331e21b4dd94e775d03850337",
     "conformal_calibrator": "913ddbbaa9520fb043745e04e09a7f61ab4b6e8007694c039123d9be65304788",
-    "evaluation_results": "fb3422b72ff42c2d5ac7529005ac812777b7524f14bca6a4a2ff70c97ec7ef4d"
+    "evaluation_results": "cc32b58369cffb93e0e0c9f2fcac3b1239f79c246fbb54e284956bb3db234b52"
   }
 }

@@ -257,15 +257,67 @@ def _marginal(multiplier: float) -> float:
 def _international_scenario(p: MarketSeasonParams, base: Chain, lever: ScenarioLever) -> Chain:
     """Each lever shifts its stage; a zero delta keeps the baseline value exactly. A change in P2P
     passengers changes arrivals by at most one each (_marginal); arrivals already arriving by other
-    routes stay, scaled only by the multiplier lever."""
-    seats = max(0.0, (base.seats + lever.delta_frequency * lever.aircraft_gauge) * (1.0 + lever.delta_seats_pct))
-    lf = float(np.clip(base.lf + lever.delta_load_factor, 0.05, 1.0)) if lever.delta_load_factor != 0.0 else base.lf
+    routes stay, scaled only by the multiplier lever.
+
+    Incorporates empirical non-linear mechanics calibrated from curated lake panel data:
+    1. Frequency S-curve (Approach B): thin schedule (<7/wk) capture discount; daily threshold (7/wk) capture peak.
+    2. Capacity dilution (Approach A): seat surges beyond baseline decay marginal load factor and P2P transit share.
+    3. Destination room constraint (Approach C): peak season room saturation asymptotically caps runaway hotel guest demand.
+    """
+    gauge = lever.aircraft_gauge if lever.aircraft_gauge > 0 else 250.0
+    seats = max(0.0, (base.seats + lever.delta_frequency * gauge) * (1.0 + lever.delta_seats_pct))
+
+    if seats <= 0.0:
+        sim_seats, sim_lf, sim_pax, sim_p2p_share, sim_p2p = 0.0, base.lf, 0.0, base.p2p_share, 0.0
+        multiplier = max(0.01, base.multiplier * (1.0 + lever.delta_multiplier_pct)) if lever.delta_multiplier_pct != 0.0 else base.multiplier
+        arrivals = max(0.0, base.p2p * max(multiplier - 1.0, 0.0))
+        los = _shifted_los(base, lever)
+        return Chain(sim_seats, sim_lf, sim_pax, sim_p2p_share, sim_p2p, multiplier, arrivals, los, arrivals * los)
+
+    # 1. Frequency S-Curve (Increasing returns up to daily threshold)
+    f_base = base.seats / gauge if base.seats > 0 else 0.0
+    f_sim = max(0.0, f_base + lever.delta_frequency)
+    gamma, f0 = 1.5, 7.0
+    if lever.delta_frequency != 0.0:
+        if f_base > 0.0:
+            s_sim = (f_sim ** gamma) / (f_sim ** gamma + f0 ** gamma)
+            s_base = (f_base ** gamma) / (f_base ** gamma + f0 ** gamma)
+            m_freq = float(np.clip(s_sim / s_base, 0.85, 1.15))
+        else:
+            s_sim = (f_sim ** gamma) / (f_sim ** gamma + f0 ** gamma)
+            s_daily = (f0 ** gamma) / (2.0 * f0 ** gamma)
+            m_freq = float(np.clip(s_sim / s_daily, 0.75, 1.0))
+    else:
+        m_freq = 1.0
+
+    # 2. Capacity Dilution (Diminishing marginal returns on seat surges)
+    if base.seats > 0.0 and seats > base.seats:
+        expansion = (seats - base.seats) / base.seats
+        lf_decay = (1.0 + expansion) ** (-0.05)
+        p2p_decay = (1.0 + expansion) ** (-0.08)
+    else:
+        lf_decay = 1.0
+        p2p_decay = 1.0
+
+    lf = float(np.clip(base.lf * m_freq * lf_decay + lever.delta_load_factor, 0.05, 1.0)) if (lever.delta_load_factor != 0.0 or m_freq != 1.0 or lf_decay != 1.0) else base.lf
     pax = seats * lf
-    share = float(np.clip(base.p2p_share + lever.delta_p2p_share, 0.01, 1.0)) if lever.delta_p2p_share != 0.0 else base.p2p_share
+    share = float(np.clip(base.p2p_share * p2p_decay + lever.delta_p2p_share, 0.01, 1.0)) if (lever.delta_p2p_share != 0.0 or p2p_decay != 1.0) else base.p2p_share
     p2p = pax * share
     multiplier = max(0.01, base.multiplier * (1.0 + lever.delta_multiplier_pct)) if lever.delta_multiplier_pct != 0.0 else base.multiplier
-    arrivals = max(0.0, p.arrivals_from(base.p2p, multiplier) + (p2p - base.p2p) * _marginal(multiplier))
+    raw_arrivals = max(0.0, p.arrivals_from(base.p2p, multiplier) + (p2p - base.p2p) * _marginal(multiplier))
     los = _shifted_los(base, lever)
+
+    # 3. Destination Capacity Constraint (Peak room saturation)
+    kappa = 2.5 if p.season in ("Winter_Peak", "Spring_Shoulder") else 2.0
+    c_cap = kappa * base.guests if base.guests > 0 else 0.0
+    raw_guests = raw_arrivals * los
+    delta_g = raw_guests - base.guests
+    if delta_g > 0.0 and c_cap > base.guests:
+        delta_g_sat = (c_cap - base.guests) * delta_g / ((c_cap - base.guests) + delta_g)
+        arrivals = (base.guests + delta_g_sat) / los
+    else:
+        arrivals = raw_arrivals
+
     return Chain(seats, lf, pax, share, p2p, multiplier, arrivals, los, arrivals * los)
 
 
