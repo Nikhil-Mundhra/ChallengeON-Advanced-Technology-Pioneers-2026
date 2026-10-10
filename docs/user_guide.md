@@ -61,6 +61,33 @@ Blocks: `time` (season, weekday, and for domestic the slope held at its last tra
 
 `twin validate` (`make validate`) back-tests `naive_364`, `arrivals_ratio`, `time_only`, `flow_only`, `flow_time` and `twin_daily` on `VALIDATION_ORIGINS` (never the frozen test) and writes `output/validation_summary.json`: `protocol`, `folds`, `segment_wape` (`grain`, `values.<spec>.{domestic,international}`), `compare` (`grain`, `rows[]`: `twin_daily` against `naive_364`, `time_only` and `flow_time` per segment) and `nationalities` (the pooled-nationality and recency results, each with its commit).
 
+### 1.3 Winter outlook: `twin outlook`
+
+```bash
+twin outlook                       # winter 2026/27 (Dec 2026 – Feb 2027), spec twin_daily
+twin outlook --winter Y --spec S   # Dec Y – Feb Y+1; any name in DAILY_SPECS
+```
+
+Guests for a window after the test split (`nowcast/outlook.py`). The spec is fitted on every training day. Arrivals after the test split are a scenario: each market's new arrivals on the same weekday 364 days earlier × a growth factor, `flat` (1.0) or `trend` (the market's arrivals over the last 365 known days ÷ the 365 days before). Calendar terms (season, weekday, `domain/events.csv` windows) are the window's own. Writes `output/outlook.json`:
+
+```text
+window, start, end, spec, guests_known_to, arrivals_known_to
+previous:                  the same model one year earlier, from its actual arrivals
+  window, guest_nights, months[].{month, guest_nights}
+scenarios.{flat,trend}:
+  guest_nights, change_pct           change vs previous.guest_nights
+  domestic_share_pct
+  top_source_markets[]               top 5 international markets, OTHER_* excluded: {market, share_pct}
+  months[].{month, guest_nights, change_pct}
+  arrivals_growth.<MARKET>           growth factor used
+backtest[]:                the same procedure on the window two years earlier, ending before the frozen test,
+                           with guests and arrivals cut at the live distances before its start
+  window, scenario, segment (total, international, domestic), train_end, arrivals_end,
+  season_error_pct, daily_wape_pct
+```
+
+The console prints the previous total, each scenario's total and change, and the back-test season errors.
+
 ---
 
 ## 2. What the simulator does
@@ -283,6 +310,7 @@ Shared fixtures are in `tests/conftest.py` and synthetic data with a known answe
 twin charts              # output/figures/{waterfall_attribution,tornado_sensitivity,model_benchmark}.png
 twin report solution     # output/pdf/challengeon_solution_report.pdf (3 pages; needs the 'report' extra)
 twin report database     # output/pdf/challengeon_schema_database_report.pdf (needs lake/analytics.duckdb)
+twin validate && twin outlook  # numbers the deck reads (outlook.json is required)
 twin report deck         # output/deck/deck.pptx + deck.pdf from report/deck/deck.yaml (PDF needs LibreOffice; see report/deck/README.md)
 ```
 

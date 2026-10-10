@@ -10,7 +10,7 @@ Two models:
 
 | Model | Inputs for the predicted period | Output | Command |
 | --- | --- | --- | --- |
-| Daily nowcast (`twin_daily`) | Daily new arrivals per market | Daily guests per market and nationality for 2025-08-01 to 2026-02-28, P10/P50/P90, weekly direction | `twin predict` |
+| Daily nowcast (`twin_daily`) | Daily new arrivals per market | Daily guests per market and nationality for 2025-08-01 to 2026-02-28, P10/P50/P90, weekly direction; future-winter guests under arrivals scenarios | `twin predict`, `twin outlook` |
 | Weekly planning model | Scheduled seats, planner levers, calibrated seasonal priors | Weekly guest lift per market and season; weekly back-test and 3-year projection | `twin simulate`, web app |
 
 **Planning model.** It estimates how a change in air connectivity changes weekly hotel guests for a source market and season. A planner changes weekly frequency, aircraft gauge, seat capacity, load factor, P2P share, response multiplier or stay factor and gets:
@@ -137,7 +137,7 @@ Results from different modes are reported separately.
 
 ## 7. Model
 
-§7.1–7.4: weekly planning model (simulator). §7.5–7.9: daily nowcast (`twin predict`).
+§7.1–7.4: weekly planning model (simulator). §7.5–7.10: daily nowcast (`twin predict`, `twin outlook`).
 
 ### 7.1 Structural chain (`planning/structural.py`)
 
@@ -237,6 +237,20 @@ Fallback when a nationality has no pooled prediction: a pooled market's predicti
 ### 7.9 Same-day guests (`nowcast/same_day.py`)
 
 `SameDayPoisson`: one Poisson GLM per market on weekday, holiday week and log(1 + new arrivals); markets with fewer than 60 training days use their mean. A suppressed nationality value (`*`) counts as 0: no observed same-day value is 0, observed counts fall from 1 (6,814 rows) to 2 (5,179) to 3 (2,967), and suppressed days have lower arrivals (CHINA median 328 vs 501). Every nationality with a suppressed value has also published a 1, so the censored likelihood (count < 1) equals reading `*` as 0 (issue #14). Counts are overdispersed: Pearson dispersion 8.0 domestic, 10.3 international on the validation origins; Poisson 80% intervals cover 63.3% of validation days, so no same-day interval is produced. `same_day_backtest` scores it on rolling origins (`scripts/same_day_backtest.py`). Not called by `twin predict` (the test workbooks contain `Same-Day Guests`).
+
+### 7.10 Winter outlook (`nowcast/outlook.py`)
+
+`twin outlook [--winter Y]` predicts guests for Dec Y – Feb Y+1 (default 2026/27), after the test split, so no arrivals are known for it.
+
+| Part | Definition |
+| --- | --- |
+| Model | The chosen daily spec (default `twin_daily`) fitted on every training day (guests known to 2025-07-31) |
+| Arrivals scenario | Each market's new arrivals on the same weekday 364 days earlier × growth, compounded per further year: `flat` 1.0; `trend` the market's arrivals over the last 365 known days ÷ the 365 days before |
+| Calendar | Season, weekday and `domain/events.csv` windows of the predicted window (Ramadan and Eid al-Fitr 1448 are expected dates) |
+| Comparison | The same model one year earlier, from that year's actual arrivals: the change is the model's own year-on-year change, not model minus actual |
+| Back-test | The same procedure on the window two years earlier, ending before the frozen test (for 2026/27: Dec 2024 – Jan 2025), with guests and arrivals cut at the live distances before the window; season error % and daily WAPE per segment. A window overlapping the frozen test raises |
+
+Output: `output/outlook.json` (user guide §1.3); `twin report deck` reads it for the outlook slide.
 
 ## 8. Archetypes
 

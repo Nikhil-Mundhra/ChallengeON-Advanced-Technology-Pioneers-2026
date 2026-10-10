@@ -23,13 +23,14 @@ Entry point `twin` (same as `python -m tourism_twin`); run `twin <cmd> --help` f
 | `twin evaluate` | Weekly benchmarks through the back-test harness → `evaluation_results.json` (run before `train`, which reads its coverage) | lake |
 | `twin predict [--spec S] [--no-intervals]` | Daily nowcast of the test split (default spec `twin_daily`); refuses output failing `validate_predictions` | output (`predictions/`) |
 | `twin validate` | #11 validation table and `compare` rows on `VALIDATION_ORIGINS` | output (`validation_summary.json`) |
+| `twin outlook [--winter Y] [--spec S]` | Guests for Dec Y – Feb Y+1 (default 2026) under flat and trend arrivals scenarios (same weekday 364 days earlier × growth), the model's year-earlier estimate, and the procedure's back-test on the window two years earlier (cut before the frozen test) | output (`outlook.json`) |
 | `twin export [--out D] [--spec S]` | Fit, predict, write the web bundle: `manifest.json` + `<version>/{nowcast,whatif,planning,weekly,golden}.json` | `web/public/data` (default) |
 | `twin ablate-blocks` | Nowcast block ablation on 13 exploratory origins (~10 min) | output (`nowcast_block_ablation.json`) |
 | `twin evaluate-model [--spec S \| --model P] --start D --end D [--frozen-test]` | Fit a `DAILY_SPECS` name or `pooled_nationalities` up to `--start` minus 21 days (or load a model), score without refitting; frozen test only with `--frozen-test` | output (`models/`, `evaluations/`) |
 | `twin simulate --market M --season S [levers]` | Print a scenario briefing | — |
 | `twin charts` | Waterfall, tornado, benchmark figures | output |
 | `twin report {solution,database}` | PDF report (needs `report` extra) | output |
-| `twin report deck [--content P] [--no-pdf]` | 10-slide presentation from `report/deck/deck.yaml` → `deck/deck.pptx` (+ PDF via LibreOffice); needs `report` extra | output |
+| `twin report deck [--content P] [--no-pdf]` | 10-slide presentation from `report/deck/deck.yaml` → `deck/deck.pptx` (+ PDF via LibreOffice); reads `validation_summary.json` and `outlook.json` (run `twin validate` and `twin outlook` first); needs `report` extra | output |
 | `twin serve [--port 8080]` | Earlier web UI + JSON API (`python -m app.server` reads `PORT`) | — |
 | `twin query "SQL" [--database P] [--limit N]` | Read-only SQL on `analytics.duckdb` | — |
 
@@ -63,7 +64,7 @@ models/     shared model kernel, no use case: protocol, registry (component/fitt
             linear_solve, fitters, composite, backtest, evaluate, noise
 nowcast/    daily competition model: specs, routing, baselines, predict (orchestration), pooling,
             disaggregation, submission (floor, workbook files, validation), weekly, outputs,
-            serving, evaluation, same_day
+            serving, evaluation, same_day, outlook (future-winter scenario)
 planning/   weekly scenario model: structural, residual, calendar_features, conformal, uncertainty,
             sensitivity, simulator, briefing, training, evaluation, specs, baselines
 reporting/  charts, predictions_plot, solution_report, database_report/, deck/, palette, pdf_palette
@@ -121,6 +122,7 @@ cli/        the `twin` command
 - Report domestic and international separately. Ship a component only if it lowers validation WAPE by ≥ 0.3 pp on both; among variants within 0.2 pp of the best, keep the simplest. `ResidualGBM` failed, keep it out of `twin_daily`.
 - Add event occurrences to `domain/events.csv` (with `scope`: all, international, a market or a pooled-market nationality); `kind=one_off` rows are masked from training via `is_one_off_period`. Keep scoped events (`chinese_new_year`, `morocco_winter_block`) out of `DEFAULT_KERNEL_EVENTS` until they pass validation.
 - Never derive legacy `HOLIDAY_WEEKS` / `MAJOR_EVENT_WEEKS` from `events.csv`; that moves shipped weekly results.
+- Before `twin outlook --winter Y`, add that window's event occurrences to `events.csv` (unconfirmed lunar dates labelled `(expected)`); an event without a row in the window contributes nothing.
 - No `.iterrows(` anywhere in `models/` (a test enforces it).
 
 ## Web app (`web/`)
@@ -135,13 +137,13 @@ cli/        the `twin` command
 ## Presentation deck
 
 - Edit slide content only in `report/deck/deck.yaml`; layout lives in `reporting/deck/layout.py`, figures in `reporting/deck/figures.py` (planning charts reused from `reporting/charts.py`).
-- Result numbers on slides (errors, gains, shares, effects) are `{name}` placeholders filled from artifacts (`reporting/deck/numbers.py`); never type a result into slide text, and every fallback entry names its `source`. Design facts (e.g. 7 validation origins, a 21-day lag window) may be written directly.
+- Result numbers on slides (errors, gains, shares, effects) are `{name}` placeholders filled from artifacts (`validation_summary.json`, `outlook.json`, `evaluation_results.json`; `reporting/deck/numbers.py`); never type a result into slide text, and every fallback entry names its `source`. Design facts (e.g. 7 validation origins, a 21-day lag window) may be written directly.
 - Plain language: a technical term only with its job; a detail always under its parent bullet.
 
 ## Data and artifacts
 
 - `01a - DCT Dataset/` holds the raw workbooks: gitignored, supplied locally (or via `TWIN_SOURCE_DIR`). Never edit or commit them.
-- Committed despite `.gitignore`: `lake/manifest.json` and tracked files in `lake/curated/` (check with `git ls-files lake`). `build-lake`, `build-panel`, `build-daily-panel`, `train`, `evaluate`, and `make all` overwrite lake artifacts with default dirs; `charts`/`report`/`predict`/`evaluate-model`/`ablate-blocks` write `output/`.
+- Committed despite `.gitignore`: `lake/manifest.json` and tracked files in `lake/curated/` (check with `git ls-files lake`). `build-lake`, `build-panel`, `build-daily-panel`, `train`, `evaluate`, and `make all` overwrite lake artifacts with default dirs; `charts`/`report`/`predict`/`evaluate-model`/`ablate-blocks`/`outlook` write `output/`.
 - Run those against scratch dirs, never the checkout: `TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/out make all`; `twin predict` with a scratch `TWIN_OUTPUT_DIR`.
 - `make clean` removes only uncommitted generated files (figures, PDFs, `analytics.duckdb`, staging leftovers); it honours the same dir overrides.
 - Never use a submission file unless `validate_predictions` returns no problems.

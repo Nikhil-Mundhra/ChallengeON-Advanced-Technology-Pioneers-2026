@@ -30,6 +30,7 @@ In the nowcast, arrivals carry most of the level and the event shocks (§4.3). I
 | Same-day guests | Day of week, holiday week, log new arrivals | Daily same-day guests | Competition field | Implemented: Poisson GLM per market (`nowcast/same_day.py`). Analysis: GBM with Poisson loss 19.4% vs 23.8% naive. Suppressed values, see §6 (#14) |
 | Planning (structural) | Seats, levers, seasonal priors | Weekly guests per market × season, waterfall | Simulator, scenario attribution | Implemented (`planning/structural.py`, `planning/residual.py`) |
 | Direction (derived) | Guests history, calendar | Up/down over +7 days | `market_outputs.json`, briefing | Implemented: sign of the next-week change with an AR(1) probability (`nowcast/weekly.py`). Analysis: logistic + spline, 74% accuracy, Brier 0.18 vs 43% majority class (`model_baselines.py`) |
+| Winter outlook (derived) | Scenario arrivals (same weekday 364 days earlier × flat or trend growth), date | Guests for a future winter, monthly, top source markets | Seasonal planning beyond the test split | Implemented: nowcast spec fitted on every training day (`nowcast/outlook.py`, `twin outlook`); back-tested on the window two years earlier, before the frozen test |
 | Intervals (derived) | Out-of-sample back-test errors | P10/P50/P90 | Competition predictions, briefing, simulator | Implemented: `NoiseModel` (`models/noise.py`, AR(1) on log errors by horizon) for daily predictions; Monte Carlo (`planning/uncertainty.py`) and conformal margins (`planning/conformal.py`) for the weekly simulator |
 
 All `model_baselines.py` figures are on a single 6-month holdout, 2025-02 to 2025-07 (the frozen test window; exploratory).
@@ -154,7 +155,7 @@ Log scale; 2023–2025.
 | Solar holidays | National Day +36–44%; Christmas–New Year international +41–43% for 12–17 days |
 | One-off shocks | Jan 2022 international −29% for 28 days. Wars (Oct 2023, Apr 2024, Jun 2025) produced no detectable window |
 
-Test period (Aug 2025 – Feb 2026) contains National Day 2025, Christmas–New Year 2025/26 and the start of Ramadan 2026 (~2026-02-18).
+Test period (Aug 2025 – Feb 2026) contains National Day 2025, Christmas–New Year 2025/26 and the start of Ramadan 2026 (~2026-02-18). `events.csv` also holds 2026/27 dates (Ramadan and Eid al-Fitr 1448, expected; Chinese New Year 2027) for `twin outlook`.
 
 ### 4.4 Noise (`noise_distribution.py`)
 
@@ -260,7 +261,7 @@ Same pattern as `features/registry.py` (declare once, request by name), applied 
 | Components: `ArrivalsConvolution`, `CentredSlope`, `LinearTrend`, `LocalLevel`, `AnnualFourier`, `DayOfWeek`, `EventKernel`, `GroupScale`, `LinearRegressors`, `ResidualGBM` | Implemented |
 | Event registry `domain/events.csv` | Implemented |
 | Back-test harness (`HoldoutSplit`, `RollingOrigin`), #11 protocol (`VALIDATION_ORIGINS`, `FROZEN_TEST`, `compare`), weekly and daily specs (`planning/specs.py`, `nowcast/specs.py`), `MarketRouter` | Implemented |
-| `NoiseModel` (`models/noise.py`), test-split predictions (`nowcast/predict.py`, `twin predict`), serving bundle and API (`nowcast/serving.py`, #7), same-day model (`nowcast/same_day.py`) | Implemented |
+| `NoiseModel` (`models/noise.py`), test-split predictions (`nowcast/predict.py`, `twin predict`), serving bundle and API (`nowcast/serving.py`, #7), same-day model (`nowcast/same_day.py`), winter outlook (`nowcast/outlook.py`, `twin outlook`) | Implemented |
 | Block grouping (`group` tag, `decompose_by_group`), time-only international spec (`INTL_TIME`) | Implemented |
 | Flight block | Component registered (`regressors`, block flight); no spec uses flight features (they add ~0 once arrivals are known, §4.7) |
 | Shared kernel / season shape with per-market scale (partial pooling) | Implemented for the 30 pooled-market nationalities (`POOLED_NATIONALITIES`, `nowcast/pooling.py`, #16) |
@@ -304,7 +305,7 @@ Weights apply to the squared error of data rows only (penalty rows are unweighte
 
 ### 5.3 Event registry as data
 
-`domain/events.csv` with columns `event, kind (lunar|solar|one_off), anchor_date, window_start_offset, window_end_offset, scope, label, source (detected|manual)`. Separate rows for Ramadan, Eid al-Fitr, Eid al-Adha, National Day, Christmas–New Year, F1, ADIPEC and the rest, including test-period dates. `one_off` rows are masked from training. `is_holiday_week` and `is_major_event_week` become features derived from the CSV so the weekly panel and its tests keep working. Candidate windows come from `event_detector.py` (robust z on residuals, seed |z| ≥ 3, extend while |z| ≥ 1.5, recurrence by calendar date or Ramadan offset ±3 days; an event needs ≥ 2 occurrences to be recurring).
+`domain/events.csv` with columns `event, kind (lunar|solar|one_off), anchor_date, window_start_offset, window_end_offset, scope, label, source (detected|manual)`. Separate rows for Ramadan, Eid al-Fitr, Eid al-Adha, National Day, Christmas–New Year, F1, ADIPEC and the rest, including test-period dates and 2026/27 dates (unconfirmed Hijri dates labelled `(expected)`). `one_off` rows are masked from training. `is_holiday_week` and `is_major_event_week` become features derived from the CSV so the weekly panel and its tests keep working. Candidate windows come from `event_detector.py` (robust z on residuals, seed |z| ≥ 3, extend while |z| ≥ 1.5, recurrence by calendar date or Ramadan offset ±3 days; an event needs ≥ 2 occurrences to be recurring).
 
 ### 5.4 Back-test harness and evaluation protocol (#10, #11) — *Implemented*
 
