@@ -16,8 +16,8 @@ export function BarCompare({ data, currentLabel, comparisonLabel }: { data: BarP
         <XAxis dataKey="label" {...xAxisProps} />
         <YAxis {...yAxisProps} />
         <Tooltip {...tooltipProps} formatter={formatTooltipValue} />
-        <Bar dataKey="comparison" name={comparisonLabel} fill={SERIES.comparison} radius={[6, 6, 0, 0]} />
-        <Bar dataKey="current" name={currentLabel} fill={SERIES.scenario} radius={[6, 6, 0, 0]} />
+        <Bar dataKey="comparison" name={comparisonLabel} fill={SERIES.comparison} radius={[1, 1, 0, 0]} />
+        <Bar dataKey="current" name={currentLabel} fill={SERIES.scenario} radius={[1, 1, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

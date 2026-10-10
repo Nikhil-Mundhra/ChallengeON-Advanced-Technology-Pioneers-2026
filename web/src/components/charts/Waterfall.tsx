@@ -24,7 +24,7 @@ export function Waterfall({ steps }: { steps: WaterfallStep[] }) {
         <Tooltip {...tooltipProps}
                  formatter={(_, name, item) => name === "span" ? [formatCount(item.payload.value), item.payload.total ? "Hotel nights per week" : "Change"] : [null, null]} />
         <Bar dataKey="offset" stackId="w" fill="transparent" isAnimationActive={false} />
-        <Bar dataKey="span" stackId="w" radius={[4, 4, 4, 4]} isAnimationActive={false}>
+        <Bar dataKey="span" stackId="w" radius={[1, 1, 1, 1]} isAnimationActive={false}>
           {data.map((d) => <Cell key={d.label} fill={fill(d)} />)}
         </Bar>
       </BarChart>

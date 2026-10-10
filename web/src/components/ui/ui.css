@@ -41,7 +41,7 @@
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   cursor: pointer;
-  border-radius: calc(var(--radius-md) - 3px);
+  border-radius: var(--radius-xs);
   transition: background 180ms var(--ease-out), color 180ms var(--ease-out), box-shadow 180ms var(--ease-out);
 }
 .segmented__option:hover:not([aria-pressed="true"]) { color: var(--color-text); }

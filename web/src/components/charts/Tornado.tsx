@@ -13,8 +13,8 @@ export function Tornado({ rows }: { rows: TornadoBar[] }) {
         <YAxis type="category" dataKey="label" {...xAxisProps} width={210} tick={{ ...xAxisProps.tick, fill: "var(--color-text)" }} />
         <Tooltip {...tooltipProps} formatter={formatTooltipValue} />
         <ReferenceLine x={0} stroke="var(--color-text-muted)" />
-        <Bar dataKey="low" name="One step down" stackId="t" fill={SERIES.check} radius={[4, 4, 4, 4]} isAnimationActive={false} />
-        <Bar dataKey="high" name="One step up" stackId="t" fill={SERIES.scenario} radius={[4, 4, 4, 4]} isAnimationActive={false} />
+        <Bar dataKey="low" name="One step down" stackId="t" fill={SERIES.check} radius={[1, 1, 1, 1]} isAnimationActive={false} />
+        <Bar dataKey="high" name="One step up" stackId="t" fill={SERIES.scenario} radius={[1, 1, 1, 1]} isAnimationActive={false} />
       </BarChart>
     </ResponsiveContainer>
   );
