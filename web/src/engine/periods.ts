@@ -30,7 +30,8 @@ export interface PeriodSummary {
 }
 
 /** Sums over the period for `markets` (default: every market). */
-export function summarise(pb: Playback, period: Period, markets: string[] = Object.keys(pb.markets)): PeriodSummary {
+export function summarise(pb: Playback, period: Period, requested: string[] = Object.keys(pb.markets)): PeriodSummary {
+  const markets = requested.filter((m) => pb.markets[m]);   // markets without weekly history add nothing
   const sum = (xs: number[]) => xs.slice(period.from, period.to + 1).reduce((a, b) => a + b, 0);
   const byMarket = markets.map((market) => {
     const s = pb.markets[market];

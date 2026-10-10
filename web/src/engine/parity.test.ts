@@ -176,6 +176,7 @@ describe("period totals", () => {
     const weekSum = summarise(pb, periodAt(pb.weeks, w, "week"));
     expect(weekSum.guests).toBeCloseTo(pb.total[w], 6);
     expect(weekSum.visitorsBase).toBeCloseTo(weekSum.visitors, 6);   // no changes
+    expect(summarise(pb, periodAt(pb.weeks, w, "week"), ["ARMENIA"]).visitors).toBe(0);   // no weekly history: nothing, not a crash
     const since = summarise(pb, periodAt(pb.weeks, w, "since", w - 3));
     expect(since.weeks).toBe(4);
     const totals = totalTimeline(planning, weekly, "ALL", NO_CHANGE, opts);

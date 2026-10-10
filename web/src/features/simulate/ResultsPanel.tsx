@@ -14,7 +14,8 @@ const DATA_LABEL = { real: "real", forecast: "forecast", mixed: "real and foreca
 export function ResultsPanel({ pb, week, market }: { pb: Playback; week: number; market: string }) {
   const [mode, setMode] = useState<PeriodMode>("month");
   const [since, setSince] = useState(() => Math.max(0, pb.weeks.findIndex((w) => w >= "2025-01-01")));
-  const markets = market === ALL_MARKETS ? undefined : [market];
+  const known = market !== ALL_MARKETS && Boolean(pb.markets[market]);
+  const markets = known ? [market] : undefined;   // a country without hotel history: show all markets
   const period = periodAt(pb.weeks, week, mode, since);
   const sum = summarise(pb, period, markets);
   const world = summarise(pb, period);
@@ -37,7 +38,7 @@ export function ResultsPanel({ pb, week, market }: { pb: Playback; week: number;
           <div><dt>Hotel nights</dt><dd>{formatCount(sum.guests)}</dd></div>
           {Math.abs(added) >= 1 && <div><dt>From your changes</dt><dd className={toneOf(added)}>{formatSigned(added, formatCount)} visitors</dd></div>}
         </dl>
-        <p className="note">{marketName(market)}. Follows the week on the map; press play and it moves.</p>
+        <p className="note">{known || market === ALL_MARKETS ? marketName(market) : `All markets (${marketName(market)} has no hotel history yet)`}. Follows the week on the map; press play and it moves.</p>
       </Card>
       <Card title="Where visitors come from" subtitle={`Same period, all markets (countries and regions)`}>
         <ul className="origins">

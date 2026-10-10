@@ -8,6 +8,7 @@ import { holdoutWmape, timeline, totalTimeline, type Weekly } from "../../engine
 import { ALL_MARKETS, DEFAULT_INPUT, leverReducer, marketOptions, toLever } from "./levers";
 import { LeverPanel } from "./LeverPanel";
 import { MapPlayback } from "./MapPlayback";
+import { NewRouteCard } from "./NewRouteCard";
 import { ResultsPanel } from "./ResultsPanel";
 import { ChainView, LeversView } from "./SeasonViews";
 import { TimelinePanel } from "./TimelinePanel";
@@ -74,6 +75,7 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
       </section>
 
       <aside className="workbench__results" aria-label="Results">
+        {!all && !pb.markets[market] && <NewRouteCard planning={planning} market={market} lever={lever} seasons={seasons} />}
         <ResultsPanel pb={pb} week={week} market={market} />
         <p className="note">Estimates from past flight and hotel data, not guarantees.</p>
       </aside>
