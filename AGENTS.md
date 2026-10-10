@@ -136,7 +136,7 @@ cli/        the `twin` command
 
 ## Presentation deck
 
-- Edit slide content only in `report/deck/deck.yaml`; layout lives in `reporting/deck/layout.py`, figures in `reporting/deck/figures.py` (planning charts reused from `reporting/charts.py`).
+- Edit slide content only in `report/deck/deck.yaml`; colours and font in `reporting/deck/theme.py` (deck only; `reporting/palette.py` stays for the PDF reports), layout in `reporting/deck/layout.py`, figures in `reporting/deck/figures.py` (planning charts reused from `reporting/charts.py`).
 - Result numbers on slides (errors, gains, shares, effects) are `{name}` placeholders filled from artifacts (`validation_summary.json`, `outlook.json`, `evaluation_results.json`; `reporting/deck/numbers.py`); never type a result into slide text, and every fallback entry names its `source`. Design facts (e.g. 7 validation origins, a 21-day lag window) may be written directly.
 - Plain language: a technical term only with its job; a detail always under its parent bullet.
 
