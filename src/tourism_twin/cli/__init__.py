@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import argparse
 
-from tourism_twin.cli import evaluate, pipeline, query, reports, serve, simulate
+from tourism_twin.cli import evaluate, export, pipeline, query, reports, serve, simulate
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="twin", description="Abu Dhabi Tourism Digital Twin")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for module in (pipeline, evaluate, simulate, reports, serve, query):
+    for module in (pipeline, evaluate, export, simulate, reports, serve, query):
         module.register(subparsers)
     return parser
 

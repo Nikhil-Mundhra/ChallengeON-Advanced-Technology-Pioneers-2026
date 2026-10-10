@@ -200,4 +200,6 @@ def run_server(port: int = 8080):
 
 
 if __name__ == "__main__":
-    run_server(8080)
+    import os
+
+    run_server(int(os.environ.get("PORT", "8080")))

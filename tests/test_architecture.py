@@ -25,7 +25,8 @@ ALLOWED_IMPORTS = {
     "nowcast": {"config", "domain", "features", "data", "models", "nowcast"},
     "planning": {"config", "domain", "features", "data", "models", "planning"},
     "reporting": _BELOW_ADAPTERS | {"reporting"},
-    "cli": _BELOW_ADAPTERS | {"reporting", "cli"},
+    "export": _BELOW_ADAPTERS | {"export"},
+    "cli": _BELOW_ADAPTERS | {"reporting", "export", "cli"},
 }
 
 

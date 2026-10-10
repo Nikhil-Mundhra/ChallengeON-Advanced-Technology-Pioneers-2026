@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "version": "20261010-110523-00c86b3",
+  "created": "2026-10-10T11:05:23+00:00",
+  "git_sha": "00c86b3",
+  "spec": "twin_daily",
+  "coverage": 0.8,
+  "predicted_period": {
+    "start": "2025-08-01",
+    "end": "2026-02-28"
+  },
+  "files": {
+    "nowcast": "20261010-110523-00c86b3/nowcast.json",
+    "whatif": "20261010-110523-00c86b3/whatif.json",
+    "planning": "20261010-110523-00c86b3/planning.json",
+    "weekly": "20261010-110523-00c86b3/weekly.json",
+    "golden": "20261010-110523-00c86b3/golden.json"
+  },
+  "sha256": {
+    "nowcast": "8db257b405c3f989f1fbfde4cfe3788466408be7842743450cbb3999f1d8d67b",
+    "whatif": "fb0365b1bcf107b8eb99a1a6239c31b8bb73cc118a1b8d645806b24cb362b89e",
+    "planning": "c5eb0bec3e521c58c3be9928ae6cd21a355b714deba4f693591c7698db57b6c4",
+    "weekly": "08240456bd41e707e23e5a814b4091afc782303f4613dd96b359c4ef061c1031",
+    "golden": "fc57eaa4b48a86715f97b604d7c64fc79a9cbb34f1c58bd48a801dd2192f9894"
+  }
+}

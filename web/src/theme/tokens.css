@@ -1,0 +1,32 @@
+/* Design tokens: every colour, radius, space and type size comes from here. */
+:root {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-xs: 0.75rem; --text-sm: 0.8125rem; --text-md: 0.9375rem; --text-lg: 1.125rem; --text-xl: 1.5rem;
+  --weight-regular: 400; --weight-medium: 500; --weight-bold: 650;
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 20px; --radius-full: 999px;
+
+  --color-backdrop-from: #6aa6a0; --color-backdrop-to: #3f6f8f;
+  --color-sidebar: #4d7c97; --color-sidebar-icon: rgba(255, 255, 255, 0.72); --color-sidebar-active: #ffffff;
+  --color-surface: #ffffff; --color-surface-muted: #f5f8fa; --color-border: #e6ecf0;
+  --color-text: #24384a; --color-text-muted: #7b8a97; --color-text-inverse: #ffffff;
+  --color-accent: #3d9b8f; --color-accent-soft: #e3f3f0;
+  --color-secondary: #ee6c4d; --color-secondary-soft: #fdece7;
+  --color-comparison: #d9e1f2;
+  --color-up: #2e9d6a; --color-up-soft: #e3f5ec;
+  --color-down: #d9534f; --color-down-soft: #fbe9e8;
+  --color-neutral: #7b8a97; --color-neutral-soft: #eef2f5;
+  --shadow-card: 0 1px 2px rgba(20, 40, 60, 0.06), 0 8px 24px rgba(20, 40, 60, 0.06);
+  --focus-ring: 0 0 0 3px rgba(61, 155, 143, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-backdrop-from: #1d3b3b; --color-backdrop-to: #14273a;
+    --color-sidebar: #1b3243; --color-surface: #182634; --color-surface-muted: #1f3040; --color-border: #2a3d4f;
+    --color-text: #e3ecf2; --color-text-muted: #93a4b3; --color-accent-soft: #1f3d3a; --color-secondary-soft: #3d2620;
+    --color-comparison: #34475e; --color-up-soft: #1d3a2d; --color-down-soft: #3d2222; --color-neutral-soft: #26384a;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+  }
+}

@@ -20,3 +20,4 @@ ollama_server.log
 
 # Raw competition dataset
 01a - DCT Dataset/
+.run/

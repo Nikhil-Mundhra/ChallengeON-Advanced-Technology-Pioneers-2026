@@ -1,0 +1,32 @@
+{
+  "name": "tourism-twin-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Static dashboard for the Abu Dhabi tourism nowcast: reads the versioned bundle written by `twin export`.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-router": "7.18.2",
+    "recharts": "3.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "@vitejs/plugin-react": "4.5.2",
+    "typescript": "5.8.3",
+    "vite": "6.3.5",
+    "vitest": "3.2.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
