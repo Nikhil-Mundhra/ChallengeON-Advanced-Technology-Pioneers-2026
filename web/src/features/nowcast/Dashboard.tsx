@@ -25,7 +25,8 @@ export function Dashboard({ bundle, search }: { bundle: Bundle; search: string }
 
   return (
     <PageLayout asideLabel="Forecast settings" aside={<ControlsPanel input={input} seriesNames={seriesNames} dates={view.dates} onChange={setInput} />}>
-      <RangeCards predicted={view.predicted} scenario={view.scenario} changed={view.changed} days={to - from + 1} />
+      <RangeCards predicted={view.predicted} scenario={view.scenario} changed={view.changed}
+                  days={to - from + 1} start={view.dates[from]} end={view.dates[to]} />
       <div className="page__row">
         <Card title="Compared with last year"
               subtitle={yoy === null ? `${titleCase(input.series)}: no data a year earlier` : <><strong className={toneOf(yoy)}>{formatPercent(yoy)}</strong> vs the same days last year</>}

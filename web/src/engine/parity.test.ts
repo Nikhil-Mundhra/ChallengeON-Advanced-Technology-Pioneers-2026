@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { rangeInterval } from "./noise";
+import { DIRECTION_THRESHOLD, summariseRange } from "./range";
 import type { Manifest, Nowcast, WhatIf } from "./types";
 import { whatIfGuests } from "./whatif";
 import { conformalBands, hybrid, NO_CHANGE, simulate, tornado, type Planning } from "./planning";
@@ -48,6 +49,20 @@ describe("range intervals", () => {
                                         nowcast.z[String(c.coverage)]);
       expect(relative(low, c.p_low as number)).toBeLessThan(1e-6);
       expect(relative(high, c.p_high as number)).toBeLessThan(1e-6);
+    }
+  });
+
+  it("summarises range direction respecting DIRECTION_THRESHOLD (8%)", () => {
+    const summary = summariseRange(nowcast, "TOTAL", 0, 27, nowcast.z[String(manifest.coverage)]);
+    expect(summary.guests).toBeGreaterThan(0);
+    expect(summary.low).toBeLessThanOrEqual(summary.guests);
+    expect(summary.high).toBeGreaterThanOrEqual(summary.guests);
+    if (summary.change !== null) {
+      if (Math.abs(summary.change) < DIRECTION_THRESHOLD) {
+        expect(summary.direction).toBe("no clear change");
+      } else {
+        expect(["up", "down"]).toContain(summary.direction);
+      }
     }
   });
 });

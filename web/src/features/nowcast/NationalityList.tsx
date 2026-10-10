@@ -1,5 +1,5 @@
 import { Avatar, Card } from "../../components/ui";
-import { formatFull, formatShare, titleCase } from "../../data/format";
+import { formatDate, formatFull, formatShare, titleCase } from "../../data/format";
 import { nationalityTotals } from "../../engine/nowcastViews";
 import type { Nowcast } from "../../engine/types";
 
@@ -8,7 +8,7 @@ export function NationalityList({ nowcast, start, end, filter }: { nowcast: Nowc
   const rows = nationalityTotals(nowcast, start, end).filter((row) => row.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 8);
   const top = rows[0]?.guests || 1;
   return (
-    <Card title="Nationalities" subtitle="Forecast international guests for these days">
+    <Card title="Nationalities" subtitle={`Forecast international guests (${formatDate(start)} → ${formatDate(end)})`}>
       <ul className="nationality-list">
         {rows.map((row) => (
           <li key={row.name} className="nationality-list__row">
