@@ -1,6 +1,6 @@
 /* Design tokens: every colour, radius, space and type size comes from here.
-   Palette sampled from visitabudhabi.ae (teal #00605F, navy #003451) and dct.gov.ae
-   (sand #E3DCD3, coral #F77860, flag red #C52034, charcoal #4C4D4F). */
+   Palette rooted in the UAE Flag (Green #007A3D, Red #C52034, Black #111618, White #FFFFFF)
+   and the attached desert sandstone limestone (#E3DCD3). */
 :root {
   --font-display: "Oswald", "Arial Narrow", Impact, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -10,35 +10,101 @@
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
   --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-full: 999px;
 
-  --brand-teal: #00605f; --brand-navy: #003451; --brand-sand: #e3dcd3; --brand-coral: #f77860; --brand-red: #c52034;
+  /* Sovereign brand palette: UAE Flag + Desert Sand */
+  --brand-green: #007a3d;
+  --brand-red: #c52034;
+  --brand-black: #111618;
+  --brand-white: #ffffff;
+  --brand-sand: #e3dcd3;
 
-  --color-backdrop: #f4efe8;
-  --color-surface: #ffffff; --color-surface-muted: #f7f4ef; --color-border: #e8e1d7;
-  --color-text: #1f2a33; --color-text-muted: #6b6f73; --color-text-inverse: #ffffff;
-  --color-accent: var(--brand-teal); --color-accent-soft: #e2efed;
-  --color-secondary: var(--brand-coral); --color-secondary-soft: #fdebe6;
-  --color-comparison: #d6cfc4; --color-strong: var(--brand-navy);
-  --color-series-check: var(--brand-coral); --color-band-forecast: var(--brand-sand);
-  --color-topbar-field: rgba(255, 255, 255, 0.14);
-  --avatar-1: #00605f; --avatar-2: #003451; --avatar-3: #c2563f; --avatar-4: #8a6d3b; --avatar-5: #2f7d6d; --avatar-6: #5b4a7a;
-  --aside-width: 300px; --topnav-height: 56px;
+  /* Legacy brand token aliases mapped to the new sovereign palette */
+  --brand-teal: var(--brand-green);
+  --brand-navy: var(--brand-black);
+  --brand-coral: var(--brand-red);
+
+  /* Light mode foundation: warm desert sandstone canvas with crisp white cards */
+  --color-backdrop: #e3dcd3;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4efe7;
+  --color-border: #d4cbbd;
+  --color-text: #111618;
+  --color-text-muted: #5e6468;
+  --color-text-inverse: #ffffff;
+
+  --color-accent: var(--brand-green);
+  --color-accent-soft: #e5f2ea;
+  --color-secondary: var(--brand-red);
+  --color-secondary-soft: #fbebee;
+  --color-comparison: #c4baa9;
+  --color-strong: var(--brand-black);
+
+  --color-series-check: var(--brand-red);
+  --color-band-forecast: #d8cfc1;
+  --color-topbar-field: rgba(255, 255, 255, 0.12);
+
+  --avatar-1: #007a3d;
+  --avatar-2: #111618;
+  --avatar-3: #c52034;
+  --avatar-4: #8a6d3b;
+  --avatar-5: #1c6e56;
+  --avatar-6: #4b4e54;
+
+  --aside-width: 300px;
+  --topnav-height: 56px;
   --ease-out: cubic-bezier(0.215, 0.61, 0.355, 1);
-  --color-up: var(--brand-teal); --color-up-soft: #e2efed;
-  --color-down: var(--brand-red); --color-down-soft: #f8e3e5;
-  --color-neutral: #6b6f73; --color-neutral-soft: #efebe5;
-  --shadow-card: 0 1px 2px rgba(0, 52, 81, 0.05), 0 6px 20px rgba(0, 52, 81, 0.06);
-  --focus-ring: 0 0 0 3px rgba(0, 96, 95, 0.3);
+
+  --color-up: var(--brand-green);
+  --color-up-soft: #e5f2ea;
+  --color-down: var(--brand-red);
+  --color-down-soft: #fbebee;
+  --color-neutral: #5e6468;
+  --color-neutral-soft: #ebe4d8;
+
+  --color-surface-glass: rgba(255, 255, 255, 0.92);
+  --color-border-subtle: #dbd2c5;
+  --color-card-highlight: rgba(255, 255, 255, 0.9);
+
+  --shadow-sm: 0 1px 2px rgba(25, 20, 15, 0.04);
+  --shadow-card: 0 1px 3px rgba(25, 20, 15, 0.04), 0 8px 24px -4px rgba(25, 20, 15, 0.07);
+  --shadow-card-hover: 0 2px 6px rgba(25, 20, 15, 0.06), 0 14px 32px -4px rgba(25, 20, 15, 0.11);
+  --shadow-elevation-2: 0 4px 6px -1px rgba(25, 20, 15, 0.06), 0 16px 32px -4px rgba(25, 20, 15, 0.12);
+  --shadow-glow-accent: 0 0 18px rgba(0, 122, 61, 0.25);
+  --focus-ring: 0 0 0 3px rgba(0, 122, 61, 0.3);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-backdrop: #0b1d2a;
-    --color-surface: #11293a; --color-surface-muted: #0b1d2a; --color-border: #1f3a4d;
-    --color-text: #eef2f4; --color-text-muted: #9fb0bb;
-    --color-accent: #3fb5ae; --color-accent-soft: #123c40; --color-up: #3fb5ae; --color-up-soft: #123c40;
-    --color-secondary-soft: #3a2420; --color-down: #f0727f; --color-down-soft: #3a1c22;
-    --color-comparison: #2c4659; --color-neutral-soft: #1a3344; --color-strong: #cfe0ea;
-    --color-secondary: #f99a85; --color-neutral: #9fb0bb; --color-series-check: #f99a85; --color-band-forecast: #1d3446;
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+    --color-backdrop: #0c1214;
+    --color-surface: #131a1d;
+    --color-surface-muted: #0c1214;
+    --color-border: #222d32;
+    --color-text: #f0f4f5;
+    --color-text-muted: #8d9ba1;
+
+    --color-accent: #00a854;
+    --color-accent-soft: #0b301c;
+    --color-up: #00a854;
+    --color-up-soft: #0b301c;
+
+    --color-secondary: #e63946;
+    --color-secondary-soft: #381216;
+    --color-down: #e63946;
+    --color-down-soft: #381216;
+
+    --color-comparison: #2c383e;
+    --color-neutral-soft: #172227;
+    --color-strong: #e1e8eb;
+    --color-series-check: #e63946;
+    --color-band-forecast: #1f2a30;
+
+    --color-surface-glass: rgba(19, 26, 29, 0.88);
+    --color-border-subtle: #1c262a;
+    --color-card-highlight: rgba(255, 255, 255, 0.05);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.4), 0 16px 32px -4px rgba(0, 0, 0, 0.45);
+    --shadow-elevation-2: 0 4px 8px rgba(0, 0, 0, 0.4), 0 18px 36px -4px rgba(0, 0, 0, 0.5);
+    --shadow-glow-accent: 0 0 22px rgba(0, 168, 84, 0.28);
   }
 }

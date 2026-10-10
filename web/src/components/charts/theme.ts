@@ -19,6 +19,40 @@ export const SERIES = {
   down: "var(--color-down)",
 } as const;
 
+export const tooltipContentStyle = {
+  backgroundColor: "var(--color-surface-glass)",
+  borderColor: "var(--color-border)",
+  borderRadius: "var(--radius-md)",
+  boxShadow: "var(--shadow-elevation-2)",
+  color: "var(--color-text)",
+  fontSize: "var(--text-sm)",
+  padding: "8px 12px",
+  backdropFilter: "blur(16px) saturate(1.4)",
+  WebkitBackdropFilter: "blur(16px) saturate(1.4)",
+} as const;
+
+export const tooltipItemStyle = {
+  color: "var(--color-text)",
+  fontSize: "var(--text-sm)",
+  padding: "2px 0",
+} as const;
+
+export const tooltipLabelStyle = {
+  color: "var(--color-text-muted)",
+  fontSize: "var(--text-xs)",
+  fontWeight: "var(--weight-bold)",
+  marginBottom: "4px",
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+} as const;
+
+export const tooltipProps = {
+  contentStyle: tooltipContentStyle,
+  itemStyle: tooltipItemStyle,
+  labelStyle: tooltipLabelStyle,
+  cursor,
+} as const;
+
 /** Tooltip value: a count, or "low to high" for a range. */
 export const formatTooltipValue = (value: unknown) =>
   Array.isArray(value) ? value.map((v) => formatCount(Number(v))).join(" to ") : formatCount(Number(value));

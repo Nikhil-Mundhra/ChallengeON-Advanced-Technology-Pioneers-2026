@@ -1,7 +1,7 @@
 import { Area, Brush, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatMonth } from "../../data/format";
 import type { WeekPoint } from "../../engine/weekly";
-import { formatTooltipValue, gridProps, MARGIN, SERIES, xAxisProps, yAxisProps } from "./theme";
+import { formatTooltipValue, gridProps, MARGIN, SERIES, tooltipProps, xAxisProps, yAxisProps } from "./theme";
 
 interface TimelineProps {
   data: WeekPoint[];
@@ -26,7 +26,7 @@ export function Timeline({ data, checked, forecastFrom, changesFrom, flags = [] 
         <CartesianGrid {...gridProps} />
         <XAxis dataKey="week" type="category" allowDuplicatedCategory={false} {...xAxisProps} minTickGap={56} tickFormatter={short} />
         <YAxis {...yAxisProps} />
-        <Tooltip labelFormatter={(w) => `Week of ${w}`}
+        <Tooltip {...tooltipProps} labelFormatter={(w) => `Week of ${w}`}
                  formatter={(value, name) => [formatTooltipValue(value), NAMES[String(name)] ?? name]} />
         <Legend verticalAlign="top" height={28} iconType="plainline" formatter={(name) => NAMES[String(name)] ?? name} />
         <ReferenceArea x1={checked[0]} x2={checked[1]} fill={SERIES.check} fillOpacity={0.1}

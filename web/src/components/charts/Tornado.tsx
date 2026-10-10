@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { cursor, formatTooltipValue, gridProps, SERIES, xAxisProps, yAxisProps } from "./theme";
+import { formatTooltipValue, gridProps, SERIES, tooltipProps, xAxisProps, yAxisProps } from "./theme";
 
 export interface TornadoBar { label: string; low: number; high: number }
 
@@ -11,7 +11,7 @@ export function Tornado({ rows }: { rows: TornadoBar[] }) {
         <CartesianGrid {...gridProps} vertical horizontal={false} />
         <XAxis type="number" {...yAxisProps} width={undefined} />
         <YAxis type="category" dataKey="label" {...xAxisProps} width={210} tick={{ ...xAxisProps.tick, fill: "var(--color-text)" }} />
-        <Tooltip formatter={formatTooltipValue} cursor={cursor} />
+        <Tooltip {...tooltipProps} formatter={formatTooltipValue} />
         <ReferenceLine x={0} stroke="var(--color-text-muted)" />
         <Bar dataKey="low" name="One step down" stackId="t" fill={SERIES.check} radius={[4, 4, 4, 4]} isAnimationActive={false} />
         <Bar dataKey="high" name="One step up" stackId="t" fill={SERIES.scenario} radius={[4, 4, 4, 4]} isAnimationActive={false} />

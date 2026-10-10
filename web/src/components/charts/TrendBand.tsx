@@ -1,6 +1,6 @@
 import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatDay } from "../../data/format";
-import { formatTooltipValue, gridProps, MARGIN, SERIES, xAxisProps, yAxisProps } from "./theme";
+import { formatTooltipValue, gridProps, MARGIN, SERIES, tooltipProps, xAxisProps, yAxisProps } from "./theme";
 
 export interface TrendPoint {
   date: string;
@@ -17,7 +17,7 @@ export function TrendBand({ data, showWhatIf }: { data: TrendPoint[]; showWhatIf
         <CartesianGrid {...gridProps} />
         <XAxis dataKey="date" {...xAxisProps} minTickGap={28} tickFormatter={formatDay} />
         <YAxis {...yAxisProps} />
-        <Tooltip formatter={formatTooltipValue} />
+        <Tooltip {...tooltipProps} formatter={formatTooltipValue} />
         <Area dataKey="band" name="Likely range" stroke="none" fill={SERIES.scenario} fillOpacity={0.12} />
         <Line dataKey="pred" name="Forecast" stroke={SERIES.actual} strokeWidth={2} dot={false} />
         {showWhatIf && <Line dataKey="whatIf" name="With your changes" stroke={SERIES.scenario} strokeWidth={2} strokeDasharray="5 4" dot={false} />}

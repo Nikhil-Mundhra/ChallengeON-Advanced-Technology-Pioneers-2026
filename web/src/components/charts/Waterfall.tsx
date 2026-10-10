@@ -1,6 +1,6 @@
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCount } from "../../data/format";
-import { cursor, gridProps, MARGIN, SERIES, xAxisProps, yAxisProps } from "./theme";
+import { gridProps, MARGIN, SERIES, tooltipProps, xAxisProps, yAxisProps } from "./theme";
 
 export interface WaterfallStep { label: string; value: number; total?: boolean }
 
@@ -21,7 +21,7 @@ export function Waterfall({ steps }: { steps: WaterfallStep[] }) {
         <CartesianGrid {...gridProps} />
         <XAxis dataKey="label" {...xAxisProps} interval={0} tick={{ ...xAxisProps.tick, fontSize: 11 }} />
         <YAxis {...yAxisProps} />
-        <Tooltip cursor={cursor}
+        <Tooltip {...tooltipProps}
                  formatter={(_, name, item) => name === "span" ? [formatCount(item.payload.value), item.payload.total ? "Hotel nights per week" : "Change"] : [null, null]} />
         <Bar dataKey="offset" stackId="w" fill="transparent" isAnimationActive={false} />
         <Bar dataKey="span" stackId="w" radius={[4, 4, 4, 4]} isAnimationActive={false}>

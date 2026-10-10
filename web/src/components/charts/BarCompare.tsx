@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { cursor, formatTooltipValue, gridProps, MARGIN, SERIES, xAxisProps, yAxisProps } from "./theme";
+import { formatTooltipValue, gridProps, MARGIN, SERIES, tooltipProps, xAxisProps, yAxisProps } from "./theme";
 
 export interface BarPoint {
   label: string;
@@ -15,7 +15,7 @@ export function BarCompare({ data, currentLabel, comparisonLabel }: { data: BarP
         <CartesianGrid {...gridProps} />
         <XAxis dataKey="label" {...xAxisProps} />
         <YAxis {...yAxisProps} />
-        <Tooltip formatter={formatTooltipValue} cursor={cursor} />
+        <Tooltip {...tooltipProps} formatter={formatTooltipValue} />
         <Bar dataKey="comparison" name={comparisonLabel} fill={SERIES.comparison} radius={[6, 6, 0, 0]} />
         <Bar dataKey="current" name={currentLabel} fill={SERIES.scenario} radius={[6, 6, 0, 0]} />
       </BarChart>

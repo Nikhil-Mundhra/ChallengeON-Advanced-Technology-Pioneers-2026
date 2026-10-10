@@ -1,25 +1,36 @@
 @import "./tokens.css";
 
 *, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 html, body, #root { height: 100%; margin: 0; }
 body {
   font-family: var(--font-sans); font-size: var(--text-md); color: var(--color-text);
   background: var(--color-backdrop);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* Custom sleek scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
 /* Shared utilities: tone of a change, the standard number table. */
-.tone-up { color: var(--color-up); }
-.tone-down { color: var(--color-down); }
-.table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.tone-up { color: var(--color-up); font-weight: var(--weight-medium); }
+.tone-down { color: var(--color-down); font-weight: var(--weight-medium); }
+.table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 .table caption { text-align: left; color: var(--color-text-muted); padding-bottom: var(--space-2); }
-.table th, .table td { padding: var(--space-2) var(--space-3); text-align: right; border-bottom: 1px solid var(--color-border); }
+.table th, .table td { padding: var(--space-2) var(--space-3); text-align: right; border-bottom: 1px solid var(--color-border); transition: background 150ms var(--ease-out); }
 .table th[scope="row"], .table thead th:first-child { text-align: left; font-weight: var(--weight-regular); color: var(--color-text-muted); }
+.table tbody tr:hover td, .table tbody tr:hover th { background: var(--color-surface-muted); }
 .table__row--emphasis th[scope="row"], .table__row--emphasis td { color: var(--color-text); font-weight: var(--weight-medium); }
 .table__row--highlight { background: var(--color-accent-soft); }
 .table__row--highlight th[scope="row"] { color: var(--color-text); font-weight: var(--weight-bold); }
 .table__row--total th, .table__row--total td { border-top: 2px solid var(--color-text); border-bottom: 0; }
-.note { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); }
+.table tbody tr.table__row--total:hover td, .table tbody tr.table__row--total:hover th { background: transparent; }
+.note { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.45; }
