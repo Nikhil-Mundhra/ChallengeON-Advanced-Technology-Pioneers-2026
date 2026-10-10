@@ -102,7 +102,7 @@ down: web-down api-down
 api-up:
 	@mkdir -p $(RUN_DIR)
 	@if [ -f $(RUN_DIR)/api.pid ] && kill -0 $$(cat $(RUN_DIR)/api.pid) 2>/dev/null; then echo "api already running"; else \
-	  PORT=$(API_PORT) nohup .venv/bin/python -m app.server > $(RUN_DIR)/api.log 2>&1 & echo $$! > $(RUN_DIR)/api.pid; fi
+	  (PORT=$(API_PORT) exec nohup .venv/bin/python -m app.server > $(RUN_DIR)/api.log 2>&1) & echo $$! > $(RUN_DIR)/api.pid; fi
 
 api-down:
 	@if [ -f $(RUN_DIR)/api.pid ]; then kill $$(cat $(RUN_DIR)/api.pid) 2>/dev/null || true; rm -f $(RUN_DIR)/api.pid; echo "api stopped"; fi
@@ -112,7 +112,7 @@ web-up:
 	@mkdir -p $(RUN_DIR)
 	@test -d web/node_modules || (cd web && npm ci)
 	@if [ -f $(RUN_DIR)/web.pid ] && kill -0 $$(cat $(RUN_DIR)/web.pid) 2>/dev/null; then echo "web already running"; else \
-	  cd web && nohup ./node_modules/.bin/vite --port $(WEB_PORT) --strictPort > ../$(RUN_DIR)/web.log 2>&1 & echo $$! > $(RUN_DIR)/web.pid; fi
+	  (cd web && exec nohup ./node_modules/.bin/vite --port $(WEB_PORT) --strictPort > ../$(RUN_DIR)/web.log 2>&1) & echo $$! > $(RUN_DIR)/web.pid; fi
 
 web-down:
 	@if [ -f $(RUN_DIR)/web.pid ]; then kill $$(cat $(RUN_DIR)/web.pid) 2>/dev/null || true; rm -f $(RUN_DIR)/web.pid; echo "web stopped"; fi
