@@ -20,7 +20,7 @@ export function TimelinePanel({ weekly, points, error, start }: { weekly: Weekly
   return (
     <div className="canvas__body">
       <p className="note">
-        Weekly hotel guests.{error !== null && ` Checked against ${checked.length} real weeks, the model was off by about ±${Math.round(error)}% on average${eventError === null ? "" : `, and ±${Math.round(eventError)}% on event weeks`}.`}
+        Hotel nights per week.{error !== null && ` Checked against ${checked.length} real weeks, the model was off by about ±${Math.round(error)}% on average${eventError === null ? "" : `, and ±${Math.round(eventError)}% on event weeks`}.`}
       </p>
       <Timeline data={points} checked={[checked[0] ?? weekly.holdout_start, checked[checked.length - 1] ?? weekly.holdout_start]}
                 forecastFrom={forecastFrom} changesFrom={start} flags={flags} />

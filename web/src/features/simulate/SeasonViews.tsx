@@ -34,7 +34,7 @@ export function ChainView(props: SeasonViewProps) {
           { label: "With changes", value: headline.sim, total: true },
         ]} />
       </div>
-      <p className="note">Weekly hotel guests for {marketName(props.market)}, estimate ±{Math.round(headline.errorPct * 100)}% error.</p>
+      <p className="note">Hotel nights per week for {marketName(props.market)}, estimate ±{Math.round(headline.errorPct * 100)}% error.</p>
     </div>
   );
 }
@@ -44,7 +44,7 @@ export function LeversView(props: SeasonViewProps) {
   return (
     <div className="canvas__body">
       <SeasonPicker {...props} />
-      <p className="note">Weekly guests gained or lost when each lever moves one typical step down or up, {marketName(props.market)}.</p>
+      <p className="note">Hotel nights a week gained or lost when each lever moves one typical step down or up, {marketName(props.market)}.</p>
       <Tornado rows={ranking.map((r) => ({ label: leverName(r.lever_name), low: r.low_impact_delta, high: r.high_impact_delta }))} />
     </div>
   );
@@ -58,8 +58,8 @@ const ROWS: ReadonlyArray<{ label: string; key: keyof SimulationResult["base"]; 
   { label: "= visitors arriving", key: "p2p", kind: "count" },
   { label: "× hotel booking rate", key: "multiplier", kind: "ratio" },
   { label: "= hotel check-ins", key: "arrivals", kind: "count" },
-  { label: "× guests per visitor", key: "los", kind: "ratio" },
-  { label: "= guests from flights", key: "guests", kind: "count" },
+  { label: "× hotel nights per visitor", key: "los", kind: "ratio" },
+  { label: "= hotel nights from flights", key: "guests", kind: "count" },
 ];
 
 function ChainTable({ headline }: { headline: WeeklyHeadline }) {
@@ -82,7 +82,7 @@ function ChainTable({ headline }: { headline: WeeklyHeadline }) {
         })}
         <tr><th scope="row">+ holidays and calendar</th><td>{formatSigned(headline.residual)}</td><td>{formatSigned(headline.residual)}</td></tr>
         <tr className="table__row--emphasis table__row--total">
-          <th scope="row">= hotel guests per week</th><td>{formatFull(headline.base)}</td>
+          <th scope="row">= hotel nights per week</th><td>{formatFull(headline.base)}</td>
           <td className={toneOf(headline.change)}>{formatFull(headline.sim)}</td>
         </tr>
       </tbody>

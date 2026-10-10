@@ -23,7 +23,7 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highli
   const arcs = useMemo(() => Object.fromEntries(flows.map((f) => [f.market, arcBetween(f.at, hub)])), [flows, hub]);
   return (
     <div className="flowmap">
-      <svg className="flowmap__svg" viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} role="img" aria-label="Hotel guests by where visitors fly from, flowing to Abu Dhabi">
+      <svg className="flowmap__svg" viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} role="img" aria-label="Hotel nights by where visitors fly from, flowing to Abu Dhabi">
         <path className="flowmap__land" d={LAND} />
         {ordered.map((f) => {
           const { from: [x, y], control: [cx, cy] } = arcs[f.market];
@@ -33,8 +33,8 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highli
           return (
             <g key={f.market} className={`flowmap__flow${isSelected ? " flowmap__flow--selected" : ""}${highlight?.has(f.market) ? " flowmap__flow--event" : ""}`} onClick={() => onSelect(f.market)}
                role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(f.market); }}
-               aria-label={`${marketName(f.market)}: ${formatCount(f.sim)} guests a week`}>
-              <title>{`${marketName(f.market)}: ${formatCount(f.sim)} guests a week${isSelected && delta ? ` (${formatSigned(delta, formatCount)} from your changes)` : ""}`}</title>
+               aria-label={`${marketName(f.market)}: ${formatCount(f.sim)} hotel nights a week`}>
+              <title>{`${marketName(f.market)}: ${formatCount(f.sim)} hotel nights a week${isSelected && delta ? ` (${formatSigned(delta, formatCount)} from your changes)` : ""}`}</title>
               <path className="flowmap__arc" d={d} style={{ strokeWidth: width(isSelected ? f.sim : f.base) }} />
               {isSelected && Math.abs(delta) >= 1 && <path className="flowmap__arc flowmap__arc--today" d={d} style={{ strokeWidth: width(f.base) }} />}
               <circle className={f.region ? "flowmap__dot flowmap__dot--region" : "flowmap__dot"} cx={x} cy={y} r={2 + width(f.sim) / 2} />
@@ -50,8 +50,8 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highli
           <g className={`flowmap__flow flowmap__hub-group${selected === "DOMESTIC" ? " flowmap__flow--selected" : ""}`}
              onClick={() => onSelect("DOMESTIC")} role="button" tabIndex={0}
              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect("DOMESTIC"); }}
-             aria-label={`Abu Dhabi (Domestic): ${formatCount(domestic.sim)} guests a week`}>
-            <title>{`Abu Dhabi (Domestic): ${formatCount(domestic.sim)} guests a week${selected === "DOMESTIC" && Math.abs(domestic.sim - domestic.base) >= 1 ? ` (${formatSigned(domestic.sim - domestic.base, formatCount)} from your changes)` : ""}`}</title>
+             aria-label={`Abu Dhabi (Domestic): ${formatCount(domestic.sim)} hotel nights a week`}>
+            <title>{`Abu Dhabi (Domestic): ${formatCount(domestic.sim)} hotel nights a week${selected === "DOMESTIC" && Math.abs(domestic.sim - domestic.base) >= 1 ? ` (${formatSigned(domestic.sim - domestic.base, formatCount)} from your changes)` : ""}`}</title>
             <circle className="flowmap__hub-ring" cx={hx} cy={hy} r={4 + width(domestic.sim) / 1.5} />
             <circle className="flowmap__hub" cx={hx} cy={hy} r={6} />
             <text className="flowmap__label flowmap__label--hub" x={hx + 10} y={hy + 18}>

@@ -23,7 +23,7 @@ export const LEVER_GROUPS: ReadonlyArray<LeverGroup> = [
   { id: "visitors", title: "Visitors", sliders: [
     { key: "p2pPts", label: "Passengers who stop in Abu Dhabi", hint: "Rather than connecting onward", min: -10, max: 10, step: 1, format: unit(" pts") },
     { key: "multiplierPct", label: "Visitors who book a hotel", hint: "Marketing, packages, events", min: -20, max: 20, step: 1, format: unit("%") },
-    { key: "factor", label: "Hotel guests per visitor", hint: "Nights and repeat stays", min: -1, max: 2, step: 0.1, format: unit("") },
+    { key: "factor", label: "Hotel nights per visitor", hint: "Longer or repeat stays", min: -1, max: 2, step: 0.1, format: unit("") },
   ] },
 ];
 

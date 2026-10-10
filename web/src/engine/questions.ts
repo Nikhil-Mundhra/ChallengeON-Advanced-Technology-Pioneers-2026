@@ -9,10 +9,11 @@ import { timeline, type Weekly } from "./weekly";
 
 export interface LeverAnswer {
   market: string; season: string; lever: Lever;
-  perWeek: number;            // extra hotel guests a week in that season
+  perWeek: number;            // extra hotel nights a week in that season
+  visitorsPerWeek: number;    // extra hotel check-ins (visitors) a week in that season
   errorPct: number;           // likely error of the weekly figure, as a share
   year: string | null;        // forecast year summed
-  perYear: number | null;     // extra hotel guests over that year
+  perYear: number | null;     // extra hotel nights over that year
 }
 export interface MixAnswer { season: string; top: Array<{ market: string; share: number }> }
 
@@ -26,7 +27,7 @@ export function leverAnswer(planning: Planning, weekly: Weekly, market: string, 
     perYear = points.filter((p) => p.week.startsWith(year) && p.scenario !== null && p.actual === null)
       .reduce((t, p) => t + (p.scenario! - p.model), 0);
   }
-  return { market, season, lever: change, perWeek: h.change, errorPct: h.errorPct, year: perYear === null ? null : year, perYear };
+  return { market, season, lever: change, perWeek: h.change, visitorsPerWeek: h.result.sim.arrivals - h.result.base.arrivals, errorPct: h.errorPct, year: perYear === null ? null : year, perYear };
 }
 
 /** Share of weekly hotel guests by source market in a season (visitors only, residents excluded). */

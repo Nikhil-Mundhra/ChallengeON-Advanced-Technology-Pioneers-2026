@@ -11,7 +11,7 @@ export const LEVER_NAMES: Record<string, string> = {
   "Load Factor": "How full flights are",
   "P2P Share": "Passengers who stop in Abu Dhabi",
   "Response Multiplier": "Visitors who book a hotel",
-  "Guests-per-arrival factor": "Hotel guests per visitor",
+  "Guests-per-arrival factor": "Hotel nights per visitor",
 };
 export const leverName = (engineName: string) => LEVER_NAMES[engineName.replace(/ \(.*\)$/, "")] ?? engineName;
 

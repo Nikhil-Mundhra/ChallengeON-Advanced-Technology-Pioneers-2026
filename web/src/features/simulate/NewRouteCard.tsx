@@ -9,12 +9,12 @@ export function NewRouteCard({ planning, market, lever, seasons }: { planning: P
   const rows = seasons.map((s) => ({ season: s, ...weeklyHeadline(planning, market, s, lever) }));
   const noFlights = rows.every((r) => r.sim === 0);
   return (
-    <Card title="New route estimate" subtitle="Hotel guests per week, from similar markets">
+    <Card title="New route estimate" subtitle="Per week, from similar markets">
       {noFlights
         ? <p className="note">No route of its own yet. Add weekly flights on the left to see what a new route would bring.</p>
         : (
           <table className="table">
-            <thead><tr><th scope="col">Season</th><th scope="col">Guests a week</th><th scope="col">Change</th></tr></thead>
+            <thead><tr><th scope="col">Season</th><th scope="col">Hotel nights</th><th scope="col">Change</th></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.season}>

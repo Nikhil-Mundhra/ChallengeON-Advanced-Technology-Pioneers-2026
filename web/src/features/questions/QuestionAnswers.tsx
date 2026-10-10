@@ -15,21 +15,21 @@ export function QuestionAnswers({ planning, weekly }: { planning: Planning; week
   return (
     <ol className="questions">
       <Question q={QUESTIONS.newRoute} figure={a.newRoute}>
-        A new route from {marketName(a.newRoute.market)} with 3 flights a week of 300 seats would bring about{" "}
-        <strong>{formatCount(a.newRoute.perWeek)} hotel guests a week</strong> in {season(a.newRoute)}, judged from similar markets.
+        A new route from {marketName(a.newRoute.market)} with 3 flights a week of 300 seats (900 seats) would bring about{" "}
+        <strong>{visitors(a.newRoute)}</strong> in {season(a.newRoute)}, judged from similar markets.
       </Question>
       <Question q={QUESTIONS.frequency} figure={a.frequency}>
         Two more weekly flights from the {marketName(a.frequency.market)} (290 seats each) would add about{" "}
-        <strong>{formatSigned(a.frequency.perWeek, formatCount)} hotel guests a week</strong> in {season(a.frequency)}
+        <strong>{visitors(a.frequency)}</strong> in {season(a.frequency)}
         {year(a.frequency)}. Fewer flights work the same way in reverse.
       </Question>
       <Question q={QUESTIONS.seats} figure={a.seats}>
         10% more seats on today's flights from {marketName(a.seats.market)} would add about{" "}
-        <strong>{formatSigned(a.seats.perWeek, formatCount)} hotel guests a week</strong> in {season(a.seats)}{year(a.seats)}.
+        <strong>{visitors(a.seats)}</strong> in {season(a.seats)}{year(a.seats)}.
       </Question>
       <Question q={QUESTIONS.fuller} figure={a.fuller}>
         If flights from {marketName(a.fuller.market)} were 5 points fuller, expect about{" "}
-        <strong>{formatSigned(a.fuller.perWeek, formatCount)} hotel guests a week</strong> in {season(a.fuller)}{year(a.fuller)}.
+        <strong>{visitors(a.fuller)}</strong> in {season(a.fuller)}{year(a.fuller)}.
       </Question>
       <li className="question">
         <p className="question__q">{QUESTIONS.mix}</p>
@@ -41,7 +41,9 @@ export function QuestionAnswers({ planning, weekly }: { planning: Planning; week
 }
 
 const season = (x: LeverAnswer) => (SEASON_NAMES[x.season] ?? x.season).toLowerCase();
-const year = (x: LeverAnswer) => (x.perYear === null ? "" : `, or about ${formatSigned(x.perYear, formatCount)} over ${x.year}`);
+const visitors = (x: LeverAnswer) =>
+  `${formatCount(Math.round(x.visitorsPerWeek / 10) * 10)} more hotel visitors a week, staying ${formatCount(Math.round(x.perWeek / 10) * 10)} nights in all,`;
+const year = (x: LeverAnswer) => (x.perYear === null ? "" : `; about ${formatSigned(x.perYear, formatCount)} hotel nights over ${x.year}`);
 const mixSentence = (m: MixAnswer) =>
   `In ${(SEASON_NAMES[m.season] ?? m.season).toLowerCase()} the biggest sources are ${m.top.map((t) => `${marketName(t.market)} (${formatShare(t.share, 0)})`).join(", ")}.`;
 

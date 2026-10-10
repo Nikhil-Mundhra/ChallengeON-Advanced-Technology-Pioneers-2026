@@ -67,7 +67,7 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
           )}
           {view === "time" && <TimelinePanel weekly={weekly} points={points} error={holdoutWmape(points)} start={start} />}
           {(view === "chain" || view === "levers") && (all
-            ? <p className="note">Pick a market on the left or on the map to see how its flights turn into hotel guests.</p>
+            ? <p className="note">Pick a market on the left or on the map to see how its flights turn into hotel nights.</p>
             : view === "chain"
               ? <ChainView planning={planning} market={market} lever={lever} season={season} seasons={seasons} onSeason={setSeason} />
               : <LeversView planning={planning} market={market} lever={lever} season={season} seasons={seasons} onSeason={setSeason} />)}
@@ -82,7 +82,7 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
 
       <div className="workbench__bar" aria-hidden="true">
         <span>{marketName(market)}</span>
-        <strong className={toneOf(weekChange)}>{all ? `${formatCount(pb.total[week])} guests this week` : `${formatSigned(weekChange, formatCount)} guests this week`}</strong>
+        <strong className={toneOf(weekChange)}>{all ? `${formatCount(pb.total[week])} hotel nights this week` : `${formatSigned(weekChange, formatCount)} hotel nights this week`}</strong>
       </div>
     </div>
   );

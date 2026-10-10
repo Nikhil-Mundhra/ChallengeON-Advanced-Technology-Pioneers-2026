@@ -86,14 +86,14 @@ export function MapPlayback({ pb, selected, week: w, onWeek: setW, onSelect }: {
 
       <dl className="playback__facts" aria-live="polite">
         <div><dt>Week of</dt><dd>{formatDate(frame.week)} <Badge tone="neutral">{frame.kind === "history" ? "real" : "forecast"}</Badge></dd></div>
-        <div><dt>Hotel guests this week</dt><dd>{formatCount(frame.total)}</dd></div>
+        <div><dt>Hotel nights this week</dt><dd>{formatCount(frame.total)}</dd></div>
         <div><dt>Compared with a year before</dt><dd className={frame.vsLastYear === null ? undefined : toneOf(frame.vsLastYear)}>{frame.vsLastYear === null ? "n/a" : formatPercent(frame.vsLastYear)}</dd></div>
         <div><dt>Arriving most this week</dt><dd className="playback__top">
           {frame.topArrivals.map((t) => <span key={t.market}><span>{marketName(t.market)}</span><span>{formatCount(t.checkIns)}</span></span>)}
         </dd></div>
         <div><dt>Your changes so far</dt>{selected === "ALL"
           ? <dd className="playback__muted">pick a market</dd>
-          : <dd className={toneOf(frame.extraSoFar)}>{formatSigned(frame.extraSoFar, formatCount)} guests</dd>}</div>
+          : <dd className={toneOf(frame.extraSoFar)}>{formatSigned(frame.extraSoFar, formatCount)} nights</dd>}</div>
       </dl>
     </div>
   );

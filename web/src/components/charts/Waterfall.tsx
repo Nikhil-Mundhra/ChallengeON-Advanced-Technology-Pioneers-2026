@@ -22,7 +22,7 @@ export function Waterfall({ steps }: { steps: WaterfallStep[] }) {
         <XAxis dataKey="label" {...xAxisProps} interval={0} tick={{ ...xAxisProps.tick, fontSize: 11 }} />
         <YAxis {...yAxisProps} />
         <Tooltip cursor={cursor}
-                 formatter={(_, name, item) => name === "span" ? [formatCount(item.payload.value), item.payload.total ? "Guests per week" : "Change"] : [null, null]} />
+                 formatter={(_, name, item) => name === "span" ? [formatCount(item.payload.value), item.payload.total ? "Hotel nights per week" : "Change"] : [null, null]} />
         <Bar dataKey="offset" stackId="w" fill="transparent" isAnimationActive={false} />
         <Bar dataKey="span" stackId="w" radius={[4, 4, 4, 4]} isAnimationActive={false}>
           {data.map((d) => <Cell key={d.label} fill={fill(d)} />)}

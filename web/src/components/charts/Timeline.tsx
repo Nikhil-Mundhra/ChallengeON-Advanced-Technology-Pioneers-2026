@@ -13,7 +13,7 @@ interface TimelineProps {
 
 const short = (week: string) => formatMonth(week, "short");
 const NAMES: Record<string, string> = {
-  actual: "Real guests", holdout: "Model check", model: "Forecast without changes", scenario: "Forecast with your changes", band: "Likely range",
+  actual: "Real", holdout: "Model check", model: "Forecast without changes", scenario: "Forecast with your changes", band: "Likely range",
 };
 
 /** Weekly hotel guests over time: real weeks, the model's check against weeks it had not seen, and
