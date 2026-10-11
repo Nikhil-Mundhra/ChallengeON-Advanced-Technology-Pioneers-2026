@@ -1,4 +1,11 @@
-.flowmap { position: relative; overflow: hidden; user-select: none; }
+.flowmap {
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  background: radial-gradient(circle at 55% 42%, var(--color-surface-muted), var(--color-band-forecast));
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
 .flowmap--draggable { cursor: grab; }
 .flowmap--dragging { cursor: grabbing; }
 .flowmap__controls {
@@ -24,7 +31,7 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-bold);
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   transition: background 150ms ease, opacity 150ms ease;
 }
 .flowmap__control-btn:hover:not(:disabled) {
@@ -41,23 +48,25 @@
 }
 .flowmap__svg { width: 100%; height: auto; display: block; }
 .flowmap__dots { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.flowmap__land { fill: var(--color-band-forecast); stroke: var(--color-surface); stroke-width: 0.5; }
+.flowmap__graticule { fill: none; stroke: var(--color-border); stroke-opacity: 0.45; stroke-width: 0.5px; stroke-dasharray: 2 4; pointer-events: none; }
+.flowmap__land { fill: var(--color-surface); stroke: var(--color-border); stroke-width: 0.75px; }
 .flowmap__flow { cursor: pointer; outline: none; }
-.flowmap__arc { fill: none; stroke: var(--color-strong); stroke-opacity: 0.18; stroke-linecap: round; transition: stroke-width 250ms ease-out, stroke-opacity 200ms; }
-.flowmap__flow:hover .flowmap__arc, .flowmap__flow:focus-visible .flowmap__arc { stroke-opacity: 0.4; }
-.flowmap__flow--selected .flowmap__arc { stroke: var(--color-accent); stroke-opacity: 0.7; }
+.flowmap__arc { fill: none; stroke: var(--color-strong); stroke-opacity: 0.22; stroke-linecap: round; transition: stroke-width 250ms ease-out, stroke-opacity 200ms; }
+.flowmap__flow:hover .flowmap__arc, .flowmap__flow:focus-visible .flowmap__arc { stroke-opacity: 0.55; stroke: var(--color-accent); }
+.flowmap__flow--selected .flowmap__arc { stroke: var(--color-accent); stroke-opacity: 0.85; }
 .flowmap__flow--selected .flowmap__arc--today { stroke: var(--color-surface); stroke-opacity: 0.9; stroke-dasharray: 4 6; }
-.flowmap__dot { fill: var(--color-strong); fill-opacity: 0.8; transition: r 250ms ease-out; }
-.flowmap__dot--region { fill-opacity: 0.35; stroke: var(--color-strong); stroke-dasharray: 2 2; }
-.flowmap__flow--selected .flowmap__dot { fill: var(--color-accent); fill-opacity: 1; }
-.flowmap__hub { fill: var(--color-series-check); }
-.flowmap__hub-ring { fill: var(--color-series-check); fill-opacity: 0.18; transition: r 250ms ease-out; }
-.flowmap__label { font-size: 12px; fill: var(--color-text); paint-order: stroke; stroke: var(--color-surface); stroke-width: 3px; text-anchor: middle; pointer-events: none; }
-.flowmap__flow--selected .flowmap__label { font-weight: 650; fill: var(--color-accent); }
-.flowmap__label--hub { text-anchor: start; font-weight: 650; }
-.flowmap__flow--event .flowmap__arc { stroke: var(--color-series-check); stroke-opacity: 0.55; }
+.flowmap__dot { fill: var(--color-strong); fill-opacity: 0.85; transition: r 250ms ease-out; }
+.flowmap__dot--region { fill-opacity: 0.4; stroke: var(--color-strong); stroke-dasharray: 2 2; }
+.flowmap__flow--selected .flowmap__dot { fill: var(--color-accent); fill-opacity: 1; stroke: var(--color-surface); stroke-width: 1.5px; }
+.flowmap__hub { fill: var(--color-series-check); stroke: var(--color-surface); stroke-width: 1.5px; }
+.flowmap__hub-ring { fill: var(--color-series-check); fill-opacity: 0.22; transition: r 250ms ease-out; }
+.flowmap__label { font-size: 11px; fill: var(--color-text); paint-order: stroke; stroke: var(--color-surface); stroke-width: 3px; stroke-linejoin: round; text-anchor: middle; pointer-events: none; }
+.flowmap__flow--selected .flowmap__label { font-weight: 700; fill: var(--color-accent); font-size: 12px; }
+.flowmap__label--hub { text-anchor: start; font-weight: 700; }
+.flowmap__flow--event .flowmap__arc { stroke: var(--color-series-check); stroke-opacity: 0.65; }
 .flowmap__hub-group { cursor: pointer; outline: none; }
-.flowmap__hub-group:hover .flowmap__hub-ring, .flowmap__hub-group:focus-visible .flowmap__hub-ring { fill-opacity: 0.35; }
-.flowmap__hub-group.flowmap__flow--selected .flowmap__hub-ring { stroke: var(--color-accent); stroke-width: 2px; fill-opacity: 0.3; }
+.flowmap__hub-group:hover .flowmap__hub-ring, .flowmap__hub-group:focus-visible .flowmap__hub-ring { fill-opacity: 0.4; }
+.flowmap__hub-group.flowmap__flow--selected .flowmap__hub-ring { stroke: var(--color-accent); stroke-width: 2px; fill-opacity: 0.35; }
 .flowmap__hub-group.flowmap__flow--selected .flowmap__hub { fill: var(--color-accent); }
+
 

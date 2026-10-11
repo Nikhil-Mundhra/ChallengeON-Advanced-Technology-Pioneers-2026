@@ -2,7 +2,7 @@ import { marketName } from "../../content/labels";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { formatCount, formatSigned } from "../../data/format";
 import { FlowDots, type DotMode } from "./FlowDots";
-import { arcBetween, LAND, MAP_HEIGHT, MAP_WIDTH, projection } from "./mapGeometry";
+import { arcBetween, GRATICULES, LAND, MAP_HEIGHT, MAP_WIDTH, projection } from "./mapGeometry";
 import "./flowmap.css";
 
 export interface Flow { market: string; at: [number, number]; region?: boolean; base: number; sim: number; checkIns?: number; checkOuts?: number }
@@ -12,12 +12,13 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 5;
 
 function clampPan(px: number, py: number, z: number) {
-  if (z <= 1) return { x: 0, y: 0 };
-  const minX = (1 - z) * MAP_WIDTH;
-  const minY = (1 - z) * MAP_HEIGHT;
+  const limitX = (MAP_WIDTH * (z - 1)) / 2 + MAP_WIDTH * 0.45;
+  const limitY = (MAP_HEIGHT * (z - 1)) / 2 + MAP_HEIGHT * 0.4;
+  const centerX = (1 - z) * (MAP_WIDTH / 2);
+  const centerY = (1 - z) * (MAP_HEIGHT / 2);
   return {
-    x: Math.min(0, Math.max(minX, px)),
-    y: Math.min(0, Math.max(minY, py)),
+    x: Math.min(centerX + limitX, Math.max(centerX - limitX, px)),
+    y: Math.min(centerY + limitY, Math.max(centerY - limitY, py)),
   };
 }
 
@@ -82,9 +83,7 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highli
     if (Math.hypot(dx, dy) > 4) {
       dragMoved.current = true;
     }
-    if (zoom > 1) {
-      setPan(clampPan(dragStart.current.panX + dx, dragStart.current.panY + dy, zoom));
-    }
+    setPan(clampPan(dragStart.current.panX + dx, dragStart.current.panY + dy, zoom));
   };
 
   const handlePointerUp = () => {
@@ -100,7 +99,7 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highli
   return (
     <div
       ref={containerRef}
-      className={`flowmap${zoom > 1 ? " flowmap--draggable" : ""}${isDragging ? " flowmap--dragging" : ""}`}
+      className={`flowmap flowmap--draggable${isDragging ? " flowmap--dragging" : ""}`}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -114,6 +113,7 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highli
       </div>
       <svg className="flowmap__svg" viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} role="img" aria-label="Hotel nights by where visitors fly from, flowing to Abu Dhabi">
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+          <path className="flowmap__graticule" d={GRATICULES} />
           <path className="flowmap__land" d={LAND} />
           {ordered.map((f) => {
             const { from: [x, y], control: [cx, cy] } = arcs[f.market];

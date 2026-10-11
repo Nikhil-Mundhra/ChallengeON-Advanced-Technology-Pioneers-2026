@@ -1,13 +1,14 @@
 /** Map projection, land outline and market-to-hub arcs, shared by FlowMap (SVG) and FlowDots (canvas). */
-import { geoNaturalEarth1, geoPath } from "d3-geo";
+import { geoGraticule, geoNaturalEarth1, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import land110 from "world-atlas/land-110m.json";
 
 export const MAP_WIDTH = 960, MAP_HEIGHT = 500;
-export const projection = geoNaturalEarth1().center([40, 22]).scale(250).translate([MAP_WIDTH / 2, MAP_HEIGHT / 2]);
+export const projection = geoNaturalEarth1().center([15, 10]).scale(175).translate([MAP_WIDTH / 2, MAP_HEIGHT / 2]);
 const topology = land110 as unknown as Topology<{ land: GeometryCollection }>;
 export const LAND = geoPath(projection)(feature(topology, topology.objects.land)) ?? "";
+export const GRATICULES = geoPath(projection)(geoGraticule()()) ?? "";
 
 export interface Arc { from: [number, number]; control: [number, number]; to: [number, number] }
 
