@@ -12,7 +12,7 @@
 - frozen test: score `FROZEN_TEST` once, after every choice is final.
 - decisions: decide specs on `VALIDATION_ORIGINS`; never on the two reference folds or on origins overlapping the frozen test (8-origin 2024-07..2025-02, 13-origin 2024-02..2025-02); label those exploratory.
 - counts: a result counts only if `compare`'s interval excludes 0 and its sign holds in most folds.
-- gate: ship a component or weighting only if it lowers validation WAPE by at least 0.3 pp on both domestic and international; among variants within 0.2 pp of the best, keep the simplest.
+- gate: ship a component or weighting only if it lowers validation WAPE by at least 0.3 pp on both domestic and international; a setting scoped to one series needs the 0.3 pp on that series only, with the other series' predictions verified identical; among variants within 0.2 pp of the best, keep the simplest.
 - series: evaluate and report domestic and international separately, never only pooled.
 - diagnostics: never rank `DIAGNOSTIC_SPECS` with forecast specs.
 - events: judge event components only on back-test folds that contain their windows.
