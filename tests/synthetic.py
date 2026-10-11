@@ -106,3 +106,20 @@ class _LastTrainDate:
 
     def predict(self, panel):
         return pd.Series(self.mean, index=panel.index)
+
+
+def _weekly_flight_panel(seat_growth: dict, gamma: float, intercept: dict, seed: int = 7) -> pd.DataFrame:
+    """Weekly market panel with known trends: log seat trend = g_m t^2 (its yearly growth rises over
+    time, so each market's own growth varies), seats = trend x exp(x_w), guests = trend x
+    exp(0.6 x_w + e_w); the log guest trend is intercept_m t + gamma x the log seat trend."""
+    rng = np.random.default_rng(seed)
+    frames = []
+    for market, g in seat_growth.items():
+        t = np.arange(156) / 52.0
+        x = rng.normal(0.0, 0.05, len(t))
+        frames.append(pd.DataFrame({
+            "market": market, "week_start": pd.date_range("2023-01-02", periods=len(t), freq="7D"),
+            "seats": 1000.0 * np.exp(g * t ** 2 + x),
+            "guests": 400.0 * np.exp(intercept[market] * t + gamma * g * t ** 2 + 0.6 * x + rng.normal(0.0, 0.02, len(t))),
+        }))
+    return pd.concat(frames, ignore_index=True)

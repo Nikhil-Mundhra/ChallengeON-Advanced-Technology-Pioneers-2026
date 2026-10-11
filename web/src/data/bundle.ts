@@ -11,7 +11,7 @@ async function json<T>(path: string): Promise<T> {
 /** The manifest names the current version; every versioned file is immutable. */
 export async function loadBundle(): Promise<Bundle> {
   const manifest = await json<Manifest>("manifest.json");
-  if (manifest.schema_version !== 1) throw new Error(`Unsupported bundle schema ${manifest.schema_version}`);
+  if (manifest.schema_version !== 2) throw new Error(`Unsupported bundle schema ${manifest.schema_version}`);
   const [nowcast, whatif, planning, weekly] = await Promise.all([
     json<Bundle["nowcast"]>(manifest.files.nowcast), json<Bundle["whatif"]>(manifest.files.whatif),
     json<Bundle["planning"]>(manifest.files.planning), json<Bundle["weekly"]>(manifest.files.weekly),

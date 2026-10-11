@@ -131,8 +131,8 @@ export const LIMITATIONS = [
   "Weekly planning intervals cover 65.7% of holdout weeks against 80% nominal: they are too narrow.",
   "The guests-per-arrival factor is a stock-to-flow ratio, not a measured length of stay.",
   "Markets without flights use archetype defaults (cold start).",
-  "The weekly model has no growth term: multi-year projections repeat the fitted seasonal profile, and growth is an assumption the user sets. Holiday-week flags end in November 2026.",
+  "The weekly model has no growth term: multi-year projections repeat the fitted seasonal profile. Seat growth and demand growth are assumptions the user sets. Holiday-week flags end in November 2026.",
   "No bookings, room rates, marketing spend, airfares, visa or macroeconomic data; no room inventory, so no occupancy.",
-  "The flight response includes hand-set adjustments for frequency, seat surges and peak demand; they are assumptions, not fitted to the data.",
+  "A schedule change moves guests by each market's response in the fitted flight-to-hotel chain, with a range from refits on earlier data. Seat growth over years is an assumption: the data cannot tell whether seats drew guests or guests drew seats.",
   "Observational data: results are planning estimates, not causal effects.",
 ];

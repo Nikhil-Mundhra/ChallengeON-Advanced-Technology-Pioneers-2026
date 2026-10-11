@@ -7,7 +7,7 @@ describe("lever state", () => {
     expect(activePreset(more)).toBe("more_flights");
     const tweaked = leverReducer(more, { type: "set", key: "p2pPts", value: 4 });
     expect(activePreset(tweaked)).toBeNull();
-    const reset = leverReducer(leverReducer(tweaked, { type: "resetGroup", group: "flights" }), { type: "resetGroup", group: "visitors" });
+    const reset = leverReducer(leverReducer(tweaked, { type: "resetGroup", group: "schedule" }), { type: "resetGroup", group: "assumptions" });
     expect(reset).toEqual(DEFAULT_INPUT);
     expect(toLever(more)).toMatchObject({ delta_frequency: 2, aircraft_gauge: 290, delta_load_factor: 0.02 });
   });
@@ -32,6 +32,8 @@ describe("slider availability", () => {
     expect(sliderAvailability(ALL_MARKETS, DEFAULT_INPUT, "multiplierPct").disabled).toBe(true);
     expect(sliderAvailability("DOMESTIC", DEFAULT_INPUT, "frequency").disabled).toBe(true);
     expect(sliderAvailability("DOMESTIC", DEFAULT_INPUT, "p2pPts").disabled).toBe(true);
+    expect(sliderAvailability("DOMESTIC", DEFAULT_INPUT, "capacityPct").disabled).toBe(true);
+    expect(sliderAvailability("UNITED KINGDOM", DEFAULT_INPUT, "capacityPct").disabled).toBe(false);
     expect(sliderAvailability("DOMESTIC", DEFAULT_INPUT, "multiplierPct").disabled).toBe(false);
     expect(sliderAvailability("UNITED KINGDOM", DEFAULT_INPUT, "gauge").disabled).toBe(true);
     expect(sliderAvailability("UNITED KINGDOM", { ...DEFAULT_INPUT, frequency: 2 }, "gauge").disabled).toBe(false);

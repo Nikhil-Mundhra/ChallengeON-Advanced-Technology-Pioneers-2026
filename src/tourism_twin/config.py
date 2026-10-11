@@ -77,6 +77,10 @@ class Settings:
         return self.curated_dir / "structural_calibration.json"
 
     @property
+    def flight_response_path(self) -> Path:
+        return self.curated_dir / "flight_response.json"
+
+    @property
     def residual_model_path(self) -> Path:
         return self.curated_dir / "residual_engine.pkl"
 

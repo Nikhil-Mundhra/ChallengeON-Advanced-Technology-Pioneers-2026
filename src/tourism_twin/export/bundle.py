@@ -10,7 +10,8 @@
                   reproduces the prediction (f = 1) and any arrivals factor f exactly. No raw
                   arrivals are exported (the data is licensed for use within the competition)
   planning.json   weekly scenario model: calibrated parameters per market and season, the mean
-                  calendar residual per market and season, conformal margins
+                  calendar residual per market and season, conformal margins, the flight response
+                  (per-market schedule elasticity with its interval, capacity co-movement)
   weekly.json     weekly scenario model over time, per market: actual weekly guests (training
                   weeks), the shipped model's structural part and calendar residual for every
                   panel week and PROJECTION_YEARS beyond it, and the forward-holdout back-test
@@ -40,7 +41,7 @@ from tourism_twin.features.lags import lag_column
 from tourism_twin.models.noise import NoiseModel
 from tourism_twin.nowcast.predict import INTERNATIONAL, TOTAL, TestPredictions, total_series
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 COVERAGES = (0.5, 0.8, 0.9)
 HISTORY_DAYS = 400
 PROJECTION_YEARS = 3
@@ -118,13 +119,20 @@ PLANNING_LEVERS = {  # golden scenarios: (name, ScenarioLever fields)
     "multiplier_and_factor": {"delta_multiplier_pct": 0.05, "delta_los": 0.4},
     "route_closure": {"delta_seats_pct": -1.0},
     "cuts": {"delta_load_factor": -0.3, "delta_multiplier_pct": -0.2, "delta_los": -1.0},
+    "seats_up": {"delta_seats_pct": 0.25},
+    "seats_down": {"delta_seats_pct": -0.3},
+    "fewer_flights": {"delta_frequency": -3.0, "aircraft_gauge": 200.0, "delta_multiplier_pct": 0.1},
+    "schedule_and_assumptions": {"delta_frequency": 4.0, "aircraft_gauge": 350.0, "delta_load_factor": 0.03,
+                                 "delta_p2p_share": -0.02, "delta_los": 0.3},
 }
+CAPACITY_GOLDEN = ((5.0, 1.0), (5.0, 3.0), (-3.0, 2.0), (12.5, 2.5))  # (seat growth % a year, years)
 
 
 def planning_part() -> Dict[str, Any]:
     """The weekly scenario model as data: calibrated parameters per market and season, the
-    archetype priors for markets without calibration (cold start), the season residual, and the
-    conformal margins. The Monte Carlo spread is not exported (it depends on numpy's random stream)."""
+    archetype priors for markets without calibration (cold start), the season residual, the
+    conformal margins, and the flight response (schedule elasticity per market, capacity
+    co-movement). The Monte Carlo spread is not exported (it depends on numpy's random stream)."""
     from dataclasses import asdict
 
     from tourism_twin.domain.archetypes import ARCHETYPE_PROFILES, COUNTRY_TO_REGION_MAP, MARKET_ARCHETYPE_MAP
@@ -142,16 +150,19 @@ def planning_part() -> Dict[str, Any]:
         "season_residual": residual.season_residual_,
         "conformal": json.loads(SETTINGS.conformal_path.read_text(encoding="utf-8")),
         "default_conformal_margin": 0.28,
+        "flight_response": json.loads(SETTINGS.flight_response_path.read_text(encoding="utf-8")),
     }
 
 
 def planning_golden() -> List[Dict[str, Any]]:
-    """Scenario outputs a port must reproduce: the conversion chain and waterfall, the hybrid
-    (structural + season residual), conformal bands, and the tornado ranking."""
+    """Scenario outputs a port must reproduce: the conversion chain and waterfall, the schedule
+    range (scenario guests at the ends of the elasticity interval), the hybrid (structural + season
+    residual), conformal bands, the tornado ranking, and the capacity-growth guest factors."""
     from dataclasses import asdict
 
     from tourism_twin.domain.scenario import ScenarioLever
     from tourism_twin.domain.seasons import SEASONS
+    from tourism_twin.planning.capacity_trend import EFFECT_RANGE, capacity_guest_factor
     from tourism_twin.planning.sensitivity import compute_tornado_sensitivity
     from tourism_twin.planning.simulator import TourismDigitalTwin
 
@@ -164,13 +175,20 @@ def planning_golden() -> List[Dict[str, Any]]:
                 result = twin.structural_engine.simulate(market, season, lever)
                 hybrid = twin.residual_engine.predict_hybrid(result)
                 bands = twin.uncertainty_engine.run_monte_carlo(market, season, lever, n_draws=50)
+                low, high = twin.structural_engine.schedule_range(market, season, lever)
                 cases.append({"kind": "scenario", "market": market, "season": season, "levers": levers,
+                              "schedule_low": low, "schedule_high": high,
                               "result": {k: v for k, v in asdict(result).items() if isinstance(v, (int, float)) and not isinstance(v, bool)},
                               "hybrid_sim": hybrid["hybrid_sim"], "hybrid_delta": hybrid["hybrid_delta"],
                               "p10": bands.p10, "p90": bands.p90, "delta_p10": bands.delta_p10, "delta_p90": bands.delta_p90})
             rows = compute_tornado_sensitivity(twin.structural_engine, market, season, ScenarioLever(market, delta_frequency=2.0, aircraft_gauge=250.0))
             cases.append({"kind": "tornado", "market": market, "season": season,
                           "base_lever": {"delta_frequency": 2.0, "aircraft_gauge": 250.0}, "rows": rows})
+    central = json.loads(SETTINGS.flight_response_path.read_text(encoding="utf-8"))["capacity"]["central"]
+    effects = [EFFECT_RANGE[0], central, EFFECT_RANGE[1]]
+    for growth_pct, years in CAPACITY_GOLDEN:
+        cases.append({"kind": "capacity", "growth_pct": growth_pct, "years": years, "effects": effects,
+                      "factors": [capacity_guest_factor(growth_pct, years, e) for e in effects]})
     return cases
 
 
@@ -265,7 +283,8 @@ def _git_sha() -> str:
 def _weights_digests() -> Dict[str, str]:
     """sha256 of each saved planning artifact the bundle was built from, so the web data can be
     traced to the exact weights (the daily nowcast is refitted at export, recorded by git_sha)."""
-    paths = {"structural_calibration": SETTINGS.calibration_path, "residual_engine": SETTINGS.residual_model_path,
+    paths = {"structural_calibration": SETTINGS.calibration_path, "flight_response": SETTINGS.flight_response_path,
+             "residual_engine": SETTINGS.residual_model_path,
              "conformal_calibrator": SETTINGS.conformal_path, "evaluation_results": SETTINGS.evaluation_results_path}
     return {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in paths.items() if path.exists()}
 

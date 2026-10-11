@@ -3,24 +3,32 @@ import { NO_CHANGE, type Lever, type Planning } from "../../engine/planning";
 
 /** Slider state in display units (percent and points); `toLever` converts to the engine's fractions.
  *  Ranges match the original app (src/app/static/index.html). */
-export interface LeverInput { frequency: number; gauge: number; seatsPct: number; loadFactorPts: number; p2pPts: number; multiplierPct: number; factor: number }
+export interface LeverInput {
+  frequency: number; gauge: number; seatsPct: number; capacityPct: number;
+  loadFactorPts: number; p2pPts: number; multiplierPct: number; factor: number;
+}
 
-export const DEFAULT_INPUT: LeverInput = { frequency: 0, gauge: NO_CHANGE.aircraft_gauge, seatsPct: 0, loadFactorPts: 0, p2pPts: 0, multiplierPct: 0, factor: 0 };
+export const DEFAULT_INPUT: LeverInput = { frequency: 0, gauge: NO_CHANGE.aircraft_gauge, seatsPct: 0, capacityPct: 0,
+  loadFactorPts: 0, p2pPts: 0, multiplierPct: 0, factor: 0 };
 
 export interface SliderSpec { key: keyof LeverInput; label: string; hint: string; min: number; max: number; step: number; format: (v: number) => string }
-export interface LeverGroup { id: "flights" | "visitors"; title: string; sliders: SliderSpec[] }
+export interface LeverGroup { id: "schedule" | "capacity" | "assumptions"; title: string; sliders: SliderSpec[] }
 
 const unit = (u: string) => (v: number) => formatSigned(v, (x) => `${Number(x.toFixed(1))}${u}`);
 
-/** Grouped as a planner thinks: what airlines fly, then what the passengers do. */
+/** Grouped by how the data knows them: the schedule change is learned from past weeks, capacity
+ *  growth and the rest are the planner's assumptions. */
 export const LEVER_GROUPS: ReadonlyArray<LeverGroup> = [
-  { id: "flights", title: "Flights", sliders: [
+  { id: "schedule", title: "Schedule change", sliders: [
     { key: "frequency", label: "Extra flights per week", hint: "Round trips added or removed", min: -14, max: 14, step: 1, format: unit("") },
     { key: "gauge", label: "Seats per extra flight", hint: "Aircraft size", min: 150, max: 450, step: 10, format: String },
     { key: "seatsPct", label: "Seats on existing flights", hint: "Bigger or smaller aircraft", min: -50, max: 50, step: 5, format: unit("%") },
-    { key: "loadFactorPts", label: "How full flights are", hint: "Share of seats sold", min: -10, max: 10, step: 1, format: unit(" pts") },
   ] },
-  { id: "visitors", title: "Visitors", sliders: [
+  { id: "capacity", title: "Capacity growth", sliders: [
+    { key: "capacityPct", label: "Seat growth per year", hint: "From the end of the airline schedules", min: -5, max: 15, step: 1, format: unit("% a year") },
+  ] },
+  { id: "assumptions", title: "Assumptions", sliders: [
+    { key: "loadFactorPts", label: "How full flights are", hint: "Share of seats sold", min: -10, max: 10, step: 1, format: unit(" pts") },
     { key: "p2pPts", label: "Passengers who stop in Abu Dhabi", hint: "Rather than connecting onward", min: -10, max: 10, step: 1, format: unit(" pts") },
     { key: "multiplierPct", label: "Visitors who book a hotel", hint: "Marketing, packages, events", min: -20, max: 20, step: 1, format: unit("%") },
     { key: "factor", label: "Hotel nights per visitor", hint: "Longer or repeat stays", min: -1, max: 2, step: 0.1, format: unit("") },
@@ -69,7 +77,7 @@ const pct = (x: number) => Math.round(x * 10_000) / 100;   // a fraction back to
 /** The slider state behind an engine lever: `toLever` in reverse, so a scenario worked out in the
  *  model can be handed to the workbench as an example (the question cards link to the simulator). */
 export function fromLever(lever: Lever): LeverInput {
-  return { frequency: lever.delta_frequency, gauge: lever.aircraft_gauge, seatsPct: pct(lever.delta_seats_pct),
+  return { frequency: lever.delta_frequency, gauge: lever.aircraft_gauge, seatsPct: pct(lever.delta_seats_pct), capacityPct: 0,
            loadFactorPts: pct(lever.delta_load_factor), p2pPts: pct(lever.delta_p2p_share),
            multiplierPct: pct(lever.delta_multiplier_pct), factor: Math.round(lever.delta_los * 10) / 10 };
 }
@@ -123,13 +131,13 @@ export const ALL_MARKETS = "ALL";
 export interface SliderAvailability { disabled: boolean; hint?: string }
 
 /** Whether a slider applies to the chosen market, and why not. UAE residents have no flight
- *  route, so flight levers and the stopover share do not apply; aircraft size only matters once
- *  extra flights are added; with all markets, flight changes need a market first. */
+ *  route, so schedule, capacity, load-factor and stopover levers do not apply; aircraft size only
+ *  matters once extra flights are added; with all markets, flight changes need a market first. */
 export function sliderAvailability(market: string, input: LeverInput, key: keyof LeverInput): SliderAvailability {
   if (market === ALL_MARKETS) return { disabled: true };
-  const flightKeys = LEVER_GROUPS.find((g) => g.id === "flights")!.sliders.map((s) => s.key);
-  if (market === "DOMESTIC" && (flightKeys.includes(key) || key === "p2pPts")) {
-    return { disabled: true, hint: key === "p2pPts" ? "Not applicable to UAE residents" : undefined };
+  const flightKeys = LEVER_GROUPS.filter((g) => g.id !== "assumptions").flatMap((g) => g.sliders.map((s) => s.key));
+  if (market === "DOMESTIC" && (flightKeys.includes(key) || key === "loadFactorPts" || key === "p2pPts")) {
+    return { disabled: true, hint: key === "loadFactorPts" || key === "p2pPts" ? "Not applicable to UAE residents" : undefined };
   }
   if (key === "gauge" && input.frequency === 0) return { disabled: true, hint: "Applies when extra flights are added" };
   return { disabled: false };

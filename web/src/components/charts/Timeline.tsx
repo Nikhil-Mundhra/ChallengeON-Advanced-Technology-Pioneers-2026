@@ -16,12 +16,14 @@ interface TimelineProps {
 const short = (week: string) => formatMonth(week, "short");
 const NAMES: Record<string, string> = {
   actual: "Real", holdout: "Model check", model: "Forecast without changes", scenario: "Forecast with your changes", band: "Likely range",
+  capacityRange: "If guests follow seat growth fully or not at all",
 };
 
 /** Weekly hotel guests over time: real weeks, the model's check against weeks it had not seen, and
  *  the forecast without and with the changes. Shaded: the checked weeks and the forecast years. */
 export function Timeline({ data, checked, forecastFrom, changesFrom, flags = [] }: TimelineProps) {
   const last = data[data.length - 1]?.week;
+  const showCapacity = data.some((d) => d.capacityRange !== null);
   const eventByWeek = useMemo(() => new Map(data.filter((d) => d.event).map((d) => [d.week, eventName(d.event)!])), [data]);
 
   return (
@@ -64,6 +66,8 @@ export function Timeline({ data, checked, forecastFrom, changesFrom, flags = [] 
         {flags.map((f) => (
           <ReferenceLine key={f.week} x={f.week} stroke="var(--color-series-check)" strokeOpacity={0.25} strokeDasharray="2 3" />
         ))}
+        {showCapacity && <Area dataKey="capacityRange" name="capacityRange" stroke={SERIES.forecast} strokeDasharray="2 3" fill={SERIES.forecast}
+                                fillOpacity={0.08} isAnimationActive={false} legendType="rect" />}
         <Area dataKey="band" name="band" stroke="none" fill={SERIES.scenario} fillOpacity={0.12} isAnimationActive={false} legendType="rect" />
         <Line dataKey="model" name="model" stroke={SERIES.forecast} strokeDasharray="5 4" dot={false} strokeWidth={1.5} isAnimationActive={false} />
         <Line dataKey="holdout" name="holdout" stroke={SERIES.check} dot={false} strokeWidth={2} connectNulls={false} isAnimationActive={false} />

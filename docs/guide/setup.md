@@ -24,7 +24,7 @@ Requirements: Python 3.10+ and Node 20+. The raw workbooks are not in the reposi
 | 1 | `twin build-lake` (`make lake`) | `lake/curated/{guest_daily,flight_daily,flight_monthly}.parquet`, `lake/analytics.duckdb`, `lake/manifest.json` |
 | 2 | `twin build-panel`, `twin build-daily-panel` (`make panel`) | `weekly_market_panel.parquet`, `daily_market_panel.parquet` |
 | 3 | `twin evaluate` (`make evaluate`) | `evaluation_results.json` |
-| 4 | `twin train` (`make train`) | `structural_calibration.json`, `residual_engine.pkl`, `conformal_calibrator.json` |
+| 4 | `twin train` (`make train`) | `structural_calibration.json`, `flight_response.json`, `residual_engine.pkl`, `conformal_calibrator.json` |
 | 5 | `twin charts` (`make charts`) | `output/figures/*.png` |
 | 6 | `twin report solution` (`make report`) | `output/pdf/challengeon_solution_report.pdf` |
 | 7 | `pytest tests/ -v` (`make test`) | none |

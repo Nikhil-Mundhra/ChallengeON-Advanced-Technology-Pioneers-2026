@@ -10,6 +10,7 @@ docs/evidence/interactions.md : interaction and power terms (analysis)
 docs/evidence/noise.md : error distribution and autocorrelation, in-sample and out-of-sample (analysis)
 docs/evidence/range-totals.md : accuracy of date-range totals (rolling back-test)
 docs/evidence/reference-evaluation.md : fixed reference evaluation and its expected values
+docs/evidence/scenario-response.md : flight levers against weeks where seats moved; shipped schedule elasticity (back-test, training)
 docs/evidence/slope-and-events.md : slope and events per series, clean A/B (analysis, unmerged branch)
 docs/evidence/test-period-data.md : test-period data findings (analysis)
 docs/evidence/time-effects.md : level, season, weekday, lunar and solar events (analysis)

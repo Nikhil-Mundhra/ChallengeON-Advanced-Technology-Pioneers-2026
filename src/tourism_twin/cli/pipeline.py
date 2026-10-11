@@ -100,6 +100,7 @@ def train(args: argparse.Namespace) -> None:
 
     print("\n1. Calibrating Structural Scenario Engine...")
     print(f"   Calibrated {len(result.structural.params)} markets saved to: {result.calibration_path}")
+    print(f"   Flight response (schedule elasticity, capacity co-movement) saved to: {result.flight_response_path}")
     print("\n2. Fitting Monotonic Residual ML Engine (RidgeCV)...")
     print(f"   Trained {len(result.residual.models)} residual models saved to: {result.residual_model_path}")
     print("\n3. Calibrating Conformal Uncertainty Bounds...")

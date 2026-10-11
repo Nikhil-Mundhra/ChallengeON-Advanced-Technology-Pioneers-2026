@@ -52,6 +52,12 @@ def test_scenarios_follow_the_planning_rules(twin):
         other_routes = closed.base_p2p * max(closed.base_multiplier - 1.0, 0.0)  # visitors arriving by other routes stay
         assert closed.sim_arrivals == pytest.approx(other_routes)
         assert closed.waterfall_seats == pytest.approx(-closed.base_p2p * min(closed.base_multiplier, 1.0) * closed.base_los)
+    for market in ("UNITED KINGDOM", "OTHER_EUROPE"):  # a served route's guests follow seats with the chain's elasticity
+        lever = ScenarioLever(market, delta_frequency=2.0, aircraft_gauge=290.0, delta_seats_pct=0.10)
+        moved = engine.simulate(market, "Winter_Peak", lever)
+        epsilon = engine.elasticity(market, "Winter_Peak")
+        assert moved.sim_guests == pytest.approx(moved.base_guests * (moved.sim_seats / moved.base_seats) ** epsilon)
+        assert moved.waterfall_seats == pytest.approx(moved.delta_guests)
     new = engine.simulate("SWEDEN", "Winter_Peak", ScenarioLever("SWEDEN", delta_frequency=3.0, aircraft_gauge=300.0))
     assert new.delta_arrivals <= new.sim_p2p + 1e-9  # a new route adds at most one hotel visitor per passenger who stays
     domestic = engine.simulate("DOMESTIC", "Winter_Peak", ScenarioLever(
@@ -149,3 +155,56 @@ def test_seat_chain_recovers_both_links_and_a_scenario_reruns_them_end_to_end():
     assert (d_arrivals[(days >= 0) & (days <= 29)] > 0).all()
     # Guests respond through link 2's kernel applied to link 1's arrival change, not a fixed ratio.
     assert d_guests.sum() == pytest.approx(GUEST_W.sum() * d_arrivals.sum(), rel=0.03)
+
+
+def test_schedule_response_reads_the_chains_elasticity_and_pools_it_for_markets_without_seats():
+    from synthetic import GUEST_W, SEAT_BASE, SEAT_W, _seat_chain_frame
+    from tourism_twin.domain.seasons import assign_season
+    from tourism_twin.models.handler import flagged
+    from tourism_twin.models.spec import ModelSpec
+    from tourism_twin.planning.chain import ChainSpec
+    from tourism_twin.planning.schedule_response import CHANGES, WARMUP_DAYS, WINDOW_DAYS, response_points, summarise
+
+    frame = _seat_chain_frame()
+    spec = ChainSpec(ModelSpec(components=(("seat_kernel", {"max_lag": 3}), "weekday"), rules=(flagged("seat_lag_complete"),),
+                               options=(("target", "new_arrivals_filled"),)),
+                     ModelSpec(components=(("arrivals_kernel", {"max_lag": 7}),), rules=(flagged("lag_complete"),)),
+                     seat_max_lag=3, arrival_max_lag=7)
+    chain = spec.build().fit(PANEL_FEATURES.apply(frame, ["arrival_lags"], max_lag=7))
+    end = frame["date"].max()
+    points = response_points(chain, frame, end)
+
+    def truth(rows, change):  # the generator's own links, seats changed on the window
+        seats = rows["seats"].to_numpy()
+        lagged = lambda x, w: sum(w[k] * np.r_[np.zeros(k), x[:len(x) - k]] for k in range(len(w)))  # noqa: E731
+        weekday = rows["new_arrivals_filled"].to_numpy() / (SEAT_BASE + lagged(seats, SEAT_W))
+        inside = (rows["date"] >= end - pd.Timedelta(days=WINDOW_DAYS + WARMUP_DAYS)).to_numpy()
+        arrivals = (SEAT_BASE + lagged(np.where(inside, seats * (1 + change), seats), SEAT_W)) * weekday
+        return 300.0 + lagged(arrivals, GUEST_W)
+
+    for market, rows in frame.groupby("market"):
+        counted = (rows["date"] >= end - pd.Timedelta(days=WINDOW_DAYS)).to_numpy()
+        winter = counted & (rows["date"].dt.month.map(assign_season) == "Winter_Peak").to_numpy()
+        for change in CHANGES:
+            expected = np.log(truth(rows, change)[winter].sum() / truth(rows, 0.0)[winter].sum()) / np.log1p(change)
+            got = points.query("market == @market and season == 'Winter_Peak' and change == @change")["epsilon"].item()
+            assert got == pytest.approx(expected, abs=0.03), (market, change)
+
+    response = summarise(points, [points.assign(epsilon=points["epsilon"] * 0.8)])  # a refit with a weaker response
+    a, b = response.for_market("A", "Winter_Peak"), response.for_market("B", "Winter_Peak")
+    assert a.low == pytest.approx(0.8 * a.epsilon) and a.high == pytest.approx(a.epsilon) and not a.pooled
+    pooled = response.for_market("SWEDEN", "Winter_Peak")  # no seats of its own: median, widest range
+    assert pooled.pooled and pooled.epsilon == pytest.approx(np.median([a.epsilon, b.epsilon]))
+    assert (pooled.low, pooled.high) == (min(a.low, b.low), max(a.high, b.high))
+
+
+def test_capacity_co_movement_recovers_a_known_trend_slope():
+    from synthetic import _weekly_flight_panel
+    from tourism_twin.planning.capacity_trend import capacity_guest_factor, fit_comovement
+
+    growth = {"A": -0.1, "B": 0.1, "C": 0.2, "D": 0.4, "E": 0.3}
+    own = {"A": 0.0, "B": 0.0, "C": 0.0, "D": 0.15, "E": 0.0}  # the fastest-growing market also has its own demand growth
+    co = fit_comovement(_weekly_flight_panel(growth, gamma=0.5, intercept=own), n_boot=200)
+    assert co.gamma == pytest.approx(0.5, abs=0.05) and co.intercept == pytest.approx(0.03, abs=0.01)
+    assert co.low < co.gamma < co.high
+    assert capacity_guest_factor(10.0, 2.0, 0.0) == 1.0 and capacity_guest_factor(10.0, 2.0, 1.0) == pytest.approx(1.21)

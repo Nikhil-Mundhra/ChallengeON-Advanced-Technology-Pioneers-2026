@@ -38,6 +38,7 @@ Data dictionary vs files: it documents the two test guest files and the flight f
 | `lake/curated/weekly_market_panel.parquet` | Market-week | 3,507 | 21 markets, both splits, 39 columns | yes |
 | `lake/curated/daily_market_panel.parquet` | Market-day | 31,920 | 21 markets × 1,520 days, both splits, arrival lags 0 to 21 | no |
 | `lake/curated/structural_calibration.json` | Market-season | 21 × 4 | Calibrated seats, load factor, P2P share, multiplier, stay factor | yes |
+| `lake/curated/flight_response.json` | Market-season | 20 × 4 | Schedule elasticity with range and curve points, pooled values, capacity co-movement | yes |
 | `lake/curated/residual_engine.pkl` | Market | 21 models | RidgeCV residual models | yes |
 | `lake/curated/conformal_calibrator.json` | Market | 21 | Conformal margins, target alpha 0.2, demonstrated coverage | yes |
 | `lake/curated/evaluation_results.json` | n/a | n/a | Weekly back-test metrics, benchmark leaders, market and season breakdowns | yes |

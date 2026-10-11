@@ -10,7 +10,7 @@ Computes the predictive structural conversion chain:
 Includes:
 - Exact waterfall attribution decomposition with zero residual discrepancy.
 - Hierarchical cold-start fallback for unmodeled source markets.
-- Monotonically bounded scenario responses.
+- The response of guests to a schedule change, read off the fitted planning chain (planning/schedule_response.py).
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import json
 import math
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, NamedTuple, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -39,15 +39,22 @@ from tourism_twin.domain.scenario import (
     SimulationResult,
 )
 from tourism_twin.domain.seasons import SEASONS
+from tourism_twin.planning.schedule_response import ScheduleResponse, schedule_factor
 
 
 class StructuralEngine:
     """Calibrated structural scenario engine mapping aviation decisions to hotel demand."""
 
-    def __init__(self, calibration_data: Optional[Dict[str, Any]] = None):
+    def __init__(self, calibration_data: Optional[Dict[str, Any]] = None, schedule: Optional[ScheduleResponse] = None):
         self.params: Dict[str, Dict[str, MarketSeasonParams]] = {}
+        self.schedule = schedule
         if calibration_data:
             self._load_from_dict(calibration_data)
+
+    def elasticity(self, market: str, season: str) -> float:
+        """The market's schedule elasticity in the season; 1 (guests scale with seats) for an engine
+        built without a fitted response."""
+        return self.schedule.for_market(market, season).epsilon if self.schedule else 1.0
 
     @classmethod
     def calibrate_from_panel(
@@ -142,11 +149,15 @@ class StructuralEngine:
         return engine
 
     @classmethod
-    def load(cls, calibration_path: Path = SETTINGS.calibration_path) -> "StructuralEngine":
-        """Load calibrated engine from saved JSON."""
+    def load(cls, calibration_path: Path = SETTINGS.calibration_path,
+             flight_response_path: Path = SETTINGS.flight_response_path) -> "StructuralEngine":
+        """Load calibrated engine and its schedule elasticities from saved JSON."""
         with open(calibration_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return cls(data)
+        schedule = None
+        if flight_response_path.exists():
+            schedule = ScheduleResponse.from_dict(json.loads(flight_response_path.read_text(encoding="utf-8"))["schedule"])
+        return cls(data, schedule)
 
     def _load_from_dict(self, data: Dict[str, Any]) -> None:
         """Internal helper to populate params from dictionary."""
@@ -178,6 +189,13 @@ class StructuralEngine:
             is_cold_start=True,
         )
 
+    def schedule_range(self, market: str, season: str, lever: ScenarioLever) -> Tuple[float, float]:
+        """Scenario guests at the two ends of the market's elasticity interval, lower first."""
+        elasticity = self.schedule.for_market(market, season) if self.schedule else None
+        ends = (elasticity.low, elasticity.high) if elasticity else (1.0, 1.0)
+        guests = sorted(self.simulate(market, season, lever, epsilon=e).sim_guests for e in ends)
+        return guests[0], guests[1]
+
     def planning_guests(self, market: str, season: str, seats: float) -> float:
         """Weekly hotel guests predicted from scheduled seats and the calibrated seasonal priors.
 
@@ -204,15 +222,20 @@ class StructuralEngine:
         market: str,
         season: str,
         lever: Optional[ScenarioLever] = None,
+        epsilon: Optional[float] = None,
     ) -> SimulationResult:
-        """Simulate the forward conversion chain under a scenario lever, with its waterfall."""
+        """Simulate the forward conversion chain under a scenario lever, with its waterfall.
+        `epsilon` overrides the market's schedule elasticity (the ends of its range give the range)."""
         market_norm = market.upper().strip()
         p = self.get_or_create_params(market_norm, season)
         lever = lever or ScenarioLever(market=market_norm)
         domestic = _is_domestic(market_norm, p)
         base = _baseline_chain(p, domestic)
-        sim = _domestic_scenario(base, lever) if domestic else _international_scenario(p, base, lever)
-        waterfall = _waterfall(base, sim, domestic)
+        if domestic:
+            sim, schedule = _domestic_scenario(base, lever), Schedule(base.arrivals)
+        else:
+            sim, schedule = _international_scenario(p, base, lever, self.elasticity(market_norm, season) if epsilon is None else epsilon)
+        waterfall = _waterfall(base, sim, schedule, domestic)
 
         attributed, lift = sum(waterfall), sim.guests - base.guests
         if not math.isclose(attributed, lift, rel_tol=1e-9, abs_tol=1e-6):  # relative: guests reach 1e7
@@ -274,80 +297,59 @@ def _marginal(multiplier: float) -> float:
     return min(multiplier, 1.0)
 
 
-def _international_scenario(p: MarketSeasonParams, base: Chain, lever: ScenarioLever) -> Chain:
-    """Each lever shifts its stage; a zero delta keeps the baseline value exactly. A change in P2P
-    passengers changes arrivals by at most one each (_marginal); arrivals already arriving by other
-    routes stay, scaled only by the multiplier lever.
+class Schedule(NamedTuple):
+    """What the new schedule brings with load factor, P2P share and multiplier at baseline: its
+    arrivals (the waterfall's seats step), and `conversion`, the hotel arrivals per P2P passenger
+    relative to today's marginal rate (ratio ** (epsilon - 1) on a served route, else 1)."""
 
-    Three hand-set adjustments (assumed constants, not fitted to the data):
-    1. Frequency S-curve: load factor scales with s(f) = f^1.5 / (f^1.5 + 7^1.5), f weekly flights.
-    2. Capacity dilution: seats above the baseline lower load factor and P2P share.
-    3. Saturation: added guests level off toward a multiple of baseline guests by season.
-    """
+    arrivals: float
+    conversion: float = 1.0
+
+
+def _international_scenario(p: MarketSeasonParams, base: Chain, lever: ScenarioLever, epsilon: float) -> Tuple[Chain, Schedule]:
+    """The scenario chain and its schedule part.
+
+    A schedule change on a served route moves arrivals by (new seats / baseline seats) ** epsilon, the
+    fitted chain's elasticity (planning/schedule_response.py). A new route has no baseline to scale, so
+    its added P2P passengers convert at the marginal rate (_marginal). The load-factor, P2P-share,
+    multiplier and stay levers are assumptions applied on top; load factor and P2P share move
+    passengers at the schedule's own conversion, so a shift on many added seats cannot outgrow the
+    guests those seats bring. A zero delta keeps the baseline value exactly."""
     gauge = lever.aircraft_gauge if lever.aircraft_gauge > 0 else 250.0
     seats = max(0.0, (base.seats + lever.delta_frequency * gauge) * (1.0 + lever.delta_seats_pct))
-
-    if seats <= 0.0:
-        sim_seats, sim_lf, sim_pax, sim_p2p_share, sim_p2p = 0.0, base.lf, 0.0, base.p2p_share, 0.0
-        multiplier = max(0.01, base.multiplier * (1.0 + lever.delta_multiplier_pct)) if lever.delta_multiplier_pct != 0.0 else base.multiplier
-        arrivals = max(0.0, base.p2p * max(multiplier - 1.0, 0.0))
-        los = _shifted_los(base, lever)
-        return Chain(sim_seats, sim_lf, sim_pax, sim_p2p_share, sim_p2p, multiplier, arrivals, los, arrivals * los)
-
-    # 1. Frequency S-Curve (Increasing returns up to daily threshold)
-    f_base = base.seats / gauge if base.seats > 0 else 0.0
-    f_sim = max(0.0, f_base + lever.delta_frequency)
-    gamma, f0 = 1.5, 7.0
-    if lever.delta_frequency != 0.0:
-        if f_base > 0.0:
-            s_sim = (f_sim ** gamma) / (f_sim ** gamma + f0 ** gamma)
-            s_base = (f_base ** gamma) / (f_base ** gamma + f0 ** gamma)
-            m_freq = float(np.clip(s_sim / s_base, 0.85, 1.15))
-        else:
-            s_sim = (f_sim ** gamma) / (f_sim ** gamma + f0 ** gamma)
-            s_daily = (f0 ** gamma) / (2.0 * f0 ** gamma)
-            m_freq = float(np.clip(s_sim / s_daily, 0.75, 1.0))
-    else:
-        m_freq = 1.0
-
-    # 2. Capacity Dilution (Diminishing marginal returns on seat surges)
-    if base.seats > 0.0 and seats > base.seats:
-        expansion = (seats - base.seats) / base.seats
-        lf_decay = (1.0 + expansion) ** (-0.05)
-        p2p_decay = (1.0 + expansion) ** (-0.08)
-    else:
-        lf_decay = 1.0
-        p2p_decay = 1.0
-
-    lf = float(np.clip(base.lf * m_freq * lf_decay + lever.delta_load_factor, 0.05, 1.0)) if (lever.delta_load_factor != 0.0 or m_freq != 1.0 or lf_decay != 1.0) else base.lf
-    pax = seats * lf
-    share = float(np.clip(base.p2p_share * p2p_decay + lever.delta_p2p_share, 0.01, 1.0)) if (lever.delta_p2p_share != 0.0 or p2p_decay != 1.0) else base.p2p_share
-    p2p = pax * share
     multiplier = max(0.01, base.multiplier * (1.0 + lever.delta_multiplier_pct)) if lever.delta_multiplier_pct != 0.0 else base.multiplier
-    raw_arrivals = max(0.0, p.arrivals_from(base.p2p, multiplier) + (p2p - base.p2p) * _marginal(multiplier))
     los = _shifted_los(base, lever)
 
-    # 3. Destination Capacity Constraint (Peak room saturation)
-    kappa = 2.5 if p.season in ("Winter_Peak", "Spring_Shoulder") else 2.0
-    c_cap = kappa * base.guests if base.guests > 0 else 0.0
-    raw_guests = raw_arrivals * los
-    delta_g = raw_guests - base.guests
-    if delta_g > 0.0 and c_cap > base.guests:
-        delta_g_sat = (c_cap - base.guests) * delta_g / ((c_cap - base.guests) + delta_g)
-        arrivals = (base.guests + delta_g_sat) / los
+    if seats <= 0.0:  # closure: only visitors arriving by other routes stay
+        arrivals = max(0.0, base.p2p * max(multiplier - 1.0, 0.0))
+        schedule = Schedule(base.p2p * max(base.multiplier - 1.0, 0.0))
+        return Chain(0.0, base.lf, 0.0, base.p2p_share, 0.0, multiplier, arrivals, los, arrivals * los), schedule
+
+    lf = float(np.clip(base.lf + lever.delta_load_factor, 0.05, 1.0)) if lever.delta_load_factor != 0.0 else base.lf
+    share = float(np.clip(base.p2p_share + lever.delta_p2p_share, 0.01, 1.0)) if lever.delta_p2p_share != 0.0 else base.p2p_share
+    pax = seats * lf
+    p2p = pax * share
+    scheduled_p2p = seats * base.lf * base.p2p_share
+
+    factor = schedule_factor(base.seats, seats, epsilon)
+    if factor is None:  # new route
+        schedule = Schedule(p.arrivals_from(base.p2p, base.multiplier) + scheduled_p2p * _marginal(base.multiplier))
+        carried = p.arrivals_from(base.p2p, multiplier) + scheduled_p2p * _marginal(multiplier)
     else:
-        arrivals = raw_arrivals
+        schedule = Schedule(base.arrivals * factor, factor * base.seats / seats)
+        carried = schedule.arrivals * (multiplier / base.multiplier) if base.multiplier > 0.0 else schedule.arrivals
+    arrivals = max(0.0, carried + (p2p - scheduled_p2p) * _marginal(multiplier) * schedule.conversion)
+    return Chain(seats, lf, pax, share, p2p, multiplier, arrivals, los, arrivals * los), schedule
 
-    return Chain(seats, lf, pax, share, p2p, multiplier, arrivals, los, arrivals * los)
 
-
-def _waterfall(base: Chain, sim: Chain, domestic: bool) -> tuple:
+def _waterfall(base: Chain, sim: Chain, schedule: Schedule, domestic: bool) -> tuple:
     """Sequential attribution of the guest change to seats, load factor, P2P share, multiplier and
-    stay; each step changes one stage with the earlier stages at their scenario values. Passenger
-    steps convert at the marginal rate (_marginal); the multiplier step takes the rest of the
-    arrivals change."""
-    rate = _marginal(base.multiplier) * base.los
-    seats = (sim.seats - base.seats) * base.lf * base.p2p_share * rate
+    stay; each step changes one stage with the earlier stages at their scenario values. The seats
+    step is the schedule response; load-factor and P2P-share steps convert at the marginal rate
+    (_marginal) times the schedule's conversion; the multiplier step takes the rest of the arrivals
+    change."""
+    rate = _marginal(base.multiplier) * base.los * schedule.conversion
+    seats = 0.0 if domestic else (schedule.arrivals - base.arrivals) * base.los
     lf = sim.seats * (sim.lf - base.lf) * base.p2p_share * rate
     p2p = sim.pax * (sim.p2p_share - base.p2p_share) * rate
     if domestic:  # arrivals do not come from P2P, so the multiplier step is the whole arrivals change

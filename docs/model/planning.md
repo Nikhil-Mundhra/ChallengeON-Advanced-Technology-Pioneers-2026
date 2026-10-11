@@ -20,8 +20,22 @@ Guests = Seats × LF × P2PShare × M × L
 | Planning prediction (`planning_guests`) | Scheduled seats × calibrated LF, P2P share, M, L. A served market whose seats carry no P2P passengers has zero aviation arrivals; an unserved market keeps its calibrated arrivals. The simulator baseline uses the same rule (`MarketSeasonParams.arrivals_from`) |
 | Domestic | `DOMESTIC` = calibrated seasonal arrivals × L, independent of seats; seat, frequency, load-factor and P2P levers have no effect; multiplier and stay-factor levers do (tested) |
 | Cold start | A country without calibration gets its archetype's default LF, P2P share, M and L (`domain/archetypes.py`); unknown countries map to Emerging / Sparse |
-| Scenario response (`_international_scenario`) | Three hand-set adjustments apply to international scenarios: when flights are added or removed, a frequency S-curve s(f) = f^1.5 / (f^1.5 + 7^1.5), f = weekly flights (seats ÷ gauge), scales load factor by s(new) ÷ s(base), clipped to [0.85, 1.15] (a market without flights: s(new) ÷ s(7), clipped to [0.75, 1]); seats above the baseline scale load factor by (1 + expansion)^−0.05 and P2P share by (1 + expansion)^−0.08; added guests saturate toward κ × baseline guests, κ = 2.5 in Winter_Peak and Spring_Shoulder and 2.0 otherwise. A zero gauge counts as 250 seats |
-| Waterfall | Lift attributed sequentially: seats, load factor, P2P share, multiplier, stay factor. The five parts sum to the total lift (tested to < 1e-9 for every calibrated market, a cold-start market, all seasons and 6 lever sets); `simulate` raises above a relative 1e-9 (absolute 1e-6) |
+| Scenario response (`_international_scenario`) | A schedule change (extra flights × seats per flight, seats on existing flights) on a served route scales arrivals by (new seats ÷ baseline seats)^ε, ε the market's schedule elasticity for the season ([flight response](#flight-response)). A new route (baseline seats 0) adds its P2P passengers at the marginal rate min(M, 1) on top of the calibrated or archetype arrivals. A closure keeps only arrivals by other routes: baseline P2P × max(M − 1, 0). Load factor, P2P share, multiplier and stay factor are assumption levers applied on top; on a served route a load-factor or P2P-share shift converts at min(M, 1) × (new ÷ baseline seats)^(ε − 1) arrivals per passenger. A zero gauge counts as 250 seats |
+| Waterfall | Lift attributed sequentially: seats (the schedule response), load factor, P2P share, multiplier, stay factor. The five parts sum to the total lift (tested to < 1e-9 for every calibrated market, a cold-start market, all seasons and 6 lever sets); `simulate` raises above a relative 1e-9 (absolute 1e-6) |
+
+## Flight response
+
+Artifact: `lake/curated/flight_response.json`, written by `twin train` (`planning/training.py`) and exported in `planning.json` as `flight_response`.
+
+| Lever | Model | Fact |
+| --- | --- | --- |
+| Schedule change (`planning/schedule_response.py`) | Learned | ε per market and season from the fitted planning chain (`CHAIN_SPECS["seat_chain"]`, `planning/chain.py`): seats × (1 + c) on every day of the last 365 training days, c ∈ {−25%, −10%, +10%, +25%}; ε(c) = log(Σ scenario guests ÷ Σ baseline guests) ÷ log(1 + c) over the window's days from day 28 on, by season; ε = mean over the four c; `curvature` = largest \|ε(c) − ε\| |
+| Schedule change range | Learned | Lowest and highest ε over the full fit and the 7 `VALIDATION_ORIGINS` refits, each read on the last 365 days of its own training window |
+| Schedule change, no seats of its own (cold start, DOMESTIC) | Pooled | Per season: median ε over markets, range from the lowest low to the highest high |
+| Capacity growth (`planning/capacity_trend.py`) | Assumption | Seat trend, % a year, from the first projected week (or the scenario start, if later); guests × (1 + g)^(years × e), e from 0 (guests do not follow seats) to 1 (one for one) |
+| Capacity growth central line | Association | e = γ, the slope of the 52-week change in log centred 13-week guest trend on that of the seat trend, market intercepts removed, pooled over markets; 90% market-cluster bootstrap interval; clipped to [0, 1] |
+
+Evidence for the chain over a short-run elasticity, the linear chain and the hand-set adjustments: [scenario response](../evidence/scenario-response.md), from `experiment/scenario_response/` ([README](../../experiment/scenario_response/README.md)).
 
 ## Residual (`planning/residual.py`, `planning/calendar_features.py`)
 
@@ -43,7 +57,7 @@ Hybrid = max(0, planning_guests + residual)
 
 | Component | Method |
 | --- | --- |
-| Monte Carlo (1,500 draws default) | Load factor and P2P share ~ Beta (method of moments, sd 0.03 and 0.04); multiplier and stay factor × Normal(1, 0.06) and Normal(1, 0.04); residuals by 4-week block bootstrap of the market's weekly training residuals; seed from the scenario via SHA-256 |
+| Monte Carlo (1,500 draws default) | Load factor and P2P share ~ Beta (method of moments, sd 0.03 and 0.04); multiplier and stay factor × Normal(1, 0.06) and Normal(1, 0.04); residuals by 4-week block bootstrap of the market's weekly training residuals; seed from the scenario via SHA-256. On a served route each draw's scenario arrivals are its baseline arrivals × the structural arrivals ratio |
 | Conformal margin | Per market: (1 − α) quantile of in-sample relative planning-mode error on the training window, α = 0.2 |
 | Coverage | Holdout coverage of the conformal range against its 80% target: [planning holdout](../results/planning-holdout.md) |
 | Tornado | Guest swing for ±15% seats, ±4 pp LF, ±5 pp P2P share, ±10% multiplier, ±0.5 stay factor; cold-start markets use a reference route |

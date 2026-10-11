@@ -47,6 +47,7 @@ Trains on complete train-split weeks with complete guest inputs up to `--max-dat
 | File | Contents |
 | :--- | :--- |
 | `lake/curated/structural_calibration.json` | Seats, load factor, P2P share, response multiplier, stay factor and baseline guests for 21 markets × 4 seasons |
+| `lake/curated/flight_response.json` | Schedule elasticity per market and season from the planning chain (full fit and 7 `VALIDATION_ORIGINS` refits, run in parallel) and the capacity co-movement |
 | `lake/curated/residual_engine.pkl` | One RidgeCV per market and the mean fitted residual per market and season |
 | `lake/curated/conformal_calibrator.json` | Per-market conformal margins (target alpha 0.2) and the holdout coverage read from `evaluation_results.json` |
 

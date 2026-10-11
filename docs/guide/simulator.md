@@ -9,11 +9,21 @@ For one source market and one season, the simulator compares a baseline week wit
 | Conversion chain | Seats → passengers → P2P passengers → hotel new arrivals → hotel guests, baseline vs scenario |
 | Waterfall | Guest lift split sequentially across 5 levers; the parts sum to the total |
 | Hybrid lift | Structural lift plus the residual adjustment |
+| Schedule range | Scenario guests at the low and high end of the market's schedule elasticity (web: `scheduleRange`) |
 | Uncertainty | P10 / P50 / P90 of total guests and of the lift (Monte Carlo) |
 | Tornado | Swing in guests for a fixed up and down shock to each lever |
 | Briefing | One-paragraph summary |
 
 Method: [planning model](../model/planning.md). The web version is the `/simulate` page ([web app](web.md#pages)).
+
+## Levers
+
+| Lever | Arguments | Kind |
+| --- | --- | --- |
+| Schedule change | `--delta-freq`, `--gauge`, `--delta-seats-pct` | Learned: guests × (new seats ÷ baseline seats)^ε, ε from the fitted planning chain per market and season ([flight response](../model/planning.md#flight-response)) |
+| Capacity growth | web only | Assumption: seat trend % a year on projected weeks; guest effect from 0 to one for one, central line at the past co-movement (an association) |
+| Load factor, P2P share, multiplier, stay factor | `--delta-lf`, `--delta-p2p`, `--delta-mult-pct`, `--delta-los` | Assumptions |
+| Demand growth | web only | Assumption: guests % a year, every market, projected weeks |
 
 ## `twin simulate`
 

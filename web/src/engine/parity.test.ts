@@ -7,7 +7,8 @@ import { rangeInterval } from "./noise";
 import { DIRECTION_THRESHOLD, summariseRange } from "./range";
 import type { Manifest, Nowcast, WhatIf } from "./types";
 import { whatIfGuests } from "./whatif";
-import { conformalBands, hybrid, NO_CHANGE, simulate, tornado, type Planning } from "./planning";
+import { capacityGuestFactor } from "./capacity";
+import { conformalBands, elasticityFor, hybrid, NO_CHANGE, scheduleRange, simulate, tornado, type Planning } from "./planning";
 import { holdoutWmape, timeline, type Weekly } from "./weekly";
 
 const DATA = join(__dirname, "../../public/data");
@@ -89,6 +90,30 @@ describe("planning simulator", () => {
       const bands = conformalBands(planning, result);
       close(bands.p10, c.p10 as number); close(bands.p90, c.p90 as number);
       close(bands.deltaP10, c.delta_p10 as number); close(bands.deltaP90, c.delta_p90 as number);
+      const [low, high] = scheduleRange(planning, c.market as string, c.season as string, lever);
+      close(low, c.schedule_low as number); close(high, c.schedule_high as number);
+    }
+  });
+
+  it("moves a served route's guests by the chain's schedule elasticity, pooled for markets without seats", () => {
+    const cases = golden.filter((c) => c.kind === "scenario" && Object.keys(c.levers as object).every((k) => k === "delta_seats_pct"));
+    const markets = new Set(cases.map((c) => c.market as string));
+    expect(markets).toContain("SWEDEN");         // cold start: no baseline schedule, pooled elasticity
+    expect(elasticityFor(planning, "SWEDEN", "Winter_Peak")).toEqual(planning.flight_response.schedule.pooled.Winter_Peak);
+    for (const c of cases) {
+      const r = c.result as Record<string, number>;
+      if (r.base_seats <= 0 || r.sim_seats <= 0 || c.market === "DOMESTIC") continue;
+      close(r.sim_guests, r.base_guests * (r.sim_seats / r.base_seats) ** elasticityFor(planning, c.market as string, c.season as string).epsilon);
+    }
+  });
+
+  it("reproduces the capacity-growth guest factors", () => {
+    const cases = golden.filter((c) => c.kind === "capacity");
+    expect(cases.length).toBeGreaterThan(0);
+    for (const c of cases) {
+      const effects = c.effects as number[];
+      expect(effects[1]).toBeCloseTo(planning.flight_response.capacity.central, 12);
+      (c.factors as number[]).forEach((f, i) => close(capacityGuestFactor(c.growth_pct as number, c.years as number, effects[i]), f));
     }
   });
 
@@ -219,6 +244,27 @@ describe("five questions", () => {
       expect(opened.season).toBe(card.season);
       expect(toLever(opened.input)).toEqual(card.lever);   // the sliders give back the lever the card was answered from
     }
+  });
+});
+
+describe("capacity growth", () => {
+  it("compounds from the first projected week on the selected market only, with the range from no effect to one for one", async () => {
+    const { totalTimeline } = await import("./weekly");
+    const weekly = read<Weekly>(manifest.files.weekly);
+    const planning = read<Planning>(manifest.files.planning);
+    const opts = { start: weekly.last_actual_week, capacityPct: 10 };
+    const flat = timeline(planning, weekly, "UNITED KINGDOM", NO_CHANGE, { start: weekly.last_actual_week });
+    const grown = timeline(planning, weekly, "UNITED KINGDOM", NO_CHANGE, opts);
+    const i = flat.findIndex((p) => p.kind === "projected");
+    const gamma = planning.flight_response.capacity.central;
+    expect(grown[i].scenario).toBeCloseTo(flat[i].scenario!, 9);
+    grown.forEach((p, w) => { if (p.kind !== "projected") expect(p.scenario).toEqual(flat[w].scenario); });   // real and scheduled weeks unchanged
+    expect(grown[i + 52].scenario! / flat[i + 52].scenario!).toBeCloseTo(1.1 ** (gamma * 52 * 7 / 365.25), 9);
+    expect(grown[i + 52].capacityRange![0]).toBeCloseTo(flat[i + 52].scenario!, 9);
+    expect(grown[i + 52].capacityRange![1] / flat[i + 52].scenario!).toBeCloseTo(1.1 ** (52 * 7 / 365.25), 9);
+    const all = totalTimeline(planning, weekly, "UNITED KINGDOM", NO_CHANGE, opts);
+    const base = totalTimeline(planning, weekly, "UNITED KINGDOM", NO_CHANGE, { start: weekly.last_actual_week });
+    expect(all[i + 52].scenario! - base[i + 52].scenario!).toBeCloseTo(grown[i + 52].scenario! - flat[i + 52].scenario!, 6);
   });
 });
 

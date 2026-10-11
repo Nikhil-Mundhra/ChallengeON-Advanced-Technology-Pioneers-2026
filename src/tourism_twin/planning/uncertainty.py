@@ -145,9 +145,10 @@ def _draw(rng: np.random.Generator, sim_res: SimulationResult, history: np.ndarr
 
 
 def _trajectories(sim_res: SimulationResult, draws: Draws) -> Tuple[np.ndarray, np.ndarray]:
-    """Scenario and base guests per draw; both share the draws, the scenario shifted by its lever
-    deltas. As in the structural chain, today's P2P passengers convert at the multiplier and the
-    change in P2P passengers at most one hotel arrival each."""
+    """Scenario and base guests per draw; both share the draws. On a served route the scenario
+    scales each draw's arrivals by the structural chain's arrivals ratio, so the learned schedule
+    response carries over; on a new route today's arrivals stay and the added P2P passengers convert
+    at most one hotel arrival each, as in the structural chain."""
     lf = np.clip(draws.base_lf + (sim_res.sim_lf - sim_res.base_lf), 0.05, 1.0)
     p2p_share = np.clip(draws.base_p2p_share + (sim_res.sim_p2p_share - sim_res.base_p2p_share), 0.01, 1.0)
     unserved_arrivals = sim_res.base_arrivals * draws.mult_shocks if sim_res.base_seats == 0 else 0.0
@@ -155,8 +156,12 @@ def _trajectories(sim_res: SimulationResult, draws: Draws) -> Tuple[np.ndarray, 
                    unserved_arrivals, draws)
     m = np.maximum(0.01, sim_res.sim_multiplier * draws.mult_shocks)
     base_p2p = sim_res.base_seats * draws.base_lf * draws.base_p2p_share
-    sim_p2p = sim_res.sim_seats * lf * p2p_share
-    arrivals = np.maximum(0.0, np.where(base_p2p > 0, base_p2p * m, unserved_arrivals) + (sim_p2p - base_p2p) * np.minimum(m, 1.0))
+    if sim_res.base_seats > 0 and sim_res.base_arrivals > 0:
+        base_arrivals = base_p2p * np.maximum(0.01, sim_res.base_multiplier * draws.mult_shocks)
+        arrivals = base_arrivals * (sim_res.sim_arrivals / sim_res.base_arrivals)
+    else:
+        sim_p2p = sim_res.sim_seats * lf * p2p_share
+        arrivals = np.maximum(0.0, np.where(base_p2p > 0, base_p2p * m, unserved_arrivals) + (sim_p2p - base_p2p) * np.minimum(m, 1.0))
     stay = np.maximum(1.0, sim_res.sim_los * draws.los_shocks)
     sim = np.maximum(0.0, arrivals * stay + draws.residuals)
     return sim, base

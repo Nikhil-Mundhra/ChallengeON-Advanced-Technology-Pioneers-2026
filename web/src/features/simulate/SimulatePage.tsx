@@ -3,7 +3,8 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { Card, Segmented } from "../../components/ui";
 import { formatCount, formatSigned, toneOf } from "../../data/format";
-import { simulate, type Planning } from "../../engine/planning";
+import { capacityOutlook } from "../../engine/capacity";
+import { scheduleEffect, simulate, type Planning } from "../../engine/planning";
 import { playback } from "../../engine/playback";
 import { holdoutWmape, timeline, totalTimeline, type Weekly } from "../../engine/weekly";
 import { ALL_MARKETS, DEFAULT_INPUT, leverReducer, marketOptions, scenarioFromQuery, scenarioQuery, startOptions, toLever } from "./levers";
@@ -17,6 +18,7 @@ import { TimelinePanel } from "./TimelinePanel";
 import "./simulate.css";
 
 const DEFAULT_PANEL_WIDTH = 340;
+const CAPACITY_YEARS = 3;   // the projection's length (export/bundle.PROJECTION_YEARS)
 const DEFAULT_RESULTS_WIDTH = 300;
 
 function readSavedWidth(key: string, fallback: number, min: number, max: number): number {
@@ -79,10 +81,13 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
 
   const all = market === ALL_MARKETS;
   const lever = useMemo(() => toLever(all ? DEFAULT_INPUT : input), [input, all]);
-  const options = { start, growthPct };
-  const pb = useMemo(() => playback(planning, weekly, market, lever, options), [planning, weekly, market, lever, start, growthPct]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const capacityPct = all ? 0 : input.capacityPct;
+  const options = { start, growthPct, capacityPct };
+  const pb = useMemo(() => playback(planning, weekly, market, lever, options), [planning, weekly, market, lever, start, growthPct, capacityPct]);   // eslint-disable-line react-hooks/exhaustive-deps
   const points = useMemo(() => (all ? totalTimeline(planning, weekly, market, lever, options) : timeline(planning, weekly, market, lever, options)),
-    [planning, weekly, market, lever, start, growthPct, all]);   // eslint-disable-line react-hooks/exhaustive-deps
+    [planning, weekly, market, lever, start, growthPct, capacityPct, all]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const schedule = all ? null : scheduleEffect(planning, market, season, lever);
+  const capacity = { years: CAPACITY_YEARS, ...capacityOutlook(planning, capacityPct, CAPACITY_YEARS) };
   const [week, setWeek] = useState(() => Math.max(0, pb.weeks.indexOf(start)));
   useEffect(() => setWeek(Math.max(0, pb.weeks.indexOf(start))), [start]);   // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -115,7 +120,7 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
       <aside className="workbench__panel" aria-label="Scenario settings">
         <LeverPanel markets={markets} market={market} onMarket={setMarket} coldStart={coldStart} input={input} dispatch={dispatch}
                     start={start} startOptions={picks} onStart={setStart} defaultStart={firstWeek}
-                    growthPct={growthPct} onGrowth={setGrowthPct} />
+                    growthPct={growthPct} onGrowth={setGrowthPct} season={season} schedule={schedule} capacity={capacity} />
       </aside>
 
       <ResizeGutter

@@ -25,7 +25,7 @@ export function TimelinePanel({ weekly, points, error, start }: { weekly: Weekly
       <Timeline data={points} checked={[checked[0] ?? weekly.holdout_start, checked[checked.length - 1] ?? weekly.holdout_start]}
                 forecastFrom={forecastFrom} changesFrom={start} flags={flags} />
       <p className="note">
-        Future years repeat each market's usual seasonal pattern; set yearly growth on the left to add a trend. Public holidays are included up to {formatMonth(weekly.calendar_flags_until)}.
+        Future years repeat each market's usual seasonal pattern; set seat growth or demand growth on the left to add a trend. With seat growth, the shaded range runs from guests not following the seats to guests growing as fast as the seats. Public holidays are included up to {formatMonth(weekly.calendar_flags_until)}.
       </p>
     </div>
   );

@@ -9,7 +9,7 @@
  *              no stay-length assumption)
  */
 import { NO_CHANGE, paramsFor, type Lever, type Planning } from "./planning";
-import { timeline, type Weekly } from "./weekly";
+import { optionsFor, timeline, type TimelineOptions, type Weekly } from "./weekly";
 
 export interface MarketSeries { guests: number[]; checkIns: number[]; checkOuts: number[]; extra: number[]; checkInsBase: number[] }
 export interface Playback {
@@ -20,13 +20,12 @@ export interface Playback {
   events: Array<Array<{ code: string; markets: string[] }>>;  // events covering each week, with the markets they touch
 }
 
-export function playback(planning: Planning, weekly: Weekly, selected: string, lever: Lever,
-                         options: { start: string; growthPct?: number }): Playback {
+export function playback(planning: Planning, weekly: Weekly, selected: string, lever: Lever, options: TimelineOptions): Playback {
   const names = Object.keys(weekly.markets);
   const first = weekly.markets[names[0]];
   const markets: Record<string, MarketSeries> = {};
   for (const m of names) {
-    const points = timeline(planning, weekly, m, m === selected ? lever : NO_CHANGE, options);
+    const points = timeline(planning, weekly, m, m === selected ? lever : NO_CHANGE, optionsFor(m, selected, options));
     const season = weekly.markets[m].season;
     const guests = points.map((p) => p.actual ?? p.scenario ?? p.model);
     const checkIns = guests.map((g, w) => {
