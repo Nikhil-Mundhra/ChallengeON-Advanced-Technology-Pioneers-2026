@@ -14,9 +14,8 @@ export function TopNav({ items, action, extra }: { items: NavEntry[]; action: Na
     <header className={`topnav${open ? " topnav--open" : ""}`}>
       <div className="topnav__inner">
         <Link to="/" className="topnav__brand">
-          <Icon name="logo" size={22} />
+          <Icon name="logo" size={26} />
           <span>AeroLodge Metrics</span>
-          <span className="topnav__status"><span className="topnav__status-dot" aria-hidden="true" />Twin 2026</span>
         </Link>
         <nav className="topnav__links" aria-label="Pages">
           {items.map((item) => <NavLink key={item.to} to={item.to} end className="topnav__link">{item.label}</NavLink>)}
