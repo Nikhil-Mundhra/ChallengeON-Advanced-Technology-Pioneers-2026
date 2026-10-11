@@ -273,10 +273,10 @@ def _international_scenario(p: MarketSeasonParams, base: Chain, lever: ScenarioL
     passengers changes arrivals by at most one each (_marginal); arrivals already arriving by other
     routes stay, scaled only by the multiplier lever.
 
-    Incorporates empirical non-linear mechanics calibrated from curated lake panel data:
-    1. Frequency S-curve (Approach B): thin schedule (<7/wk) capture discount; daily threshold (7/wk) capture peak.
-    2. Capacity dilution (Approach A): seat surges beyond baseline decay marginal load factor and P2P transit share.
-    3. Destination room constraint (Approach C): peak season room saturation asymptotically caps runaway hotel guest demand.
+    Three hand-set adjustments (assumed constants, not fitted to the data):
+    1. Frequency S-curve: load factor scales with s(f) = f^1.5 / (f^1.5 + 7^1.5), f weekly flights.
+    2. Capacity dilution: seats above the baseline lower load factor and P2P share.
+    3. Saturation: added guests level off toward a multiple of baseline guests by season.
     """
     gauge = lever.aircraft_gauge if lever.aircraft_gauge > 0 else 250.0
     seats = max(0.0, (base.seats + lever.delta_frequency * gauge) * (1.0 + lever.delta_seats_pct))

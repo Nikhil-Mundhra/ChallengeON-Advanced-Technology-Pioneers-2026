@@ -5,7 +5,7 @@ Guests on day t are a stock; new arrivals are the flow into it. The panel carrie
 The competition test split withholds only Guests, so arrivals in both splits are features.
 
 Missing-value policy (per nationality-day, before aggregating to markets):
-- Present row with new_arrivals suppressed ('*'), or absent grid row (nationality not reported
+- Present row with new_arrivals suppressed (a blank cell), or absent grid row (nationality not reported
   that day): arrivals are linearly interpolated within the nationality's series for the lag
   features (new_arrivals_filled). Absent rows are not zero activity: Israel, a top-15 market, is
   absent for four days in Jan 2022. The observed sum (new_arrivals) still skips both, so weekly
