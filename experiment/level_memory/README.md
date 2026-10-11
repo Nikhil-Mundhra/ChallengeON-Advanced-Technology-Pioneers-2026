@@ -33,6 +33,9 @@ export PYTHONPATH=src:experiment/level_memory TWIN_LAKE_DIR=<repo>/lake
 python experiment/level_memory/run.py base,drift   # 126 fits, caches out/runs/ (about 1.5 h on 9 workers)
 python experiment/level_memory/run.py combined     # optional: held-back fits of CHOSEN_DRIFT for drift + carry
 python experiment/level_memory/report.py           # writes results.md
+python experiment/level_memory/refit.py shipped,drift  # one-market international refits, caches out/refits/ (about 3 min)
+python experiment/level_memory/graphs.py           # Israel graphs, out/israel/*.png
+python experiment/level_memory/fix_report.py       # held-value rules; appends the Israel section to results.md
 ```
 
 | File | Responsibility |
@@ -44,6 +47,11 @@ python experiment/level_memory/report.py           # writes results.md
 | `run.py` | fits per fold and window, caches predictions and fit reports |
 | `scoring.py` | WAPE, compare(), bias, MAE, RMSE, R2 vs time, horizons, weekly sums, bias by market |
 | `report.py` | carry-forward grid, drift grid, selection, identifiability, results.md |
+| `refit.py` | one-market refits of the international nowcast and drift, to read w, c_t and s(t) |
+| `graphs.py` | the Israel graphs (a to d) |
+| `shock.py` | arrival collapse: last 90 days of arrivals over the same days a year earlier |
+| `fixes.py` | held-value rules for s(t) beyond the training days |
+| `fix_report.py` | scores the rules, the Israel section of results.md |
 
 ## Results
 
@@ -109,7 +117,7 @@ s(t) stays within -0.14 and +0.15 (Israel and Oman are widest; most markets with
 - The drift passes the international gate: -0.33 pp [-0.47, -0.19], 7/7 folds. It is the best of 24 grid points on the same folds. Chosen on the first 4 folds alone it is the same setting, and it gains -0.37 pp [-0.64, -0.10] on the last 3.
 - The drift fails on domestic (-0.04 pp). A ship would scope it to international, with domestic predictions identical to the shipped ones.
 - Holding s at its last value beats decaying it. Decay with a 30-day half-life is worse than the shipped model.
-- The drift and the base stock share the slow level (|corr| up to 0.8) but converge. The drift removes little of the persistent market bias: China, India, Philippines and Other Eurasia stay below -8% in 5 to 7 folds, and Israel goes from +1.5% to +11.1%.
+- The drift and the base stock share the slow level (|corr| up to 0.8) but converge. The drift removes little of the persistent market bias: China, India, Philippines and Other Eurasia stay below -8% in 5 to 7 folds, and Israel goes from +1.5% to +11.1%. The Israel follow-up below fixes Israel.
 - Combined: not run, because carry-forward does not help. `run.py combined` and `report.py` support it.
 
 Bias here is sum pred / sum actual - 1, so negative means under-prediction. The background figures used log(actual / pred), the opposite sign.
@@ -122,3 +130,42 @@ Bias here is sum pred / sum actual - 1, so negative means under-prediction. The 
 | Drift form, mean zero, held beyond the training days | | TAUGHT |
 | s(t) knot values | per market and fold | LEARNED (fit) |
 | Drift knots 182 days, lambda 0.1 (international) | | LEARNED (tuned on validation) |
+
+## Israel follow-up
+
+### What the graphs show
+
+Graphs are in `out/israel/` (licensed data, not committed).
+
+- a, `a_series.png`: Israel guests per arrival rose from about 2.2 in early 2023 to 3.3 to 3.9 from April to September 2023. After 7 October 2023 arrivals fell to about 10% of the year before for four months, and the ratio stayed near 3.25. From April 2024 volumes recovered and the ratio settled at 2.6 to 3.1. The war is not flagged: Israel's only `is_one_off_period` rows are January 2022. Folds 1 to 4 end their training inside the collapse (11 January to 10 April 2024).
+- b, `b_folds.png`: in folds 1 to 4 s(t) rises through 2023 and its last knot (+0.12 to +0.135) sits on war rows, which are a tenth of the normal volume but count equally in the log objective. Held flat, it lifts every test week by about 13%. Drift bias is +16% to +22% where shipped is +2% to +8%. In folds 5 to 7 a knot after the recovery pulls s back to +0.04, 0.00 and 0.00. Fold 5 is still +4.8% (shipped -1.7%); folds 6 and 7 match shipped. The base stock c_t is small (about 60 guests a day at most) in both models and is not the cause.
+- c, `c_contrast.png`: Saudi Arabia, China and Other Eurasia (largest WAPE gains) have s(t) that moves steadily and keeps its direction after the training end, so holding the last value is right. In Israel the held value sits on a level the market leaves within weeks.
+- d, `d_last_knot.png`: across 140 market-folds, corr(|last knot|, WAPE change) is +0.49, but 0.00 without Israel. Saudi Arabia holds +0.09 to +0.12 in folds 5 to 7 and still gains. One other point is harmful: Oman fold 5, last knot +0.15, +4.2 pp, with no collapse (arrivals 0.78 of the year before).
+
+Supported: a held value fitted on a collapse period does not carry into the recovery. Not supported: a general harm from large last knots (cap, shrink toward the window mean), or a per-market lambda (Israel's s is smooth; its problem is where the last knot sits). Dropping the war rows from the fit alone would likely not help: the knot before it, July 2023, is +0.09, and holding +0.09 still gives +13% to +16% bias on folds 1 to 4.
+
+### Fix
+
+`shock_zero`: hold s at 0 (the window mean) when arrivals over the last 90 training days are below half of the same days a year earlier. Only Israel folds 1 to 6 are below 0.5 (0.11 to 0.48); every other market-fold is 0.78 or above. The fit does not change, only the held value.
+
+| International | WAPE | Delta [90% CI] | Folds better | Bias % | Israel bias % (folds >5%) | Gate |
+| --- | --- | --- | --- | --- | --- | --- |
+| shipped | 9.62 | | | -2.3 | +1.5 (1) | |
+| drift (held last knot) | 9.30 | -0.33 [-0.47, -0.19] | 7/7 | -1.7 | +11.1 (4) | pass |
+| `shock_zero` | 9.23 | -0.39 [-0.54, -0.25] | 7/7 | -1.8 | +2.6 (2) | pass |
+| `shock_shrink` (s x min(ratio, 1)) | 9.23 | -0.39 [-0.54, -0.25] | 7/7 | -1.8 | +3.8 (3) | pass |
+| `cap_008` (control, clip to +-0.08) | 9.23 | -0.39 [-0.54, -0.26] | 7/7 | -1.8 | +8.0 (4) | pass |
+
+Chosen on the first 4 folds: `shock_zero`, -0.41 pp [-0.53, -0.34], 4/4. On the last 3 folds: -0.37 pp [-0.64, -0.10], 3/3. Domestic predictions are identical to shipped. No other market's bias changes under `shock_zero`; the full table is in results.md.
+
+Limits:
+
+- The rule was designed after seeing Israel on these folds, and only one market-period triggers it. The gate numbers do not test it out of sample. The last-3-fold check mostly measures the drift itself.
+- Israel folds 2 and 3 stay above 5% (+5.9%, +6.6%), as shipped does (+4.6%, +7.5%).
+- Oman fold 5 (+11.8% bias, no collapse) is not fixed. The cap helps it but leaves Israel at +8.0%.
+
+| Setting | Value | Class |
+| --- | --- | --- |
+| Hold s at 0 after an arrival collapse | | TAUGHT |
+| Collapse measure: 90 days, year on year | | TAUGHT |
+| Threshold 0.5 | any value from 0.36 to 0.78 gives the same Israel resets | TAUGHT (round value, not tuned) |

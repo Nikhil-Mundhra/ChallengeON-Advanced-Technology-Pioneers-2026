@@ -5,7 +5,7 @@
 s(t) is piecewise linear on its own knots, mean zero over the training rows (so sum(w) keeps the
 average strength), with a first-difference penalty drift_lambda * n / knots * sum (s_j - s_{j-1})^2
 in log units, the same unitless form as the base-stock penalty. Beyond the training days s is held
-at its last value, or decays to 0 with a half-life.
+at its last value (or at `held` when set), or decays to 0 with a half-life.
 
 Each backfitting call runs one block step for the kernel (w, c with s fixed: the parent's fit on
 lags scaled by exp(s)) and one for s (w, c fixed). Each step keeps its result only if the penalised
@@ -47,6 +47,7 @@ class DriftingKernel(ArrivalsConvolution):
         self.drift_knot_days = drift_knot_days
         self.drift_lambda = drift_lambda
         self.half_life = half_life  # None: s held at its last value beyond the training days
+        self.held: Optional[float] = None  # set after the fit to hold another value beyond the training days (fixes.py)
         super().__init__(max_lag=max_lag, knot_days=knot_days, base_smoothing=base_smoothing, name=name,
                          date_column=date_column, base="knots")
 
@@ -64,8 +65,11 @@ class DriftingKernel(ArrivalsConvolution):
     def drift(self, dates: pd.Series) -> np.ndarray:
         dates = pd.to_datetime(dates)
         s = hat_basis(dates, self.drift_knots_) @ self.theta_
+        beyond = np.clip((dates - self.train_end_).dt.days.to_numpy(), 0, None)
+        held = getattr(self, "held", None)  # fits pickled before `held` existed have no attribute
+        if held is not None:
+            s = np.where(beyond > 0, held, s)
         if self.half_life is not None:
-            beyond = np.clip((dates - self.train_end_).dt.days.to_numpy(), 0, None)
             s = s * 0.5 ** (beyond / self.half_life)
         return s
 

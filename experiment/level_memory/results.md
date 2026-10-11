@@ -482,3 +482,66 @@ folds >5%: folds (of 7) with a same-sign bias above 5%.
 | SAUDI ARABIA | -5.6 | 4 | -2.2 | 2 | -0.3 | 3 |
 | UNITED KINGDOM | 2.8 | 0 | 1.9 | 1 | 0.8 | 0 |
 | UNITED STATES OF AMERICA | -2.9 | 2 | -3.4 | 3 | -3.1 | 3 |
+
+## Israel follow-up: the held drift value
+
+International rows only; domestic keeps the shipped predictions (max abs difference 0.0e+00). Each rule changes only the value s(t) is held at beyond the training days of the chosen drift (`drift_k182_l0.1`). arrivals yoy: mean new arrivals over the last 90 training days divided by the same 90 days a year earlier (`shock.py`).
+
+| model | WAPE | delta pp [90% CI] | bias % | MAE | RMSE | WAPE h1-7 | WAPE h8-30 | WAPE h31+ | folds better | gate |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| nowcast | 9.62 |  | -2.25 | 109.70 | 169.18 | 7.91 | 8.71 | 9.78 |  |  |
+| drift | 9.30 | -0.33 [-0.47, -0.19] | -1.69 | 105.97 | 163.50 | 7.71 | 8.40 | 9.44 | 7/7 | pass |
+| shock_zero | 9.23 | -0.39 [-0.54, -0.25] | -1.82 | 105.21 | 163.07 | 7.69 | 8.37 | 9.37 | 7/7 | pass |
+| shock_shrink | 9.23 | -0.39 [-0.54, -0.25] | -1.81 | 105.22 | 163.08 | 7.69 | 8.36 | 9.37 | 7/7 | pass |
+| cap_008 | 9.23 | -0.39 [-0.54, -0.26] | -1.82 | 105.19 | 162.98 | 7.68 | 8.35 | 9.37 | 7/7 | pass |
+
+Chosen on the first 4 folds: `shock_zero`.
+`shock_zero` vs shipped on the first 4 folds: -0.41 pp [-0.53, -0.34], 4/4 folds better.
+`shock_zero` vs shipped on the last 3 folds: -0.37 pp [-0.64, -0.10], 3/3 folds better.
+
+Israel held values per fold:
+
+| fold | arrivals yoy | drift | shock_zero | shock_shrink | cap_008 |
+| --- | --- | --- | --- | --- | --- |
+| origin_2024-02-01 | 0.110 | 0.124 | 0.000 | 0.014 | 0.080 |
+| origin_2024-03-01 | 0.117 | 0.134 | 0.000 | 0.016 | 0.080 |
+| origin_2024-04-01 | 0.132 | 0.135 | 0.000 | 0.018 | 0.080 |
+| origin_2024-05-01 | 0.155 | 0.120 | 0.000 | 0.019 | 0.080 |
+| origin_2024-06-01 | 0.357 | 0.041 | 0.000 | 0.015 | 0.041 |
+| origin_2024-07-01 | 0.478 | 0.001 | 0.000 | 0.000 | 0.001 |
+| origin_2024-08-01 | 0.747 | -0.004 | -0.004 | -0.003 | -0.004 |
+
+Israel bias % per fold:
+
+| Israel bias % | origin_2024-02-01 | origin_2024-03-01 | origin_2024-04-01 | origin_2024-05-01 | origin_2024-06-01 | origin_2024-07-01 | origin_2024-08-01 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| cap_008 | 11.6 | 14.4 | 15.3 | 11.9 | 4.8 | 0.2 | -1.5 |
+| drift | 16.4 | 20.6 | 21.7 | 16.5 | 4.8 | 0.2 | -1.5 |
+| nowcast | 3.2 | 4.6 | 7.5 | 1.6 | -1.7 | -1.9 | -2.7 |
+| shock_shrink | 4.8 | 7.5 | 8.5 | 5.3 | 2.0 | 0.1 | -1.4 |
+| shock_zero | 3.4 | 5.9 | 6.6 | 3.3 | 0.6 | 0.1 | -1.5 |
+
+Bias by market, international, all folds pooled (folds >5%: folds of 7 with a same-sign bias above 5%):
+
+| market | shipped bias % | shipped folds >5% | drift bias % | drift folds >5% | shock_zero bias % | shock_zero folds >5% | shock_shrink bias % | shock_shrink folds >5% | cap_008 bias % | cap_008 folds >5% |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| CHINA | -11.9 | 7 | -10.8 | 7 | -10.8 | 7 | -10.8 | 7 | -10.8 | 7 |
+| EGYPT | -9.7 | 5 | -9.1 | 5 | -9.1 | 5 | -9.1 | 5 | -9.1 | 5 |
+| FRANCE | 1.5 | 1 | 0.7 | 1 | 0.7 | 1 | 0.7 | 1 | 0.7 | 1 |
+| GERMANY | 7.5 | 6 | 6.2 | 5 | 6.2 | 5 | 6.2 | 5 | 6.2 | 5 |
+| INDIA | -9.1 | 6 | -8.1 | 6 | -8.1 | 6 | -8.1 | 6 | -8.1 | 6 |
+| ISRAEL | 1.5 | 1 | 11.1 | 4 | 2.6 | 2 | 3.8 | 3 | 8.0 | 4 |
+| ITALY | -2.6 | 2 | -1.4 | 1 | -1.4 | 1 | -1.4 | 1 | -1.4 | 1 |
+| KAZAKHSTAN | 2.9 | 1 | 1.3 | 1 | 1.3 | 1 | 1.3 | 1 | 1.3 | 1 |
+| KUWAIT | -3.0 | 1 | -0.2 | 1 | -0.2 | 1 | -0.2 | 1 | -0.2 | 1 |
+| OMAN | -4.9 | 3 | -1.3 | 3 | -1.3 | 3 | -2.0 | 3 | -2.6 | 3 |
+| OTHER_AMERICAS_AFRICA | 0.3 | 0 | 0.7 | 0 | 0.7 | 0 | 0.7 | 0 | 0.7 | 0 |
+| OTHER_ASIA_PACIFIC | -7.0 | 4 | -6.1 | 3 | -6.1 | 3 | -6.1 | 3 | -6.1 | 3 |
+| OTHER_EURASIA | -10.2 | 7 | -8.6 | 5 | -8.6 | 5 | -8.6 | 5 | -8.6 | 5 |
+| OTHER_EUROPE | 2.5 | 2 | 2.3 | 2 | 2.3 | 2 | 2.3 | 2 | 2.3 | 2 |
+| OTHER_MENA | -0.3 | 1 | 0.6 | 1 | 0.6 | 1 | 0.6 | 1 | 0.6 | 1 |
+| PHILIPPINES | -16.4 | 7 | -16.0 | 7 | -16.0 | 7 | -16.1 | 7 | -16.1 | 7 |
+| RUSSIAN FEDERATION | 8.6 | 5 | 7.2 | 5 | 7.2 | 5 | 7.2 | 5 | 7.2 | 5 |
+| SAUDI ARABIA | -5.6 | 4 | -0.3 | 3 | -0.3 | 3 | -0.3 | 3 | -1.4 | 2 |
+| UNITED KINGDOM | 2.8 | 0 | 0.8 | 0 | 0.8 | 0 | 0.8 | 0 | 0.8 | 0 |
+| UNITED STATES OF AMERICA | -2.9 | 2 | -3.1 | 3 | -3.1 | 3 | -3.1 | 3 | -3.1 | 3 |
