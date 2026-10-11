@@ -28,12 +28,15 @@ export function ResultsPanel({ pb, week, market }: { pb: Playback; week: number;
     : mode === "month" ? formatMonth(period.first)
     : mode === "year" ? period.first.slice(0, 4)
     : `${formatMonth(period.first)} to ${formatDate(period.last)}`;
+  const beforeStart = mode === "since" && sum.weeks === 0;
   return (
     <>
-      <Card title="Totals" subtitle={label} actions={<Badge tone="neutral">{DATA_LABEL[sum.data]}</Badge>}>
+      <Card title="Totals" subtitle={beforeStart ? `Since ${formatMonth(period.first)}` : label}
+            actions={beforeStart ? undefined : <Badge tone="neutral">{DATA_LABEL[sum.data]}</Badge>}>
         <Segmented label="Period" value={mode} onChange={setMode} options={MODES} />
         {mode === "since" && <Select label="Since" value={String(since)} onChange={(v) => setSince(Number(v))} options={sinceOptions} />}
-        <dl className="totals">
+        {beforeStart && <p className="note">The map is at {formatDate(pb.weeks[week])}, before this start date. Press play, or pick an earlier date.</p>}
+        {!beforeStart && <dl className="totals">
           <div><dt>Visitors arriving</dt><dd>{formatCount(sum.visitors)}</dd></div>
           <div><dt>Hotel nights</dt><dd>{formatCount(sum.guests)}</dd></div>
           {Math.abs(addedNights) >= 1 && (
@@ -57,7 +60,7 @@ export function ResultsPanel({ pb, week, market }: { pb: Playback; week: number;
               </dd>
             </div>
           )}
-        </dl>
+        </dl>}
         {!sum.covered && <p className="note">Only part of this period has data, so the totals cover the weeks we have.</p>}
         <p className="note">{known || market === ALL_MARKETS ? marketName(market) : `All markets (${marketName(market)} has no hotel history yet)`}. Follows the week on the map; press play and it moves.</p>
       </Card>

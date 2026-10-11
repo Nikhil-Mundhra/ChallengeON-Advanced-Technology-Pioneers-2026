@@ -22,8 +22,10 @@ function overlap(monday: string, start: number, end: number): number {
 export function periodAt(weeks: string[], w: number, mode: PeriodMode, sinceIndex = 0): Period {
   const weights = new Map<number, number>();
   if (mode === "week" || mode === "since") {
-    for (let i = mode === "week" ? w : Math.min(sinceIndex, w); i <= w; i += 1) weights.set(i, 1);
-    return { weights, first: weeks[Math.min(...weights.keys())], last: iso(time(weeks[w]) + 6 * DAY) };
+    // "since" before its start date is an empty period, not the current week.
+    for (let i = mode === "week" ? w : sinceIndex; i <= w; i += 1) weights.set(i, 1);
+    const first = weeks[mode === "week" ? w : sinceIndex];
+    return { weights, first, last: iso(time(weeks[w]) + 6 * DAY) };
   }
   // The calendar month or year containing the middle of the shown week.
   const mid = new Date(time(weeks[w]) + 3 * DAY);

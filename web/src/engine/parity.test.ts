@@ -180,6 +180,7 @@ describe("period totals", () => {
     expect(summarise(pb, periodAt(pb.weeks, w, "week"), ["ARMENIA"]).visitors).toBe(0);   // no weekly history: nothing, not a crash
     const since = summarise(pb, periodAt(pb.weeks, w, "since", w - 3));
     expect(since.weeks).toBe(4);
+    expect(summarise(pb, periodAt(pb.weeks, w, "since", w + 5)).weeks).toBe(0);   // the map is before the start date
     const totals = totalTimeline(planning, weekly, "ALL", NO_CHANGE, opts);
     totals.forEach((p, i) => expect(p.model).toBeCloseTo(Object.keys(weekly.markets).reduce((t, m) => t + timeline(planning, weekly, m, NO_CHANGE, opts)[i].model, 0), 6));
   });
