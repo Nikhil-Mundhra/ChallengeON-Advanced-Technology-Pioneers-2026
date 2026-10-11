@@ -7,7 +7,7 @@
 | 1 | Guests: 1,308 labelled days, then 212 test days |
 | 2 | 45 guest nationalities vs 33 flight departure countries; the fields differ in meaning even when labels match. 12 nationalities have no flight-origin rows: Australia, Brazil, Czechia, Denmark, Finland, Mexico, Morocco, Norway, Pakistan, Romania, South Africa, Sweden |
 | 3 | 2022 flights exist on 12 month-start dates only; daily flights start 2023-01-01. 2022 flights are isolated in `flight_monthly.parquet`; the `guest_flight_daily` view has NULL flight measures for 2022 dates |
-| 4 | `*` (suppressed or unavailable) is kept as null: 264 new-arrival and 39,428 same-day values, flagged by `is_suppressed_arrival` and `is_suppressed_same_day` (840 and 40,004 including the 576 flagged absent grid rows). Same-day guests never exceed guests |
+| 4 | Suppressed values are blank cells in the workbooks; no cell holds `*`. They are read as null: 264 new-arrival values (262 train, 2 test) and 39,428 same-day values (35,026 train, 4,402 test), flagged by `is_suppressed_arrival` and `is_suppressed_same_day` (840 and 40,004 including the 576 flagged absent grid rows). `Guests` has no blank cell in the train files. Same-day guests never exceed guests |
 | 5 | Domestic demand is modelled separately; international flight changes create no domestic guests |
 | 6 | Realized pax, P2P, load factor and new arrivals are known for calibration and unknown before a future flight operates |
 | 7 | International train-split guests ÷ new arrivals = 3.61, a stock-to-flow ratio, not a measured length of stay |

@@ -13,7 +13,7 @@ For one source market and one season, the simulator compares a baseline week wit
 | Tornado | Swing in guests for a fixed up and down shock to each lever |
 | Briefing | One-paragraph summary |
 
-Method: [planning model](../model/planning.md).
+Method: [planning model](../model/planning.md). The web version is the `/simulate` page ([web app](web.md#pages)).
 
 ## `twin simulate`
 

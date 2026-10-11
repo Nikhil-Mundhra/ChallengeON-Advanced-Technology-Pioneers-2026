@@ -15,6 +15,7 @@ A fixed procedure with fixed hyperparameters. Its results: [component order](com
 | Fit | Backfitting: kernel on Guests / m, calendar on log(Guests / flow), until the largest change in any log contribution < 1e-6 |
 | Metric | WAPE = Σ\|actual − predicted\| / Σ actual, per series and fold |
 | Not inputs | Same-day guests; anything derived from `Guests` |
+| Shipped specs | `twin_daily` has no ridge on calendar terms and refines the kernel on the log objective ([fitting](../model/nowcast.md#fitting)); the ridge α = 1 belongs to this reference only |
 
 Expected values (WAPE %):
 

@@ -44,6 +44,16 @@ Kernel constraints (`ArrivalsConvolution`):
 
 w is a fitting device, not a measured stay distribution; Σw is not reported in any output.
 
+Fitted kernel on the full training window (shipped specs):
+
+| Series | Σw | Lags with weight | w₀ ≤ 1 binds | Backfitting passes |
+| --- | ---: | --- | --- | ---: |
+| `UNITED KINGDOM` | 4.52 | 0 to 6 | yes | 12 |
+| `INDIA` | 2.31 | 0 to 3 (0.001 on each later lag) | yes | 15 |
+| `DOMESTIC` | 1.37 | 0 to 1 | yes | 18 |
+
+Guests against the fitted flow, calendar removed: [flow linearity](../evidence/flow-linearity.md).
+
 ## Blocks
 
 | Block | Components | Role |
@@ -60,14 +70,29 @@ Blocks are parallel terms of one log-additive model. Each component carries its 
 | Fact |
 | --- |
 | `Backfitting` (`models/fitters.py`) fits one component at a time with every other contribution held as an offset, kernel first, until the largest contribution change is < 1e-6 (cap 200 passes) |
+| In `twin_daily` each pass has two steps: the kernel with the calendar held fixed, then the calendar block (season, weekday, events or slope) with the kernel held fixed |
 | Every block minimises one penalised log-scale objective, Σ(y − Σ contributions)² plus each component's penalty; the base-stock penalty is made unitless by the first pass's mean target |
 | The kernel starts from a least-squares solve on the original scale, is refined on the log objective under its constraints, and keeps the refinement only if the objective does not rise |
 | The linear components are one jointly solved block on y − log flow |
 | The penalised objective never increases; `FitReport.objective` records it per pass |
 | `domestic_time` has linear components only and uses `JointLinear` (one least squares) |
+| `AnnualFourier`, `DayOfWeek` and `CentredSlope` have no penalty; in `twin_daily` the only penalties are the base-stock first difference and the event second difference (windows of 6+ days) |
 | Fitting chosen components on the offset of frozen others is one valid block step from a converged fit |
 | A separate weight per block is not identifiable when the block's coefficients are free; it is identifiable when the block's shape is fixed (partial pooling: `GroupScale` in `POOLED_NATIONALITIES`) |
 | `scripts/compare_domestic_weekday.py` reproduces the domestic weekday and pass-cap comparison |
+
+Hand-set settings (`nowcast/specs.py`, component defaults):
+
+| Setting | Value |
+| --- | --- |
+| Longest arrival lag K (`max_lag`) | 21 days |
+| Fourier pairs H (`harmonics`) | 4 |
+| Base-stock knot spacing (`knot_days`) | 365 days; knots spread evenly over the training days |
+| Base-stock smoothing (`base_smoothing`) | 1.0 |
+| Event smoothing (`smoothing`) | 1.0 |
+| Shortest smoothed event window (`min_smoothed_days`) | 6 days |
+
+Sensitivity to these settings: [hand-set settings](../evidence/hand-set-settings.md). Fitting in stages instead of jointly: [two-stage fit](../evidence/two-stage-fit.md).
 
 ## Series
 
@@ -146,8 +171,8 @@ Candidate windows come from `event_detector.py` (analysis): robust z on residual
 | Fact |
 | --- |
 | `SameDayPoisson`: one Poisson GLM per market on weekday, holiday week and log(1 + new arrivals); markets with fewer than 60 training days use their mean |
-| A suppressed value (`*`) counts as 0: no observed value is 0; observed counts fall from 1 (6,814 rows) to 2 (5,179) to 3 (2,967); suppressed days have lower arrivals (CHINA median 328 vs 501) |
-| Every nationality with a suppressed value also published a 1; the censored likelihood (count < 1) equals reading `*` as 0 |
+| A suppressed (blank) value counts as 0: no observed value is 0; observed counts fall from 1 (6,814 rows) to 2 (5,179) to 3 (2,967); suppressed days have lower arrivals (CHINA median 328 vs 501) |
+| Every nationality with a suppressed value also published a 1; the censored likelihood (count < 1) equals reading a blank as 0 |
 | Counts are overdispersed; no same-day interval is produced ([nowcast validation](../results/nowcast-validation.md)) |
 | `same_day_backtest` scores it on rolling origins (`scripts/same_day_backtest.py`) |
 | `twin predict` does not call it; the test workbooks contain `Same-Day Guests` |

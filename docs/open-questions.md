@@ -20,3 +20,5 @@
 | Weekly simulator interval coverage below nominal ([limitations](results/limitations.md)) | Open; daily predictions use `NoiseModel` |
 | Smoothed `EventKernel` in the nowcast vs box windows | Untested; [slope and events](evidence/slope-and-events.md) used box windows |
 | Flight block (`LinearRegressors` on flight features) | Registered, used by no spec ([factor chain](evidence/factor-chain.md)) |
+| International-only spec with 182-day base-stock knots and a learned flow curve: each lowers international validation WAPE in 7 of 7 folds; their domestic intervals include 0 ([hand-set settings](evidence/hand-set-settings.md), [flow linearity](evidence/flow-linearity.md)) | Not gated; the two changes are untested together |
+| Noise model memory beyond AR(1): out-of-sample error ACF stays at 0.19 to 0.35 from lag 7 to lag 14, with a bump at lag 7 ([noise](evidence/noise.md)) | Open; `NoiseModel` is AR(1) ([intervals](model/intervals.md)) |

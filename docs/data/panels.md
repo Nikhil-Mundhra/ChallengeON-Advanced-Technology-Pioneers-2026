@@ -12,8 +12,11 @@ Daily panel:
 | Item | Fact |
 | --- | --- |
 | Lags | `arrivals_lag_0..K` (default K = 21) over the concatenated train and test series; the first test days take lags from the last train days; `lag_complete` marks a full lag window |
-| Absent test rows | The test file keeps rows with New Arrivals ≥ 10 only. A test nationality-day absent from it (338 rows, mostly Finland, Norway, Denmark, Mexico, Azerbaijan) gets the nationality's mean training arrivals on days below 10 (4.5 to 6.1; 5.4 overall), counted in `n_arrivals_below_threshold` |
-| Other gaps | Other suppressed or absent arrivals are linearly interpolated within each nationality's series into `new_arrivals_filled` (`n_arrivals_interpolated`, `n_absent_records`); training absences: 238 rows |
+| Absent test rows | The test file keeps rows with New Arrivals ≥ 10 only. A test nationality-day absent from it (338 rows in 17 nationalities, mostly Finland, Norway, Denmark, Mexico, Azerbaijan) gets the nationality's mean training arrivals on days below 10 (4.5 to 7.9 by nationality; 5.18 averaged over the 338 rows), counted in `n_arrivals_below_threshold`. A nationality without such days would get the overall mean (5.4); none of the 17 needs it |
+| Other gaps | Suppressed arrivals in present rows (264) and absent training rows (238) are linearly interpolated within each nationality's series into `new_arrivals_filled` (`n_arrivals_interpolated`, `n_absent_records`); leading and trailing gaps take the nearest observed value |
+| Present test rows | `new_arrivals_filled` is clipped below at 10; the clip changes the 2 suppressed test rows |
+| Guests | Never filled or interpolated; a market-day sums its nationalities' guests and stays missing when none is present |
+| Training rows | 27,464 market-days with guests; 26,904 after dropping `is_one_off_period` (560); 26,727 after keeping `lag_complete` (177 more rows from the first 21 days of each market). Rules: [nowcast](../model/nowcast.md#training-rows-and-inputs) |
 | Reconciliation | Observed `new_arrivals` leaves gaps missing; weekly sums of daily `guests` and `new_arrivals` equal the weekly panel exactly (tested) |
 | Use | Input of the daily nowcast; `twin predict` and the back-test build it in memory from `guest_daily.parquet` |
 

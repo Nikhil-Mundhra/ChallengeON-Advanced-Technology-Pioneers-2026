@@ -15,10 +15,12 @@ Guests = Seats × LF × P2PShare × M × L
 
 | Part | Fact |
 | --- | --- |
+| Ratios | LF, P2P share, M and L are training-window means per market and season; none is fitted by optimisation |
 | Market bridge | Departure country k is linked to nationality k; M absorbs non-national passengers, indirect connections and overland arrivals. A 45 × 33 country-to-nationality matrix (1,485 parameters) is not estimated |
 | Planning prediction (`planning_guests`) | Scheduled seats × calibrated LF, P2P share, M, L. A served market whose seats carry no P2P passengers has zero aviation arrivals; an unserved market keeps its calibrated arrivals. The simulator baseline uses the same rule (`MarketSeasonParams.arrivals_from`) |
 | Domestic | `DOMESTIC` = calibrated seasonal arrivals × L, independent of seats; seat, frequency, load-factor and P2P levers have no effect; multiplier and stay-factor levers do (tested) |
 | Cold start | A country without calibration gets its archetype's default LF, P2P share, M and L (`domain/archetypes.py`); unknown countries map to Emerging / Sparse |
+| Scenario response (`_international_scenario`) | Three hand-set adjustments apply to international scenarios: when flights are added or removed, a frequency S-curve s(f) = f^1.5 / (f^1.5 + 7^1.5), f = weekly flights (seats ÷ gauge), scales load factor by s(new) ÷ s(base), clipped to [0.85, 1.15] (a market without flights: s(new) ÷ s(7), clipped to [0.75, 1]); seats above the baseline scale load factor by (1 + expansion)^−0.05 and P2P share by (1 + expansion)^−0.08; added guests saturate toward κ × baseline guests, κ = 2.5 in Winter_Peak and Spring_Shoulder and 2.0 otherwise. A zero gauge counts as 250 seats |
 | Waterfall | Lift attributed sequentially: seats, load factor, P2P share, multiplier, stay factor. The five parts sum to the total lift (tested to < 1e-9 for every calibrated market, a cold-start market, all seasons and 6 lever sets); `simulate` raises above a relative 1e-9 (absolute 1e-6) |
 
 ## Residual (`planning/residual.py`, `planning/calendar_features.py`)
@@ -34,7 +36,7 @@ Hybrid = max(0, planning_guests + residual)
 | Target: actual guests − `planning_guests` |
 | In a scenario the residual is the mean fitted residual over the market's training weeks in that season (`season_residual` in `residual_engine.pkl`) |
 | No aviation inputs; the hybrid lift equals the structural lift unless the max(0, ·) floor binds (tested: lift ≥ 0 for +2 flights in 5 markets) |
-| `RidgeCV` uses non-temporal CV |
+| `RidgeCV` picks α from 25 values, 10⁻² to 10⁴ (log-spaced), by scikit-learn's built-in leave-one-out, which ignores time order |
 | Holiday flags are the legacy `is_holiday_week` and `is_major_event_week`, which lump Eid al-Fitr, Eid al-Adha, National Day and New Year |
 
 ## Uncertainty and sensitivity (`planning/uncertainty.py`, `planning/conformal.py`, `planning/sensitivity.py`)
@@ -43,6 +45,7 @@ Hybrid = max(0, planning_guests + residual)
 | --- | --- |
 | Monte Carlo (1,500 draws default) | Load factor and P2P share ~ Beta (method of moments, sd 0.03 and 0.04); multiplier and stay factor × Normal(1, 0.06) and Normal(1, 0.04); residuals by 4-week block bootstrap of the market's weekly training residuals; seed from the scenario via SHA-256 |
 | Conformal margin | Per market: (1 − α) quantile of in-sample relative planning-mode error on the training window, α = 0.2 |
+| Coverage | Holdout coverage of the conformal range against its 80% target: [planning holdout](../results/planning-holdout.md) |
 | Tornado | Guest swing for ±15% seats, ±4 pp LF, ±5 pp P2P share, ±10% multiplier, ±0.5 stay factor; cold-start markets use a reference route |
 
 ## Archetypes (`domain/archetypes.py`)

@@ -44,6 +44,6 @@ What-if: `guests_t = max(base_t + pre_t + f · in_t, floor) · multiplier_t`; a 
 | `data/` | Bundle loader (`bundle.ts`), `format.ts` |
 | `components/{ui,layout,charts}` | Shared UI; chart theme `components/charts/theme.ts` |
 | `features/landing`, `features/nowcast`, `features/report`, `features/questions` | Pages and the shared `QuestionAnswers` |
-| `features/simulate/` | `SimulatePage.tsx` (shared state: market, levers reducer, week on the map, forecast start and growth); panes `LeverPanel.tsx`, `MapPlayback.tsx` (controlled week), `ResultsPanel.tsx`, `SeasonViews.tsx` (`ChainView`, `LeversView`), `TimelinePanel.tsx`, `NewRouteCard.tsx`; `levers.ts` (`sliderAvailability`) |
+| `features/simulate/` | `SimulatePage.tsx` (shared state: market, levers reducer, week on the map, forecast start and growth); panes `LeverPanel.tsx`, `MapPlayback.tsx` (controlled week), `ResultsPanel.tsx`, `SeasonViews.tsx` (`ChainView`, `LeversView`), `TimelinePanel.tsx`, `NewRouteCard.tsx`; `EventStack.tsx` (event cards over the map); `eventCards.ts` (card stack state: `advance`, `jumpTo`, `tick`); `levers.ts` (`sliderAvailability`) |
 | `theme/tokens.css` | Semantic colour tokens, light and dark |
 | `content/` | `labels`, `landing`, `geo`, `report`, `questions` copy |
