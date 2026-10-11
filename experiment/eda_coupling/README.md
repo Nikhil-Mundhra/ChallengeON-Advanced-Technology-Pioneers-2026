@@ -13,6 +13,7 @@ Run (needs the built lake; `daily_market_panel.parquet` is not committed):
 ```console
 $ PYTHONPATH=src python experiment/eda_coupling/prep.py
 $ python experiment/eda_coupling/plots.py
+$ python experiment/eda_coupling/shifts.py
 ```
 
 Charts go to `experiment/eda_coupling/out/` (gitignored).
@@ -46,3 +47,16 @@ Trend against trend (52-week change of the 13-week trend): guests on seats slope
 ## Conclusion
 
 Seats are almost all slow trend. After time is removed, seats explain about 4% of the remaining guest variance (correlation 0.19). The signal is lost at seats to P2P and P2P to arrivals; arrivals to guests is strong. A planning model that knows only scheduled seats cannot do much better than a good time model plus a modest seat response, which is what `experiment/scenario_response/` measures.
+
+## Stability over time (`shifts.py`)
+
+Per half-year slope on the time-removed residuals (90% bootstrap ranges in `out/5_shifts.png`):
+
+| Link | 2023 H1 | 2023 H2 | 2024 H1 | 2024 H2 | 2025 H1 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Seats to P2P | 1.10 | 1.04 | 1.39 | 1.03 | 1.25 |
+| P2P to arrivals | 0.85 | 0.42 | 0.59 | 0.42 | 0.81 |
+| Arrivals to guests | 0.80 | 0.80 | 0.79 | 0.80 | 0.82 |
+| Seats to guests | 0.58 | 0.22 | 0.70 | 0.22 | 0.46 |
+
+Arrivals to guests is stable. P2P to arrivals, and with it seats to guests, is about twice as strong in January to June as in July to December. The guest residual spread is 0.23 to 0.24 in the first halves of 2023 and 2025 and 0.12 to 0.16 in the other halves. Median over markets, P2P per seat falls about 10% in 2025 and arrivals per P2P rise 8 to 13%; guests per arrival stay within 5%.
