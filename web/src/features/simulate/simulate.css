@@ -1,8 +1,114 @@
 /* Workbench: three panes that scroll on their own; the page itself does not scroll on desktop. */
-.workbench { display: grid; grid-template-columns: 340px minmax(0, 1fr) 300px; gap: var(--space-4); height: calc(100vh - var(--topnav-height) - 2 * var(--space-5)); }
-.workbench__panel, .workbench__results { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: var(--space-4); padding-right: 2px; }
-.workbench__canvas { min-width: 0; min-height: 0; overflow-y: auto; }
+.workbench {
+  display: grid;
+  grid-template-columns: var(--panel-width, 340px) 16px minmax(0, 1fr) 16px var(--results-width, 300px);
+  gap: 0;
+  height: calc(100vh - var(--topnav-height) - 2 * var(--space-5));
+}
+.workbench--resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+.workbench--resizing * {
+  user-select: none;
+}
+.workbench__panel, .workbench__results {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-right: 4px;
+}
+.workbench__canvas {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
 .workbench__canvas > .card { min-height: 100%; }
+
+/* Auto-hide scrollbars in simulate workbench: invisible until hovered or focused */
+.workbench * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.workbench *:hover,
+.workbench *:focus-within {
+  scrollbar-width: thin;
+}
+.workbench *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.workbench *::-webkit-scrollbar-track {
+  background: transparent;
+}
+.workbench *::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: var(--radius-full);
+  transition: background 200ms var(--ease-out);
+}
+.workbench *:hover::-webkit-scrollbar-thumb,
+.workbench *:focus-within::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+}
+.workbench *::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Horizontal resizer gutters between workbench widgets */
+.workbench__resizer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  cursor: col-resize;
+  position: relative;
+  user-select: none;
+  touch-action: none;
+  outline: none;
+  z-index: 5;
+}
+.workbench__resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--color-border-subtle);
+  opacity: 0.6;
+  transition: opacity 150ms var(--ease-out), background 150ms var(--ease-out);
+}
+.workbench__resizer-handle {
+  width: 4px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+  position: relative;
+  z-index: 1;
+  transition: height 150ms var(--ease-out), background 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
+}
+.workbench__resizer:hover::before,
+.workbench__resizer:focus-visible::before,
+.workbench__resizer--active::before {
+  opacity: 1;
+  background: var(--color-accent);
+}
+.workbench__resizer:hover .workbench__resizer-handle,
+.workbench__resizer:focus-visible .workbench__resizer-handle,
+.workbench__resizer--active .workbench__resizer-handle {
+  height: 72px;
+  background: var(--color-accent);
+  box-shadow: 0 0 8px var(--color-accent-soft);
+}
+.workbench__resizer:focus-visible {
+  outline: none;
+}
+
 .canvas__body { display: flex; flex-direction: column; gap: var(--space-4); }
 .canvas__split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-5); align-items: start; }
 .workbench__bar { display: none; }
@@ -13,7 +119,8 @@
 .workbench .segmented { display: flex; flex-wrap: wrap; }
 
 @media (max-width: 1280px) {
-  .workbench { grid-template-columns: 320px minmax(0, 1fr); height: auto; }
+  .workbench { grid-template-columns: var(--panel-width, 320px) 16px minmax(0, 1fr); height: auto; }
+  .workbench__resizer--results { display: none; }
   .workbench__results { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; overflow: visible; }
   .workbench__results > * { flex: 1 1 220px; }
   .workbench__panel { overflow: visible; }
@@ -22,6 +129,7 @@
 
 @media (max-width: 900px) {
   .workbench { grid-template-columns: 1fr; padding-bottom: 56px; }
+  .workbench__resizer { display: none; }
   .workbench__bar {
     display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; justify-content: space-between; align-items: center;
     padding: var(--space-3) var(--space-4); background: var(--color-surface-glass);

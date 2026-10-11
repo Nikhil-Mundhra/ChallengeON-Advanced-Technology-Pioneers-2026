@@ -1,5 +1,5 @@
 import { marketName } from "../../content/labels";
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { Card, Segmented } from "../../components/ui";
 import { formatCount, formatSigned, toneOf } from "../../data/format";
@@ -10,10 +10,25 @@ import { ALL_MARKETS, DEFAULT_INPUT, leverReducer, marketOptions, scenarioFromQu
 import { LeverPanel } from "./LeverPanel";
 import { MapPlayback } from "./MapPlayback";
 import { NewRouteCard } from "./NewRouteCard";
+import { ResizeGutter } from "./ResizeGutter";
 import { ResultsPanel } from "./ResultsPanel";
 import { ChainView, LeversView } from "./SeasonViews";
 import { TimelinePanel } from "./TimelinePanel";
 import "./simulate.css";
+
+const DEFAULT_PANEL_WIDTH = 340;
+const DEFAULT_RESULTS_WIDTH = 300;
+
+function readSavedWidth(key: string, fallback: number, min: number, max: number): number {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 const VIEWS = [
   { value: "map", label: "Map" }, { value: "time", label: "Over time" }, { value: "chain", label: "How it adds up" }, { value: "levers", label: "Biggest levers" },
@@ -40,6 +55,28 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
   const [view, setView] = useState<View>("map");
   const [growthPct, setGrowthPct] = useState(0);
 
+  const workbenchRef = useRef<HTMLDivElement>(null);
+  const [panelWidth, setPanelWidth] = useState(() => readSavedWidth("workbench:panel_width", DEFAULT_PANEL_WIDTH, 260, 520));
+  const [resultsWidth, setResultsWidth] = useState(() => readSavedWidth("workbench:results_width", DEFAULT_RESULTS_WIDTH, 240, 460));
+  const [isResizing, setIsResizing] = useState(false);
+
+  const updatePanelWidth = (w: number) => {
+    setPanelWidth(w);
+    try { localStorage.setItem("workbench:panel_width", String(w)); } catch {}
+  };
+  const resetPanelWidth = () => {
+    setPanelWidth(DEFAULT_PANEL_WIDTH);
+    try { localStorage.removeItem("workbench:panel_width"); } catch {}
+  };
+  const updateResultsWidth = (w: number) => {
+    setResultsWidth(w);
+    try { localStorage.setItem("workbench:results_width", String(w)); } catch {}
+  };
+  const resetResultsWidth = () => {
+    setResultsWidth(DEFAULT_RESULTS_WIDTH);
+    try { localStorage.removeItem("workbench:results_width"); } catch {}
+  };
+
   const all = market === ALL_MARKETS;
   const lever = useMemo(() => toLever(all ? DEFAULT_INPUT : input), [input, all]);
   const options = { start, growthPct };
@@ -59,12 +96,32 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
   const weekChange = sel ? sel.extra[week] : 0;
 
   return (
-    <div className="workbench">
+    <div
+      ref={workbenchRef}
+      className={`workbench${isResizing ? " workbench--resizing" : ""}`}
+      style={{
+        "--panel-width": `${panelWidth}px`,
+        "--results-width": `${resultsWidth}px`,
+      } as React.CSSProperties}
+    >
       <aside className="workbench__panel" aria-label="Scenario settings">
         <LeverPanel markets={markets} market={market} onMarket={setMarket} coldStart={coldStart} input={input} dispatch={dispatch}
                     start={start} startOptions={picks} onStart={setStart} defaultStart={firstWeek}
                     growthPct={growthPct} onGrowth={setGrowthPct} />
       </aside>
+
+      <ResizeGutter
+        id="panel"
+        label="Scenario settings width"
+        value={panelWidth}
+        defaultValue={DEFAULT_PANEL_WIDTH}
+        min={260}
+        max={520}
+        onResize={updatePanelWidth}
+        onReset={resetPanelWidth}
+        workbenchRef={workbenchRef}
+        onDragStateChange={setIsResizing}
+      />
 
       <section className="workbench__canvas" aria-label="Scenario visual">
         <Card title={VIEWS.find((v) => v.value === view)!.label} actions={<Segmented label="Visual" value={view} onChange={setView} options={VIEWS} />}>
@@ -86,6 +143,19 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
           ))}
         </Card>
       </section>
+
+      <ResizeGutter
+        id="results"
+        label="Results panel width"
+        value={resultsWidth}
+        defaultValue={DEFAULT_RESULTS_WIDTH}
+        min={240}
+        max={460}
+        onResize={updateResultsWidth}
+        onReset={resetResultsWidth}
+        workbenchRef={workbenchRef}
+        onDragStateChange={setIsResizing}
+      />
 
       <aside className="workbench__results" aria-label="Results">
         {!all && !pb.markets[market] && <NewRouteCard planning={planning} market={market} lever={lever} seasons={seasons} />}
