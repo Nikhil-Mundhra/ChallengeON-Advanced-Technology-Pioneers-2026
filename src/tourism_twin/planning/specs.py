@@ -41,8 +41,9 @@ _ONE_OFF = not_flagged("is_one_off_period")
 
 # Link 2 has the component list, fitter and row rules of the shipped international guests nowcast
 # (nowcast/specs.py INTL_NOWCAST). It is declared again here because planning never imports
-# nowcast; change both together.
-GUESTS_LINK = ModelSpec(components=(("arrivals_kernel", {"max_lag": 21, "base": "knots"}), _SEASON, "weekday", "events"),
+# nowcast; change both together. Knots every 45 days: chain daily -0.37 pp [-0.56, -0.14], 5/7 folds;
+# weekly -0.45 pp [-0.68, -0.19], 7/7 folds vs 365 (link 1 at 60); level bias -6.0% (365: -7.2%).
+GUESTS_LINK = ModelSpec(components=(("arrivals_kernel", {"max_lag": 21, "base": "knots", "knot_days": 45}), _SEASON, "weekday", "events"),
                         fitter=_BACKFIT, rules=(_ONE_OFF, flagged("lag_complete")))
 # Link 1: the market's own scheduled seats over 8 days (lags 0..7) through the same constrained kernel,
 # plus the guests link's calendar; smearing turns the log fit's median into a mean.
@@ -58,8 +59,9 @@ SEATS_LINK = ModelSpec(components=(("seat_kernel", {"max_lag": 7}), _SEASON, "we
 # - link 1's base knots every 60 days, best of {30, 60, 90, 120, 182, 365} (daily -0.62 pp [-0.89, -0.30],
 #   5/7 folds vs 365); the last knot then sits on the recent level;
 # - link 2 is trained on link 1's in-sample arrivals (what it reads in prediction), smearing on both.
-# With 365-day knots, against the prototype (seat_chain_prototype): daily -1.30 pp [-1.74, -0.83], 7/7
-# folds; against LegacyHybrid weekly: -4.81 pp [-6.10, -3.64], 7/7 folds. Level bias -7.2% (365: -9.2%).
+# With 365-day knots on both links, against the prototype (seat_chain_prototype): daily -1.30 pp
+# [-1.74, -0.83], 7/7 folds; against LegacyHybrid weekly: -4.81 pp [-6.10, -3.64], 7/7 folds.
+# Level bias: -9.2% (both 365), -7.2% (link 1 at 60), -6.0% (link 2 at 45).
 SEAT_CHAIN = ChainSpec(
     SEATS_LINK.replace_component("seat_kernel", ("seat_kernel", {"max_lag": 7, "cap_factor": 1.0, "knot_days": 60})),
     replace(GUESTS_LINK, options=(("bias_correction", "smearing"),)),

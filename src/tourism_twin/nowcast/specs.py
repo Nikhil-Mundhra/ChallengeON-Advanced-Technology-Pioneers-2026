@@ -32,7 +32,10 @@ GBM = ("residual_gbm", {"features": GBM_FEATURES})
 
 # Every block minimises the same log-scale objective, so backfitting descends and converges;
 # results do not depend on the pass cap.
-INTL_NOWCAST = ModelSpec(components=(KERNEL, SEASON, "weekday", "events"), fitter=BACKFIT, rules=NOWCAST_ROWS)
+# International base-stock knots every 45 days (validation, 7 folds, vs 365: market-day -1.45 pp [-1.66, -1.23],
+# 7/7 folds; grid 14..365 best at 30, -1.52, and 45 is the simplest within 0.2 pp). Domestic keeps 365.
+INTL_KERNEL = ("arrivals_kernel", {"max_lag": 21, "base": "knots", "knot_days": 45})
+INTL_NOWCAST = ModelSpec(components=(INTL_KERNEL, SEASON, "weekday", "events"), fitter=BACKFIT, rules=NOWCAST_ROWS)
 # Weekday x season beat plain weekday by only 0.07 pp daily WAPE on 13 rolling origins
 # (scripts/compare_domestic_weekday.py), under the 0.3 pp gate, so the simpler one ships.
 # Domestic trains on all history: dropping rows before 2022-07-01 (a one-off fall in guests per arrival,

@@ -38,7 +38,7 @@ Kernel constraints (`ArrivalsConvolution`):
 | --- | --- |
 | w_k ≥ 0, non-increasing | w = triu(1) · d, d ≥ 0 |
 | w₀ ≤ 1 | Σd ≤ 1; projected when the solver overshoots |
-| c_t ≥ 0, slowly varying | Base stock, piecewise linear between knots about 365 days apart, first-difference penalty, flat beyond the training days |
+| c_t ≥ 0, slowly varying | Base stock, piecewise linear between knots about 365 days apart (domestic) or 45 days apart (international), first-difference penalty, flat beyond the training days |
 | Day of week in m_t, not in w | Yes |
 | Lunar events in m_t, not modulating w | Yes |
 
@@ -87,7 +87,7 @@ Hand-set settings (`nowcast/specs.py`, component defaults):
 | --- | --- |
 | Longest arrival lag K (`max_lag`) | 21 days |
 | Fourier pairs H (`harmonics`) | 4 |
-| Base-stock knot spacing (`knot_days`) | 365 days; knots spread evenly over the training days |
+| Base-stock knot spacing (`knot_days`) | Domestic 365 days (component default); international 45 days (`INTL_KERNEL`); knots spread evenly over the training days |
 | Base-stock smoothing (`base_smoothing`) | 1.0 |
 | Event smoothing (`smoothing`) | 1.0 |
 | Shortest smoothed event window (`min_smoothed_days`) | 6 days |
@@ -99,7 +99,7 @@ Sensitivity to these settings: [hand-set settings](../evidence/hand-set-settings
 | Series | Spec | Terms |
 | --- | --- | --- |
 | `DOMESTIC` | `DOMESTIC_NOWCAST` | Kernel, `CentredSlope`, season, weekday; no events; trains on all history |
-| Other 20 markets | `INTL_NOWCAST` | Kernel, season, weekday, events; no slope |
+| Other 20 markets | `INTL_NOWCAST` | Kernel with 45-day base-stock knots, season, weekday, events; no slope |
 
 `MarketRouter` (`nowcast/routing.py`) routes `DOMESTIC` rows to one spec and every other market to the other. Each series is fitted and evaluated separately. Total guests = domestic + international predictions; its interval comes from the summed series' errors ([intervals](intervals.md)).
 

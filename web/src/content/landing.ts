@@ -7,4 +7,4 @@ export const CHAPTERS = [
 ] as const;
 
 /** Daily accuracy on validation periods (docs/results/nowcast-validation.md, shipped nowcast), as shown on the report page. */
-export const DAILY_ERROR = { domestic: 4.18, international: 4.59 };
+export const DAILY_ERROR = { domestic: 4.18, international: 4.07 };

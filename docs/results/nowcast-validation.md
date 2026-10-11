@@ -10,12 +10,12 @@ Source: `output/validation_summary.json` (`twin validate`; `segment_wape`). The 
 | :--- | :---: | :---: |
 | `naive_364` | 16.91% | 22.97% |
 | `arrivals_ratio` | 17.93% | 8.86% |
-| `time_only` (level + season + weekday + events, no arrivals) | 10.10% | 10.68% |
+| `time_only` (level + season + weekday + events, no arrivals) | 10.09% | 10.68% |
 | `flow_only` (arrivals kernel alone) | 9.55% | 5.44% |
-| `flow_time` (kernel + calendar, no events) | 4.18% | 4.42% |
-| `twin_daily` (shipped; domestic has no holiday block) | 4.18% | 4.59% |
+| `flow_time` (kernel + calendar, no events) | 4.18% | 4.05% |
+| `twin_daily` (shipped; domestic has no holiday block) | 4.18% | 4.07% |
 
-Source: `output/validation_summary.json` (`compare`). Market-day grain, `twin_daily` − `naive_364`: −12.71 pp [−15.45, −10.43] domestic, −18.42 [−19.98, −16.87] international, 7/7 folds. On segment totals events partly cancel across markets; at market grain removing them costs international markets 0.37 pp.
+Source: `output/validation_summary.json` (`compare`). Market-day grain, `twin_daily` − `naive_364`: −12.71 pp [−15.45, −10.43] domestic, −19.87 [−21.35, −18.47] international, 7/7 folds. On segment totals events partly cancel across markets; at market grain removing them costs international markets 0.42 pp.
 
 ## Shipped choices
 
@@ -25,8 +25,9 @@ Source: `compare` runs on `VALIDATION_ORIGINS` (`models/backtest.compare`). Mark
 | --- | --- | --- |
 | Domestic slope | No slope | +2.85 [+1.97, +3.56] |
 | Domestic plain weekday | Weekday × season | +0.05, n.s. |
-| Knot base stock | Base tied to 90-day arrivals | domestic −0.77, n.s.; international +5.39 |
-| International events | No events | +0.37 [+0.11, +0.67], 7/7 folds |
+| Knot base stock | Base tied to 90-day arrivals | domestic −0.77, n.s.; international +5.39 (against 365-day knots) |
+| International base-stock knots every 45 days | Every 365 days | +1.45 [+1.23, +1.66], 7/7 folds; international market-day WAPE 11.06% vs 9.62%; domestic predictions identical |
+| International events | No events | +0.42 [+0.17, +0.75], 7/7 folds |
 | No residual GBM | `ResidualGBM` | −0.14, n.s. |
 | No international slope | Slope | −0.27 [−0.43, −0.10], 4/7 folds |
 | Domestic trains on all history | Training from 2022-07-01 | +1.19 [+0.20, +2.04], 7/7 folds (domestic 5.37 vs 4.18) |

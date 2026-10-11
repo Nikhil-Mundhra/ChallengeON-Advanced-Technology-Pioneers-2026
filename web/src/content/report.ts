@@ -65,10 +65,10 @@ export const NOWCAST_VALIDATION = {
   rows: [
     { spec: "Same weekday a year earlier", domestic: 16.91, international: 22.97 },
     { spec: "Arrivals × average ratio", domestic: 17.93, international: 8.86 },
-    { spec: "Calendar only (no arrivals)", domestic: 10.10, international: 10.68 },
+    { spec: "Calendar only (no arrivals)", domestic: 10.09, international: 10.68 },
     { spec: "Arrivals kernel only", domestic: 9.55, international: 5.44 },
-    { spec: "Kernel + calendar, no events", domestic: 4.18, international: 4.42 },
-    { spec: "Shipped nowcast", domestic: 4.18, international: 4.59, shipped: true },
+    { spec: "Kernel + calendar, no events", domestic: 4.18, international: 4.05 },
+    { spec: "Shipped nowcast", domestic: 4.18, international: 4.07, shipped: true },
   ],
 };
 
