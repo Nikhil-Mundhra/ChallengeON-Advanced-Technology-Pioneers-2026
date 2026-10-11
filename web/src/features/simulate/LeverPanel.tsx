@@ -88,7 +88,7 @@ export function LeverPanel(p: LeverPanelProps) {
         <div className="timeline__field">
           <span className="timeline__label">Changes start</span>
           <Select label="Week the changes start" value={p.start} onChange={p.onStart}
-                  options={[{ value: p.defaultStart, label: `${formatMonth(p.defaultStart)} (right after the real data)` },
+                  options={[{ value: p.defaultStart, label: `${formatMonth(p.defaultStart)} (today)` },
                             ...p.startOptions.map((w) => ({ value: w, label: formatMonth(w) }))]} />
         </div>
         <SliderRow label="Demand growth, all markets" hint="Your assumption for guest growth on top of any seat growth. Without it the forecast stays flat." value={p.growthPct} defaultValue={0}

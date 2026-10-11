@@ -112,9 +112,9 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
 
   // The URL is the scenario: sharing or reloading the page keeps what is on screen.
   useEffect(() => {
-    const query = scenarioQuery({ market, season, start: start === firstWeek ? undefined : start }, all ? DEFAULT_INPUT : input);
+    const query = scenarioQuery({ market, season, start: start === todayWeek ? undefined : start }, all ? DEFAULT_INPUT : input);
     if (query !== search.toString()) setSearch(query, { replace: true });
-  }, [market, season, start, input, firstWeek, all, search, setSearch]);
+  }, [market, season, start, input, todayWeek, all, search, setSearch]);
   const coldStart = !all && simulate(planning, market, seasons[0]).is_cold_start;
   const sel = all ? undefined : pb.markets[market];
   const weekChange = sel ? sel.extra[week] : 0;
@@ -130,7 +130,7 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
     >
       <aside className="workbench__panel" aria-label="Scenario settings">
         <LeverPanel markets={markets} market={market} onMarket={setMarket} coldStart={coldStart} input={input} dispatch={dispatch}
-                    start={start} startOptions={picks} onStart={setStart} defaultStart={firstWeek}
+                    start={start} startOptions={picks} onStart={setStart} defaultStart={todayWeek}
                     growthPct={growthPct} onGrowth={setGrowthPct} season={season} schedule={schedule} capacity={capacity} />
       </aside>
 
