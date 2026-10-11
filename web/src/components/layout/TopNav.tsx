@@ -15,7 +15,7 @@ export function TopNav({ items, action, extra }: { items: NavEntry[]; action: Na
       <div className="topnav__inner">
         <Link to="/" className="topnav__brand">
           <Icon name="logo" size={22} />
-          <span>Abu Dhabi Hotel Outlook</span>
+          <span>AeroLodge Metrics</span>
           <span className="topnav__status"><span className="topnav__status-dot" aria-hidden="true" />Twin 2026</span>
         </Link>
         <nav className="topnav__links" aria-label="Pages">

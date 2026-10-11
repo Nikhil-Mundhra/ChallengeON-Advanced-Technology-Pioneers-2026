@@ -13,7 +13,7 @@ function Routed() {
   const { pathname } = useLocation();
   const route = ROUTES.find((r) => r.path === pathname);
   useEffect(() => { loadBundle().then(setBundle, (e: Error) => setError(e.message)); }, []);
-  useEffect(() => { window.scrollTo(0, 0); document.title = route?.title ?? "Abu Dhabi Hotel Outlook"; }, [pathname, route]);
+  useEffect(() => { window.scrollTo(0, 0); document.title = route?.title ?? "AeroLodge Metrics"; }, [pathname, route]);
 
   const loading = <p className="note" aria-live="polite">Loading…</p>;
 

@@ -16,7 +16,7 @@ const page = <T,>(load: () => Promise<T>, pick: (m: T) => ComponentType<PageProp
   lazy(() => load().then((m) => ({ default: pick(m) })));
 
 export const ROUTES: RouteDef[] = [
-  { path: "/", label: "Outlook", title: "Abu Dhabi Hotel Outlook", bleed: true, needsBundle: true,
+  { path: "/", label: "Outlook", title: "AeroLodge Metrics", bleed: true, needsBundle: true,
     Page: page(() => import("../features/landing/LandingPage"), (m) => m.LandingPage) },
   { path: "/simulate", label: "Flight scenarios", title: "Flight scenarios", needsBundle: true,
     Page: page(() => import("../features/simulate/SimulatePage"), (m) => ({ bundle }) => <m.SimulatePage planning={bundle.planning} weekly={bundle.weekly} />) },
