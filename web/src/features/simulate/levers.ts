@@ -63,6 +63,60 @@ export function toLever(input: LeverInput): Lever {
            delta_multiplier_pct: input.multiplierPct / 100, delta_los: input.factor };
 }
 
+const SLIDERS = LEVER_GROUPS.flatMap((g) => g.sliders);
+const pct = (x: number) => Math.round(x * 10_000) / 100;   // a fraction back to points, without float noise
+
+/** The slider state behind an engine lever: `toLever` in reverse, so a scenario worked out in the
+ *  model can be handed to the workbench as an example (the question cards link to the simulator). */
+export function fromLever(lever: Lever): LeverInput {
+  return { frequency: lever.delta_frequency, gauge: lever.aircraft_gauge, seatsPct: pct(lever.delta_seats_pct),
+           loadFactorPts: pct(lever.delta_load_factor), p2pPts: pct(lever.delta_p2p_share),
+           multiplierPct: pct(lever.delta_multiplier_pct), factor: Math.round(lever.delta_los * 10) / 10 };
+}
+
+/** The weeks the "changes start" picker offers: the week after the real data, then the first week
+ *  of every third month after it. Also what a link may ask for as a start. */
+export function startOptions(weeks: string[], firstWeek: string): string[] {
+  return weeks.filter((w) => w > firstWeek && Number(w.slice(5, 7)) % 3 === 1 && Number(w.slice(8, 10)) <= 7);
+}
+
+export interface ScenarioTarget { market: string; season?: string; start?: string }
+
+/** A scenario as a link: the market, its season, when the changes start and every slider that moved.
+ *  Values are display units, so the link reads like the panel; defaults are left out, so a workbench
+ *  nobody has touched keeps a clean URL. */
+export function scenarioQuery(target: ScenarioTarget, input: LeverInput): string {
+  const params = new URLSearchParams();
+  if (target.market !== ALL_MARKETS) {
+    params.set("market", target.market);
+    if (target.season) params.set("season", target.season);
+  }
+  if (target.start) params.set("start", target.start);
+  for (const { key } of SLIDERS) if (input[key] !== DEFAULT_INPUT[key]) params.set(key, String(input[key]));
+  return params.toString();
+}
+
+export interface ScenarioStart { market: string; season: string | null; start: string | null; input: LeverInput }
+
+/** The scenario a link asks for. Anything the workbench cannot show (an unknown market or season, a
+ *  start week it does not offer) falls back to the default, so a hand-edited URL never breaks it. */
+export function scenarioFromQuery(params: URLSearchParams, known: { markets: string[]; seasons: string[]; starts: string[] }): ScenarioStart {
+  const market = params.get("market")?.toUpperCase() ?? "";
+  const season = params.get("season");
+  const start = params.get("start");
+  const input = { ...DEFAULT_INPUT };
+  for (const { key, min, max } of SLIDERS) {
+    const value = Number(params.get(key));
+    if (params.has(key) && Number.isFinite(value)) input[key] = Math.min(Math.max(value, min), max);
+  }
+  return {
+    market: known.markets.includes(market) ? market : ALL_MARKETS,
+    season: season !== null && known.seasons.includes(season) ? season : null,
+    start: start !== null && known.starts.includes(start) ? start : null,
+    input,
+  };
+}
+
 /** The market picker's first option: every market together; flight changes need one market. */
 export const ALL_MARKETS = "ALL";
 

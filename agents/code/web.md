@@ -15,6 +15,7 @@
 - names: market names only through `content/labels.marketName`.
 - questions: the five planning answers are computed only in `engine/questions.ts` and rendered only by `features/questions/QuestionAnswers` (landing and report); their numbers never appear in copy.
 - simulate: `SimulatePage.tsx` stays a container for shared state; new UI goes in its own pane component; slider availability per market is decided only in `levers.sliderAvailability`; scenario levers never change real weeks and start after the real data by default.
+- scenario links: a scenario is written to and read from the `/simulate` query only by `levers.scenarioQuery` and `levers.scenarioFromQuery`, in display units, defaults omitted.
 - css: CSS used by more than one feature lives in `components/*` or `theme/`, never in a lazy-loaded feature's CSS.
 - colour: only the semantic tokens in `web/src/theme/tokens.css`; no hex outside it; no `--brand-*` outside the brand surfaces (top nav, pills, landing, report hero); every new colour token gets a dark-mode value.
 - copy: plain language; no statistical term beyond "±X% error"; no em dashes; a landing statement calls a change up or down only when it exceeds the forecast's own error (`engine/insights.ts`), otherwise "about the same".

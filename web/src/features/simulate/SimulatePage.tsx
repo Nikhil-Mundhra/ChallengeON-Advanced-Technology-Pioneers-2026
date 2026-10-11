@@ -1,11 +1,12 @@
 import { marketName } from "../../content/labels";
 import { useEffect, useMemo, useReducer, useState } from "react";
+import { useSearchParams } from "react-router";
 import { Card, Segmented } from "../../components/ui";
 import { formatCount, formatSigned, toneOf } from "../../data/format";
 import { simulate, type Planning } from "../../engine/planning";
 import { playback } from "../../engine/playback";
 import { holdoutWmape, timeline, totalTimeline, type Weekly } from "../../engine/weekly";
-import { ALL_MARKETS, DEFAULT_INPUT, leverReducer, marketOptions, toLever } from "./levers";
+import { ALL_MARKETS, DEFAULT_INPUT, leverReducer, marketOptions, scenarioFromQuery, scenarioQuery, startOptions, toLever } from "./levers";
 import { LeverPanel } from "./LeverPanel";
 import { MapPlayback } from "./MapPlayback";
 import { NewRouteCard } from "./NewRouteCard";
@@ -20,19 +21,23 @@ const VIEWS = [
 type View = (typeof VIEWS)[number]["value"];
 
 /** Flight scenario workbench: holds the shared state (market, levers, the week on the map) and
- *  lays out the three panes. Each pane is its own component; numbers come from src/engine. */
+ *  lays out the three panes. Each pane is its own component; numbers come from src/engine.
+ *  A link can carry a scenario with it (levers.scenarioQuery), so "try your own numbers" from a
+ *  question card opens the workbench already filled with that card's example. */
 export function SimulatePage({ planning, weekly }: { planning: Planning; weekly: Weekly }) {
   const markets = useMemo(() => marketOptions(planning), [planning]);
   const seasons = useMemo(() => Object.keys(Object.values(planning.calibration)[0]), [planning]);
-  const [market, setMarket] = useState(ALL_MARKETS);
-  const [season, setSeason] = useState(seasons[0]);
-  const [input, dispatch] = useReducer(leverReducer, DEFAULT_INPUT);
+  const weeks = useMemo(() => Object.values(weekly.markets)[0].week, [weekly]);
+  const firstWeek = useMemo(() => weeks[weeks.indexOf(weekly.last_actual_week) + 1] ?? weekly.last_actual_week, [weeks, weekly]);
+  const picks = useMemo(() => startOptions(weeks, firstWeek), [weeks, firstWeek]);
+  const [search, setSearch] = useSearchParams();
+  const opened = useMemo(() => scenarioFromQuery(search, { markets: markets.map((m) => m.value), seasons, starts: [firstWeek, ...picks] }),
+    [search, markets, seasons, firstWeek, picks]);
+  const [market, setMarket] = useState(opened.market);
+  const [season, setSeason] = useState(opened.season ?? seasons[0]);
+  const [input, dispatch] = useReducer(leverReducer, DEFAULT_INPUT, () => opened.input);
+  const [start, setStart] = useState(opened.start ?? firstWeek);
   const [view, setView] = useState<View>("map");
-  const firstWeek = useMemo(() => {   // the first week after the real data: changes start here by default
-    const weeks = Object.values(weekly.markets)[0].week;
-    return weeks[weeks.indexOf(weekly.last_actual_week) + 1] ?? weekly.last_actual_week;
-  }, [weekly]);
-  const [start, setStart] = useState(firstWeek);
   const [growthPct, setGrowthPct] = useState(0);
 
   const all = market === ALL_MARKETS;
@@ -44,7 +49,11 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
   const [week, setWeek] = useState(() => Math.max(0, pb.weeks.indexOf(start)));
   useEffect(() => setWeek(Math.max(0, pb.weeks.indexOf(start))), [start]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const startOptions = pb.weeks.filter((w) => w > firstWeek && Number(w.slice(5, 7)) % 3 === 1 && Number(w.slice(8, 10)) <= 7);
+  // The URL is the scenario: sharing or reloading the page keeps what is on screen.
+  useEffect(() => {
+    const query = scenarioQuery({ market, season, start: start === firstWeek ? undefined : start }, all ? DEFAULT_INPUT : input);
+    if (query !== search.toString()) setSearch(query, { replace: true });
+  }, [market, season, start, input, firstWeek, all, search, setSearch]);
   const coldStart = !all && simulate(planning, market, seasons[0]).is_cold_start;
   const sel = all ? undefined : pb.markets[market];
   const weekChange = sel ? sel.extra[week] : 0;
@@ -53,7 +62,7 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
     <div className="workbench">
       <aside className="workbench__panel" aria-label="Scenario settings">
         <LeverPanel markets={markets} market={market} onMarket={setMarket} coldStart={coldStart} input={input} dispatch={dispatch}
-                    start={start} startOptions={startOptions} onStart={setStart} defaultStart={firstWeek}
+                    start={start} startOptions={picks} onStart={setStart} defaultStart={firstWeek}
                     growthPct={growthPct} onGrowth={setGrowthPct} />
       </aside>
 

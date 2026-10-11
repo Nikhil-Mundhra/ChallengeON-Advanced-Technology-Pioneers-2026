@@ -6,6 +6,7 @@ import { formatCount, formatSigned, formatShare } from "../../data/format";
 import type { Planning } from "../../engine/planning";
 import { answerQuestions, type LeverAnswer, type MixAnswer } from "../../engine/questions";
 import type { Weekly } from "../../engine/weekly";
+import { fromLever, scenarioQuery } from "../simulate/levers";
 import "./questions.css";
 
 /** What if…? The five planning questions, each answered in one sentence from the live model.
@@ -47,13 +48,16 @@ const year = (x: LeverAnswer) => (x.perYear === null ? "" : `; about ${formatSig
 const mixSentence = (m: MixAnswer) =>
   `In ${(SEASON_NAMES[m.season] ?? m.season).toLowerCase()} the biggest sources are ${m.top.map((t) => `${marketName(t.market)} (${formatShare(t.share, 0)})`).join(", ")}.`;
 
+/** The simulator with this card's own example loaded: same market, season and levers. */
+const workbench = (x: LeverAnswer) => `/simulate?${scenarioQuery({ market: x.market, season: x.season }, fromLever(x.lever))}`;
+
 function Question({ q, figure, children }: { q: string; figure: LeverAnswer; children: React.ReactNode }) {
   return (
     <li className="question">
       <p className="question__q">{q}</p>
       <p className="question__a">{children}</p>
       <p className="question__note">±{Math.round(figure.errorPct * 100)}% error on the weekly figure.</p>
-      <Link to="/simulate" className="question__try">Try your own numbers</Link>
+      <Link to={workbench(figure)} className="question__try">Try your own numbers</Link>
     </li>
   );
 }

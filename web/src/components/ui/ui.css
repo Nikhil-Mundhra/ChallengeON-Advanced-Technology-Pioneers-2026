@@ -53,6 +53,7 @@
 }
 
 .select {
+  width: 100%;
   border: 1px solid var(--color-border); background: var(--color-surface);
   border-radius: var(--radius-sm); padding: 6px var(--space-3); font-size: var(--text-sm);
   transition: border-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);

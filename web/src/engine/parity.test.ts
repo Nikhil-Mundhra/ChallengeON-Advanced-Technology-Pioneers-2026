@@ -199,6 +199,27 @@ describe("five questions", () => {
     const all = seasonMix(planning, "Winter_Peak", 99).top.reduce((t, r) => t + r.share, 0);
     expect(all).toBeCloseTo(1, 9);
   });
+
+  it("each card's link reopens the workbench on that card's own example", async () => {
+    const { answerQuestions } = await import("./questions");
+    const { fromLever, marketOptions, scenarioFromQuery, scenarioQuery, startOptions, toLever } = await import("../features/simulate/levers");
+    const weekly = read<Weekly>(manifest.files.weekly);
+    const planning = read<Planning>(manifest.files.planning);
+    const a = answerQuestions(planning, weekly);
+    const weeks = Object.values(weekly.markets)[0].week;
+    const firstWeek = weeks[weeks.indexOf(weekly.last_actual_week) + 1] ?? weekly.last_actual_week;
+    const known = { markets: marketOptions(planning).map((m) => m.value),
+                    seasons: Object.keys(Object.values(planning.calibration)[0]),
+                    starts: [firstWeek, ...startOptions(weeks, firstWeek)] };
+    for (const key of ["newRoute", "frequency", "seats", "fuller"] as const) {
+      const card = a[key];
+      const link = scenarioQuery({ market: card.market, season: card.season }, fromLever(card.lever));
+      const opened = scenarioFromQuery(new URLSearchParams(link), known);
+      expect(opened.market).toBe(card.market);
+      expect(opened.season).toBe(card.season);
+      expect(toLever(opened.input)).toEqual(card.lever);   // the sliders give back the lever the card was answered from
+    }
+  });
 });
 
 describe("growth assumption", () => {

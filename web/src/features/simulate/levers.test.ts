@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activePreset, DEFAULT_INPUT, leverReducer, toLever } from "./levers";
+import { activePreset, DEFAULT_INPUT, fromLever, leverReducer, scenarioFromQuery, scenarioQuery, startOptions, toLever } from "./levers";
 
 describe("lever state", () => {
   it("presets, group resets and the matching preset agree", () => {
@@ -37,5 +37,45 @@ describe("slider availability", () => {
     expect(sliderAvailability("UNITED KINGDOM", { ...DEFAULT_INPUT, frequency: 2 }, "gauge").disabled).toBe(false);
     expect(presetAvailable("DOMESTIC", "more_flights")).toBe(false);
     expect(presetAvailable(ALL_MARKETS, "stopover")).toBe(false);
+  });
+});
+
+describe("scenario links", () => {
+  const known = { markets: ["JAPAN", "INDIA"], seasons: ["Winter_Peak", "Summer_Trough"], starts: ["2026-01-05"] };
+  const read = (query: string) => scenarioFromQuery(new URLSearchParams(query), known);
+
+  it("carries a model's lever into the sliders a planner moves, without float noise", () => {
+    expect(fromLever({ ...toLever(DEFAULT_INPUT), delta_frequency: 3, aircraft_gauge: 300 })).toMatchObject({ frequency: 3, gauge: 300 });
+    expect(fromLever({ ...toLever(DEFAULT_INPUT), delta_seats_pct: 0.1, delta_load_factor: 0.05, delta_los: 0.4 }))
+      .toMatchObject({ seatsPct: 10, loadFactorPts: 5, factor: 0.4 });
+  });
+
+  it("writes only what the user changed, so an untouched workbench keeps a clean URL", () => {
+    expect(scenarioQuery({ market: "ALL" }, DEFAULT_INPUT)).toBe("");
+    expect(scenarioQuery({ market: "JAPAN", season: "Winter_Peak" }, { ...DEFAULT_INPUT, frequency: 3, gauge: 300 }))
+      .toBe("market=JAPAN&season=Winter_Peak&frequency=3&gauge=300");
+  });
+
+  it("opens the workbench on the market, season and levers the link names", () => {
+    const opened = read("market=INDIA&season=Summer_Trough&seatsPct=10");
+    expect(opened.market).toBe("INDIA");
+    expect(opened.season).toBe("Summer_Trough");
+    expect(opened.input.seatsPct).toBe(10);
+    expect(scenarioQuery({ market: opened.market, season: opened.season ?? undefined }, opened.input)).toBe("market=INDIA&season=Summer_Trough&seatsPct=10");
+  });
+
+  it("falls back to the defaults for anything the workbench cannot show", () => {
+    const opened = read("market=ATLANTIS&season=Wet_Season&start=1999-01-04&frequency=999&gauge=nonsense");
+    expect(opened.market).toBe("ALL");
+    expect(opened.season).toBeNull();
+    expect(opened.start).toBeNull();
+    expect(opened.input.frequency).toBe(14);
+    expect(opened.input.gauge).toBe(250);
+    expect(read("start=2026-01-05").start).toBe("2026-01-05");
+  });
+
+  it("offers the first week after the data, then every third month", () => {
+    expect(startOptions(["2025-07-21", "2025-07-28", "2025-10-06", "2026-01-05", "2026-01-12"], "2025-07-28"))
+      .toEqual(["2025-10-06", "2026-01-05"]);
   });
 });
