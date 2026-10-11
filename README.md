@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.svg" alt="Abu Dhabi Hotel Outlook" width="360" />
+</p>
+
 # Abu Dhabi Hotel Outlook
 
 Flights in, hotel demand out. A decision tool for DCT Abu Dhabi, built for ChallengeON ATP 2026.
