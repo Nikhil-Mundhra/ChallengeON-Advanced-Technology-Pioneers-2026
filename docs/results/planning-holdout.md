@@ -48,4 +48,19 @@ Autumn_Shoulder is not in the holdout window. Per-market results: `market_breakd
 | Event shares in the residual, weekly WAPE on validation origins | `compare` | −0.7 pp [−1.55, −0.16], 7/7 origins |
 | Weekly back-test reproduced in the web engine | `web/src/engine/parity.test.ts` | Same WMAPE as the benchmark hybrid |
 
+## CHINA recency weighting
+
+CHINA rows are weighted by recency in both planning trainers (`planning/structural.py` weighted market-season averages at half-life 365 days, `planning/residual.py` ridge sample weights at half-life 180 days); every other market keeps the flat mean. CHINA is named in the trainers rather than selected by a spec, so this fit cannot be ablated from `ModelSpec` data.
+
+| Measurement | Without | With | Source |
+| --- | ---: | ---: | --- |
+| CHINA weekly WMAPE | 43.08% | 39.49% | `evaluation_results.json` (`market_breakdown`) |
+| CHINA weekly bias | −43.08% | −39.40% | `evaluation_results.json` (`market_breakdown`) |
+| Hybrid WMAPE (all markets) | 20.62% | 20.29% | `evaluation_results.json` (`benchmark`) |
+| International planning WMAPE | 27.52% | 27.31% | `evaluation_results.json` (`diagnostics`) |
+| Domestic forecast WMAPE | 16.04% | 16.04% | `evaluation_results.json` (`diagnostics`) |
+| Holdout coverage | 65.2% | 65.7% | `evaluation_results.json` (`demonstrated_coverage_pct`) |
+
+The gain is confined to CHINA and to the international segment; the domestic forecast is untouched by design. The improvement is −0.21 pp on international planning WMAPE and 0.00 pp on domestic, below the 0.3 pp both-segments bar the nowcast components ship under, so this is recorded rather than presented as a component win.
+
 Nowcast and planning numbers are not comparable: the nowcast uses the predicted period's new arrivals, the planning model does not.
