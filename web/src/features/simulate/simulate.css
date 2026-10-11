@@ -1,9 +1,31 @@
+/* Lock outer document scrolling on desktop so panes scroll internally without page cutoff */
+@media (min-width: 1281px) {
+  body.body--workbench {
+    overflow: hidden;
+    height: 100vh;
+  }
+  body.body--workbench .app {
+    height: 100vh;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  body.body--workbench .content {
+    height: calc(100vh - var(--topnav-height));
+    overflow: hidden;
+    padding: var(--space-5);
+  }
+}
+
 /* Workbench: three panes that scroll on their own; the page itself does not scroll on desktop. */
 .workbench {
   display: grid;
   grid-template-columns: var(--panel-width, 340px) 16px minmax(0, 1fr) 16px var(--results-width, 300px);
+  grid-template-rows: minmax(0, 1fr);
   gap: 0;
   height: calc(100vh - var(--topnav-height) - 2 * var(--space-5));
+  max-height: calc(100vh - var(--topnav-height) - 2 * var(--space-5));
+  min-height: 0;
+  overflow: hidden;
 }
 .workbench--resizing {
   user-select: none;
@@ -16,6 +38,8 @@
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
+  height: 100%;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -24,8 +48,10 @@
 .workbench__canvas {
   min-width: 0;
   min-height: 0;
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 .workbench__canvas > .card { min-height: 100%; }
 
@@ -64,6 +90,8 @@
   align-items: center;
   justify-content: center;
   width: 16px;
+  height: 100%;
+  min-height: 0;
   cursor: col-resize;
   position: relative;
   user-select: none;
@@ -119,16 +147,37 @@
 .workbench .segmented { display: flex; flex-wrap: wrap; }
 
 @media (max-width: 1280px) {
-  .workbench { grid-template-columns: var(--panel-width, 320px) 16px minmax(0, 1fr); height: auto; }
+  .workbench {
+    grid-template-columns: var(--panel-width, 320px) 16px minmax(0, 1fr);
+    grid-template-rows: auto;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding-bottom: var(--space-6);
+  }
   .workbench__resizer--results { display: none; }
-  .workbench__results { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; overflow: visible; }
+  .workbench__results {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    overflow: visible;
+    height: auto;
+  }
   .workbench__results > * { flex: 1 1 220px; }
-  .workbench__panel { overflow: visible; }
+  .workbench__panel { overflow: visible; height: auto; }
+  .workbench__canvas { overflow: visible; height: auto; }
   .canvas__split { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 900px) {
-  .workbench { grid-template-columns: 1fr; padding-bottom: 56px; }
+  .workbench {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding-bottom: 72px;
+  }
   .workbench__resizer { display: none; }
   .workbench__bar {
     display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; justify-content: space-between; align-items: center;

@@ -86,6 +86,14 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
   const [week, setWeek] = useState(() => Math.max(0, pb.weeks.indexOf(start)));
   useEffect(() => setWeek(Math.max(0, pb.weeks.indexOf(start))), [start]);   // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Lock page-level window scrolling on desktop so each pane scrolls cleanly internally.
+  useEffect(() => {
+    document.body.classList.add("body--workbench");
+    return () => {
+      document.body.classList.remove("body--workbench");
+    };
+  }, []);
+
   // The URL is the scenario: sharing or reloading the page keeps what is on screen.
   useEffect(() => {
     const query = scenarioQuery({ market, season, start: start === firstWeek ? undefined : start }, all ? DEFAULT_INPUT : input);
