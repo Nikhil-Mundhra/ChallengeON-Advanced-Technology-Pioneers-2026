@@ -1,10 +1,9 @@
-"""Uncertainty quantification engine for Abu Dhabi Tourism Digital Twin.
+"""Scenario ranges.
 
-Replaces naive uncalibrated Gaussian assumptions with:
-1. Beta-distributed sampling for bounded proportions (Load Factor, P2P Share).
-2. Parameter uncertainty propagation (response multipliers, guests-per-arrival factor).
-3. Historical block-bootstrapped residuals preserving serial autocorrelation.
-4. Conformal coverage validation on held-out data.
+The reported P10 and P90 are scenario guests times (1 -/+ the market's conformal margin)
+(planning/conformal.py). A Monte Carlo (Beta load factor and P2P share, multiplier and stay
+shocks, 4-week block-bootstrapped residuals) runs alongside; its percentiles are the mc_* fields
+and are not shown in the briefing.
 """
 
 from __future__ import annotations
@@ -32,7 +31,7 @@ class UncertaintyBands:
     delta_p50: float    # Expected incremental lift
     delta_p90: float    # Calibrated optimistic incremental lift (conformal)
     conformal_margin_pct: float
-    demonstrated_coverage_pct: float
+    demonstrated_coverage_pct: Optional[float]  # None: no holdout back-test to quote
     mc_p10: float = 0.0
     mc_p50: float = 0.0
     mc_p90: float = 0.0
@@ -55,7 +54,7 @@ def fit_beta_params(mean: float, std: float) -> Tuple[float, float]:
 
 
 class UncertaintyEngine:
-    """Monte Carlo simulator for scenario uncertainty and risk quantification."""
+    """Conformal scenario ranges, with a Monte Carlo spread alongside."""
 
     def __init__(
         self,
@@ -89,7 +88,7 @@ class UncertaintyEngine:
         delta = sim_guests - base_guests
 
         conf_margin = float(self.conformal_calibrator.get(market_norm, 0.28))
-        coverage_pct = float(self.conformal_calibrator.get("_demonstrated_holdout_coverage", 66.7))
+        coverage_pct = self.conformal_calibrator.get("_demonstrated_holdout_coverage")
         return UncertaintyBands(
             market=market_norm,
             season=season,

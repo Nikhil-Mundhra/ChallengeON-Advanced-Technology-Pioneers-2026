@@ -1,12 +1,5 @@
-"""Integrated Abu Dhabi Tourism Digital Twin Simulator.
-
-Combines:
-1. Structural Conversion Engine (Seats -> Pax -> P2P -> Arrivals -> Guests)
-2. ML Residual Correction Layer (Calendar, Holiday, Event seasonality)
-3. Uncertainty Quantification Engine (Beta operational draws, Parameter shocks, Block bootstrap)
-4. Tornado Sensitivity Analyzer
-5. Exact Waterfall Attribution Decomposition
-"""
+"""Weekly scenario simulator: structural chain with its waterfall, season residual, conformal
+range, tornado ranking and the plain-language briefing."""
 
 from __future__ import annotations
 
@@ -77,13 +70,10 @@ class TourismDigitalTwin:
         market_norm = market.upper().strip()
         archetype = get_market_archetype(market_norm).value
 
-        # 1. Structural conversion chain
         struct_res = self.structural_engine.simulate(market_norm, season, lever)
 
-        # 2. Residual correction & monotonicity validation
         hybrid_res = self.residual_engine.predict_hybrid(struct_res)
 
-        # 3. Uncertainty quantification
         unc_bands = self.uncertainty_engine.run_monte_carlo(
             market=market_norm,
             season=season,
@@ -91,10 +81,8 @@ class TourismDigitalTwin:
             n_draws=n_draws,
         )
 
-        # 4. Tornado sensitivity analysis
         tornado = compute_tornado_sensitivity(self.structural_engine, market_norm, season, base_lever=lever)
 
-        # 5. Non-technical Executive Recommendation
         rec = generate_executive_recommendation(struct_res, unc_bands, tornado)
 
         return ScenarioReport(

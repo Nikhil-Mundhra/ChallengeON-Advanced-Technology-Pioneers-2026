@@ -4,15 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
 
 from tourism_twin.planning.structural import StructuralEngine
-
-# Coverage reported when no back-test result is available yet.
-DEFAULT_DEMONSTRATED_COVERAGE = 66.7
 
 
 def calibrate_conformal(
@@ -26,7 +23,8 @@ def calibrate_conformal(
     Errors are measured against StructuralEngine.planning_guests, the same prediction the
     simulator and the back-test use.
 
-    The demonstrated holdout coverage is copied from the back-test results when present.
+    The demonstrated holdout coverage is copied from the back-test results; None (not measured)
+    when `twin evaluate` has not written them.
     """
     conformal_dict: Dict[str, Any] = {}
 
@@ -49,16 +47,12 @@ def calibrate_conformal(
     return conformal_dict
 
 
-def demonstrated_coverage(evaluation_results_path: Path | None) -> float:
-    """Holdout interval coverage from the back-test results, or the default when unavailable."""
+def demonstrated_coverage(evaluation_results_path: Path | None) -> Optional[float]:
+    """Holdout interval coverage (%) from the back-test results, or None when they do not exist."""
     if evaluation_results_path is None or not evaluation_results_path.exists():
-        return DEFAULT_DEMONSTRATED_COVERAGE
-    try:
-        with open(evaluation_results_path, "r", encoding="utf-8") as f:
-            eval_data = json.load(f)
-        return float(eval_data.get("demonstrated_coverage_pct", DEFAULT_DEMONSTRATED_COVERAGE))
-    except Exception:
-        return DEFAULT_DEMONSTRATED_COVERAGE
+        return None
+    eval_data = json.loads(evaluation_results_path.read_text(encoding="utf-8"))
+    return float(eval_data["demonstrated_coverage_pct"])
 
 
 def save_conformal(conformal_dict: Dict[str, Any], path: Path) -> Path:

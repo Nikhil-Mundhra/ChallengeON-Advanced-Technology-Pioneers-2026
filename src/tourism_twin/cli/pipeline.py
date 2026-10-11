@@ -101,10 +101,12 @@ def train(args: argparse.Namespace) -> None:
     print("\n1. Calibrating Structural Scenario Engine...")
     print(f"   Calibrated {len(result.structural.params)} markets saved to: {result.calibration_path}")
     print(f"   Flight response (schedule elasticity, capacity co-movement) saved to: {result.flight_response_path}")
-    print("\n2. Fitting Monotonic Residual ML Engine (RidgeCV)...")
+    print("\n2. Fitting Calendar Residual (RidgeCV per market)...")
     print(f"   Trained {len(result.residual.models)} residual models saved to: {result.residual_model_path}")
     print("\n3. Calibrating Conformal Uncertainty Bounds...")
-    print(f"   Conformal calibrator saved to: {result.conformal_path} (demonstrated coverage: {result.conformal['_demonstrated_holdout_coverage']}%)")
+    coverage = result.conformal["_demonstrated_holdout_coverage"]
+    coverage_text = "not measured; run `twin evaluate` first" if coverage is None else f"{coverage}%"
+    print(f"   Conformal calibrator saved to: {result.conformal_path} (demonstrated coverage: {coverage_text})")
 
     print("\n" + "=" * 80)
     print("MODEL TRAINING & ARTIFACT REBUILD COMPLETE")

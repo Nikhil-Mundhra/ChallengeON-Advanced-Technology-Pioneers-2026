@@ -120,7 +120,7 @@ def build_solution_report() -> Path:
 
     diag = res["diagnostics"]
     bench = res["benchmark"]
-    cov_pct = res.get("demonstrated_coverage_pct", 68.4)
+    cov_pct = res["demonstrated_coverage_pct"]
 
     OUTPUT_PDF.parent.mkdir(parents=True, exist_ok=True)
     doc = BaseDocTemplate(str(OUTPUT_PDF), pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=20 * mm, bottomMargin=20 * mm)
@@ -154,7 +154,7 @@ def build_solution_report() -> Path:
     story.append(build_callout(
         "The Abu Dhabi Tourism Digital Twin connects aviation capacity planning directly to hotel demand outcomes. "
         "It translates scheduled capacity through a transparent predictive conversion chain, regularizes unobserved market bridges with empirical archetypes, "
-        "and protects scenario monotonicity by excluding flight variables from the ML residual correction.",
+        "and keeps flight variables out of the ML residual correction, so a scenario moves guests only through the structural chain.",
         styles, title="EXECUTIVE VALUE PROPOSITION", bg_color=SKY, line_color=BLUE,
     ))
     story.append(Spacer(1, 3 * mm))
@@ -166,8 +166,8 @@ def build_solution_report() -> Path:
         [
             Paragraph("<b>Technical Rigour</b>", styles["td_bold"]),
             Paragraph("40%", styles["td_center"]),
-            Paragraph("Structural conversion engine + regularized RidgeCV residual layer + Beta/bootstrap uncertainty.", styles["td"]),
-            Paragraph("Aviation levers excluded from residual ML to guarantee monotonic scenario responses.", styles["td"]),
+            Paragraph("Structural conversion engine + regularized RidgeCV residual layer + conformal error ranges.", styles["td"]),
+            Paragraph("Aviation levers excluded from the residual ML, so scenario lift comes from the structural chain alone.", styles["td"]),
         ],
         [
             Paragraph("<b>Practicality</b>", styles["td_bold"]),
@@ -353,8 +353,7 @@ def build_solution_report() -> Path:
         f"• <b>P10 (Conservative / Downside):</b> {u.delta_p10:+,.0f} incremental weekly guest-days (Total: {u.p10:,.0f})<br/>"
         f"• <b>P50 (Point Forecast Lift):</b> {u.delta_p50:+,.0f} incremental weekly guest-days (Total: {u.p50:,.0f})<br/>"
         f"• <b>P90 (Optimistic / Upside):</b> {u.delta_p90:+,.0f} incremental weekly guest-days (Total: {u.p90:,.0f})<br/>"
-        f"• <b>Demonstrated Empirical Holdout Coverage:</b> <b>{cov_pct:.1f}%</b> (Target nominal: ~80.0%). "
-        f"<i>Coverage shortfall reflects positive 2025 secular market growth (+2.8% to +9.1% YoY) relative to the 2023-2024 base.</i>"
+        f"• <b>Demonstrated Empirical Holdout Coverage:</b> <b>{cov_pct:.1f}%</b> (Target nominal: ~80.0%)."
     )
     story.append(build_callout(unc_text, styles, title="UNCERTAINTY & RISK SPECIFICATION", bg_color=MINT, line_color=TEAL))
     story.append(Spacer(1, 2 * mm))

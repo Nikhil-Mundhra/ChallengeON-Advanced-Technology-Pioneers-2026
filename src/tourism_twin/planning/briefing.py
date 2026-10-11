@@ -59,7 +59,7 @@ def generate_executive_recommendation(
             ("the operational levers", "review the sensitivity results"),
         )
         driver_text = (
-            f"The result moves most with {plain}, the most influential driver. "
+            f"Of the levers tested at fixed step sizes, the result moves most with {plain}. "
             f"Recommended action: {action}."
         )
     else:
@@ -68,14 +68,18 @@ def generate_executive_recommendation(
             "have no effect until seats exist. Model a proposed schedule first."
         )
 
+    coverage = unc_bands.demonstrated_coverage_pct
+    coverage_clause = "" if coverage is None else (
+        f"; on held-out weeks, ranges built this way contained the actual figure "
+        f"{coverage:.1f}% of the time, against an 80% target"
+    )
     rec = (
         f"For {m} in {s}, the scenario would {direction} about "
         f"{abs(struct_res.delta_guests):,.0f} hotel guest-nights per week"
         f"{pct_clause}. "
-        f"Depending on airline operations and demand, the plausible range runs from "
-        f"{unc_bands.delta_p10:+,.0f} to {unc_bands.delta_p90:+,.0f} guest-nights; "
-        f"in back-tests on held-out weeks, ranges like this captured the real outcome "
-        f"about {unc_bands.demonstrated_coverage_pct:.0f}% of the time. "
+        f"Based on the model's past planning errors for this market, the range runs from "
+        f"{unc_bands.delta_p10:+,.0f} to {unc_bands.delta_p90:+,.0f} guest-nights"
+        f"{coverage_clause}. "
         f"{driver_text}"
     )
     return rec

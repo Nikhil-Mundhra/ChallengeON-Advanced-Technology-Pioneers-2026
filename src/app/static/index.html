@@ -144,8 +144,8 @@
     </div>
 
     <div class="control-group">
-      <label>Load Factor Shift (%): <span class="val" id="val-lf">+2.0%</span></label>
-      <input type="range" id="delta-lf" min="-10" max="10" step="1" value="2" oninput="updateLabel('val-lf', (this.value >= 0 ? '+' : '') + this.value + '%'); runSimulation();">
+      <label>Load Factor Shift (%): <span class="val" id="val-lf">+0.0%</span></label>
+      <input type="range" id="delta-lf" min="-10" max="10" step="1" value="0" oninput="updateLabel('val-lf', (this.value >= 0 ? '+' : '') + this.value + '%'); runSimulation();">
     </div>
 
     <div class="control-group">
@@ -302,7 +302,7 @@ function renderUI(d) {
   const uncLow = (d.uncertainty.delta_p10 >= 0 ? "+" : "") + fmt(d.uncertainty.delta_p10);
   const uncHigh = (d.uncertainty.delta_p90 >= 0 ? "+" : "") + fmt(d.uncertainty.delta_p90);
   document.getElementById('kpi-unc').textContent = `${uncLow} to ${uncHigh}`;
-  document.getElementById('kpi-cov').textContent = `${d.uncertainty.coverage_pct}% Demonstrated Coverage`;
+  document.getElementById('kpi-cov').textContent = d.uncertainty.coverage_pct == null ? "Coverage not measured" : `${d.uncertainty.coverage_pct}% holdout coverage (target 80%)`;
 
   // Render Table
   const rows = [

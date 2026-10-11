@@ -14,27 +14,26 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("--market", default="UNITED KINGDOM",
                         help="Target source market (e.g. 'UNITED KINGDOM', 'INDIA', 'SWEDEN', 'BRAZIL')")
     parser.add_argument("--season", default="Winter_Peak", choices=SEASONS, help="Season for simulation")
-    parser.add_argument("--delta-freq", dest="delta_freq", type=float, default=2.0,
-                        help="Additional weekly round-trip flights (e.g. +2.0)")
+    # Every lever defaults to no change, so a run moves only the levers it names.
+    parser.add_argument("--delta-freq", dest="delta_freq", type=float, default=0.0,
+                        help="Additional weekly round-trip flights (e.g. 2; default 0)")
     parser.add_argument("--gauge", type=float, default=290.0,
-                        help="Aircraft seat capacity gauge for added frequency (default 290 for B787)")
+                        help="Seats per added flight (default 290, a B787)")
     parser.add_argument("--delta-seats-pct", dest="delta_seats_pct", type=float, default=0.0,
-                        help="Proportional shift in seat capacity (e.g. 0.10 for +10%%)")
-    parser.add_argument("--delta-lf", dest="delta_lf", type=float, default=0.02,
-                        help="Absolute shift in load factor (e.g. +0.02 for +2%%)")
+                        help="Proportional shift in seat capacity (e.g. 0.10 for +10%%; default 0)")
+    parser.add_argument("--delta-lf", dest="delta_lf", type=float, default=0.0,
+                        help="Absolute shift in load factor (e.g. 0.02 for +2 pp; default 0)")
     parser.add_argument("--delta-p2p", dest="delta_p2p", type=float, default=0.0,
-                        help="Shift in P2P share (e.g. +0.02)")
+                        help="Absolute shift in P2P share (e.g. 0.02 for +2 pp; default 0)")
     parser.add_argument("--delta-mult-pct", dest="delta_mult_pct", type=float, default=0.0,
-                        help="Proportional shift in response multiplier from marketing (e.g. +0.05)")
+                        help="Proportional shift in the response multiplier (e.g. 0.05 for +5%%; default 0)")
     parser.add_argument("--delta-los", dest="delta_los", type=float, default=0.0,
-                        help="Absolute shift in the guests-per-arrival factor (e.g. +0.3)")
+                        help="Absolute shift in the guests-per-arrival factor (e.g. 0.3; default 0)")
     parser.set_defaults(func=run)
 
 
-def run(args: argparse.Namespace) -> None:
-    twin = TourismDigitalTwin()
-
-    lever = ScenarioLever(
+def scenario_lever(args: argparse.Namespace) -> ScenarioLever:
+    return ScenarioLever(
         market=args.market,
         delta_frequency=args.delta_freq,
         aircraft_gauge=args.gauge,
@@ -45,10 +44,13 @@ def run(args: argparse.Namespace) -> None:
         delta_los=args.delta_los,
     )
 
+
+def run(args: argparse.Namespace) -> None:
+    twin = TourismDigitalTwin()
     report = twin.run_scenario(
         market=args.market,
         season=args.season,
-        lever=lever,
+        lever=scenario_lever(args),
         n_draws=1500,
     )
 
@@ -101,17 +103,20 @@ def run(args: argparse.Namespace) -> None:
     print(f"{'TOTAL ATTRIBUTED LIFT':<38} {total_waterfall:>+16,.1f} {'100.0%':>18}")
     print(f"{'Verified Model Discrepancy':<38} {abs(total_waterfall - s_res.delta_guests):>16.6f} {'[Exact Match]':>18}")
 
-    print("\n4. UNCERTAINTY QUANTIFICATION (Empirical & Beta-Sampled Range):")
+    print(f"\n4. RANGE (scenario guests +/- the market's conformal margin of {unc.conformal_margin_pct:.1%}):")
     print("-" * 80)
-    print(f"{'Scenario Outcome':<28} {'P10 (Conservative)':>16} {'P50 (Median)':>16} {'P90 (Optimistic)':>16}")
+    print(f"{'Scenario Outcome':<28} {'P10 (Low)':>16} {'Point':>16} {'P90 (High)':>16}")
     print("-" * 80)
     print(f"{'Simulated Total Guests':<28} {unc.p10:>16,.0f} {unc.p50:>16,.0f} {unc.p90:>16,.0f}")
     print(f"{'Incremental Demand Lift':<28} {unc.delta_p10:>+16,.0f} {unc.delta_p50:>+16,.0f} {unc.delta_p90:>+16,.0f}")
-    print(f"Demonstrated Holdout Coverage: {unc.demonstrated_coverage_pct:.1f}%")
+    if unc.demonstrated_coverage_pct is None:
+        print("Holdout coverage of this range: not measured (run `twin evaluate`, then `twin train`)")
+    else:
+        print(f"Holdout coverage of this range: {unc.demonstrated_coverage_pct:.1f}% (target 80%)")
 
-    print("\n5. TORNADO SENSITIVITY RANKING (Elasticity of Levers):")
+    print("\n5. TORNADO SENSITIVITY RANKING (Guest Swing per Lever):")
     print("-" * 80)
-    print(f"{'Rank':<5} {'Decision Lever':<35} {'Swing Spread':>16} {'Relative Elasticity':>18}")
+    print(f"{'Rank':<5} {'Decision Lever':<35} {'Swing Spread':>16} {'Swing / Base':>18}")
     print("-" * 80)
     for idx, row in enumerate(report.tornado_sensitivity, 1):
         print(f"{idx:<5} {row['lever_name']:<35} {row['swing_spread']:>16,.0f} {row['relative_sensitivity']:>17.1%}")

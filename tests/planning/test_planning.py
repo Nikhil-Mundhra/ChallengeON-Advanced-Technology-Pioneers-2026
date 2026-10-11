@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
+from tourism_twin.config import SETTINGS
 from tourism_twin.domain.scenario import ScenarioLever
 from tourism_twin.domain.seasons import SEASONS, assign_season
 from tourism_twin.features import PANEL_FEATURES
+from tourism_twin.planning.conformal import demonstrated_coverage
+from tourism_twin.planning.uncertainty import UncertaintyEngine
 
 
 WATERFALL_PARTS = ("waterfall_seats", "waterfall_lf", "waterfall_p2p", "waterfall_multiplier", "waterfall_los")
@@ -72,8 +77,27 @@ def test_scenarios_follow_the_planning_rules(twin):
         assert report.is_cold_start and report.structural_result.sim_guests > 0.0 and report.uncertainty_bands.delta_p50 > 0.0
         assert report.tornado_sensitivity[0]["swing_spread"] > 0.0
     lever = ScenarioLever("UNITED KINGDOM", delta_frequency=2)
-    assert twin.uncertainty_engine.run_monte_carlo("UNITED KINGDOM", "Winter_Peak", lever) == \
-        twin.uncertainty_engine.run_monte_carlo("UNITED KINGDOM", "Winter_Peak", lever)  # same scenario, same bands
+    bands = twin.uncertainty_engine.run_monte_carlo("UNITED KINGDOM", "Winter_Peak", lever)
+    assert bands == twin.uncertainty_engine.run_monte_carlo("UNITED KINGDOM", "Winter_Peak", lever)  # same scenario, same bands
+    measured = json.loads(SETTINGS.evaluation_results_path.read_text())["demonstrated_coverage_pct"]
+    assert bands.demonstrated_coverage_pct == measured
+    unmeasured = UncertaintyEngine(engine).run_monte_carlo("UNITED KINGDOM", "Winter_Peak", lever)
+    assert unmeasured.demonstrated_coverage_pct is None and demonstrated_coverage(None) is None  # never an invented figure
+
+
+def test_simulate_command_changes_only_the_levers_it_is_given(twin):
+    from tourism_twin.cli import build_parser
+    from tourism_twin.cli.simulate import scenario_lever
+
+    def run(*flags):
+        args = build_parser().parse_args(["simulate", "--market", "UNITED KINGDOM", *flags])
+        return twin.structural_engine.simulate("UNITED KINGDOM", "Winter_Peak", scenario_lever(args))
+
+    assert run().delta_guests == pytest.approx(0.0, abs=1e-6)
+    flights = run("--delta-freq", "2")
+    assert flights.delta_seats == pytest.approx(2 * 290.0) and flights.sim_lf == flights.base_lf and flights.waterfall_lf == 0.0
+    load_factor = run("--delta-lf", "0.02")
+    assert load_factor.delta_seats == 0.0 and load_factor.waterfall_lf > 0.0
 
 
 def test_a_served_route_that_converts_nobody_brings_no_aviation_arrivals():

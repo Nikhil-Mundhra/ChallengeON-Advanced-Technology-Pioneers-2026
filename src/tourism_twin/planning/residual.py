@@ -116,7 +116,8 @@ class ResidualMLEngine:
             "hybrid_base": base_hybrid,
             "hybrid_sim": sim_hybrid,
             "hybrid_delta": delta_hybrid,
-            # Monotonicity check: delta_hybrid must match or move monotonically with delta_guests
+            # The residual is a constant per market and season, so only the max(0, .) floor can
+            # make the hybrid lift differ from the structural one; this flags a sign reversal.
             "is_monotonic": bool(
                 (structural_result.delta_guests >= 0 and delta_hybrid >= -1e-6) or
                 (structural_result.delta_guests <= 0 and delta_hybrid <= 1e-6)

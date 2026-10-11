@@ -1,5 +1,5 @@
-"""Calendar and event features for the residual layer. Flight levers are deliberately absent,
-which is what keeps the hybrid model monotonic in aviation capacity."""
+"""Calendar and event features for the residual layer. Flight levers are deliberately absent, so
+a scenario moves guests only through the structural chain."""
 
 from __future__ import annotations
 
@@ -44,7 +44,9 @@ def _applies(scope: str, market: str) -> bool:
 def event_exposure_matrix(frame: pd.DataFrame, events: Sequence[str]) -> np.ndarray:
     """(rows x events): the share of each row's week (7 days from week_start) inside a window of
     that event whose scope covers the row's market. Validated against the calendar-only residual
-    on VALIDATION_ORIGINS: -0.7 pp weekly WAPE, 90% interval [-1.55, -0.16], 7/7 origins."""
+    on VALIDATION_ORIGINS: -0.7 pp weekly WAPE, 90% interval [-1.55, -0.16], 7/7 origins, measured
+    before the single-market holidays (diwali, uk_easter_break, russian_may_holidays,
+    saudi_summer_peak, nauryz_holiday, passover_holiday) were added to events.csv; not rerun since."""
     calendar = load_event_calendar()
     starts = pd.to_datetime(frame["week_start"]).to_numpy()
     ends = starts + np.timedelta64(6, "D")
