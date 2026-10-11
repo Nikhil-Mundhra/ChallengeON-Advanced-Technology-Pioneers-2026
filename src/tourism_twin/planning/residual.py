@@ -2,7 +2,7 @@
 
 Learns residual calendar patterns, holiday spikes, major events (ADIPEC, F1),
 and persistent market deviations on top of the structural scenario baseline.
-Enforces monotonicity by strictly excluding flight capacity levers from residual features.
+Has no flight inputs, so a scenario moves guests only through the structural chain.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from tourism_twin.planning.calendar_features import residual_event_types, residu
 from tourism_twin.planning.structural import StructuralEngine
 
 class ResidualMLEngine:
-    """Monotonic ML residual correction engine."""
+    """Calendar residual (RidgeCV) on top of the structural chain."""
 
     def __init__(self, events: Optional[Sequence[str]] = None):
         """`events`: event types whose weekly exposure enters the residual (default: every type in

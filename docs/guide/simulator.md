@@ -10,7 +10,7 @@ For one source market and one season, the simulator compares a baseline week wit
 | Waterfall | Guest lift split sequentially across 5 levers; the parts sum to the total |
 | Hybrid lift | Structural lift plus the residual adjustment |
 | Schedule range | Scenario guests at the low and high end of the market's schedule elasticity (web: `scheduleRange`) |
-| Uncertainty | P10 / P50 / P90 of total guests and of the lift (Monte Carlo) |
+| Uncertainty | P10 / P50 / P90 of total guests and of the lift: scenario guests × (1 ± the market's conformal margin) ([planning model](../model/planning.md#uncertainty-and-sensitivity-planninguncertaintypy-planningconformalpy-planningsensitivitypy)); the Monte Carlo draws are computed but not printed |
 | Tornado | Swing in guests for a fixed up and down shock to each lever |
 | Briefing | One-paragraph summary |
 
@@ -55,7 +55,7 @@ twin simulate --market "UNITED KINGDOM" --season Winter_Peak \
 | Executive recommendation | Weekly guest lift, % vs baseline, P10 to P90 range of the lift, holdout coverage, top tornado driver |
 | Conversion chain | Weekly seats, passengers, P2P, hotel new arrivals, hotel guests (guest-days), load factor, P2P share, response multiplier; baseline vs scenario |
 | Waterfall | Lift in the order seats, load factor, P2P share, response multiplier, stay factor; a lever's share depends on its position |
-| Uncertainty | P10/P50/P90 of simulated total guests and of the lift; deterministic for identical inputs; the P10 of the lift can be negative when capacity is added |
+| Uncertainty | P10/P50/P90 of simulated total guests and of the lift from the conformal margin, and the holdout coverage; the P10 of the lift can be negative when capacity is added |
 | Tornado | Swing for ±15% seats, ±4 pp load factor, ±5 pp P2P share, ±10% multiplier, ±0.5 stay factor, ranked |
 
 ## Market directory

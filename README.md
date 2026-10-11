@@ -6,12 +6,13 @@ Live site: https://abu-dhabi-hotel-outlook.vercel.app · Docs: [docs/index.md](d
 
 ---
 
-Abu Dhabi Hotel Outlook turns air-connectivity decisions into hotel guests: a weekly planning model shows what a flight change does to demand per source market and season, and a daily nowcast predicts hotel guests from new arrivals. Both are built on one validated lake of the DCT flight and hotel data and served by a CLI and a static web app.
+Abu Dhabi Hotel Outlook turns air-connectivity decisions into hotel guests. A weekly planning model shows what a flight change does to demand per source market and season: a seat-ratio chain with a calendar correction sets the baseline, and a schedule change moves guests by each market's response read from a daily seats to arrivals to guests model fitted to the data. A daily nowcast predicts hotel guests from new arrivals. Both are built on one validated lake of the DCT flight and hotel data and served by a CLI and a static web app.
 
 ## Key features
 
 * Answers planning questions: a new route, more flights, more seats, fuller flights, a different seasonal market mix.
 * Transparent chain: seats → passengers → visitors → hotel nights, every step a lever you can move.
+* Learned flight response: guests follow a schedule change by each market's elasticity per season, with a range from refits on earlier data; seat growth over years is an assumption with a 0 to one-for-one range.
 * Validated: time-ordered validation origins and a frozen test period scored once, never shuffled.
 * Ranges: every forecast number comes with its ±error.
 * Reproducible: one command rebuilds the lake, the models, the charts and the report from the raw workbooks.
@@ -62,22 +63,24 @@ Web app: http://localhost:5180. JSON API: http://127.0.0.1:8090. Stop both with 
 
 ## Try a scenario
 
-Two more weekly flights from the UK in winter, on 290-seat aircraft, two points fuller:
+Two more weekly flights from the UK in winter, on 290-seat aircraft, load factor unchanged:
 
 ```console
-$ twin simulate --market "UNITED KINGDOM" --season Winter_Peak --delta-freq 2 --gauge 290 --delta-lf 0.02
+$ twin simulate --market "UNITED KINGDOM" --season Winter_Peak --delta-freq 2 --gauge 290 --delta-lf 0
 
 Metric                               Baseline     Scenario        Net Shift
 Weekly Seat Capacity                   13,844       14,424             +580
-Flight Passengers (Pax)                12,604       13,420             +817
-Point-to-Point (P2P)                    3,556        3,786             +230
-Hotel New Arrivals                      3,789        4,019             +230
-Hotel Guests (Guest-Days)              17,645       18,717           +1,073
+Flight Passengers (Pax)                12,604       13,132             +528
+Point-to-Point (P2P)                    3,556        3,705             +149
+Hotel New Arrivals                      3,789        3,838              +49
+Hotel Guests (Guest-Days)              17,645       17,872             +227
 
-TOTAL ATTRIBUTED LIFT                          +1,072.7             100.0%
+TOTAL ATTRIBUTED LIFT                            +227.2             100.0%
 Scenario Outcome             P10 (Conservative)     P50 (Median) P90 (Optimistic)
-Incremental Demand Lift                -6,039           +1,073           +8,185
+Incremental Demand Lift                -6,563             +227           +7,018
 ```
+
+A 4.2% seat increase gives 1.3% more guests: the UK's winter elasticity, read from the fitted chain, is 0.31. Without `--delta-lf 0` the command also adds 2 points of load factor (the default).
 
 The full briefing adds the waterfall by lever, the range and the tornado ranking. The same scenario runs on `/simulate` with sliders.
 
@@ -87,6 +90,7 @@ The full briefing adds the waterfall by lever, the range and the tornado ranking
 | :--- | :--- | :--- |
 | Daily nowcast (`twin_daily`) | Validation WAPE of daily segment totals, 7 monthly origins (Feb to Aug 2024), domestic and international | [nowcast validation](docs/results/nowcast-validation.md) |
 | Weekly planning model (hybrid) | Forward-holdout WMAPE, 21 markets, 30 weeks without their arrivals | [planning holdout](docs/results/planning-holdout.md) |
+| Schedule response (fitted chain) | Error on the guest change in 717 market-weeks where seats moved more than 15% year on year, against the calendar-only model, 7 folds | [scenario response](docs/evidence/scenario-response.md) |
 
 The nowcast uses the predicted period's new arrivals; the planning model does not.
 

@@ -18,7 +18,7 @@ export function ReportPage({ manifest, bundle }: { manifest: Manifest | null; bu
         <p className="report__eyebrow">ATP 2026 · Department of Culture and Tourism – Abu Dhabi challenge</p>
         <h1 className="report__question">{QUESTION}</h1>
         <dl className="report__figures">
-          <Figure value="4.2% / 4.6%" label="daily guests error (WAPE), domestic / international" />
+          <Figure value="4.2% / 4.1%" label="daily guests error (WAPE), domestic / international" />
           <Figure value="20.5%" label="weekly scenario model error (WMAPE), 30 holdout weeks" />
           <Figure value="21" label="markets: 15 countries, 5 regional groups, domestic" />
         </dl>
