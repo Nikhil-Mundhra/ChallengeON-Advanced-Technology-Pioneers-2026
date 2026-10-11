@@ -56,6 +56,29 @@ def _calendar_conv_frame(seed: int = 11, noise: float = 0.05) -> pd.DataFrame:
     return PANEL_FEATURES.apply(_daily(np.log(guests), new_arrivals_filled=arrivals), ["arrival_lags"], max_lag=7)
 
 
+def _seat_chain_frame(n: int = 800, seed: int = 3, markets=("A", "B")) -> pd.DataFrame:
+    """Two-link truth per market: arrivals = (base + seat kernel * seats) x weekday multiplier, guests =
+    arrivals kernel * arrivals. Seats switch between schedules (step changes) so the kernel is identified."""
+    rng = np.random.default_rng(seed)
+    frames = []
+    for i, market in enumerate(markets):
+        dates = pd.date_range("2023-01-01", periods=n, freq="D")
+        schedule = np.repeat(rng.uniform(800, 2000, n // 30 + 1), 30)[:n] * (1 + i)
+        seats = schedule * rng.choice([0.0, 1.0, 1.0, 1.2], n)  # days without a flight, and extra rotations
+        lags = np.column_stack([np.r_[np.full(k, np.nan), seats[:n - k]] for k in range(len(SEAT_W))])
+        arrivals = (SEAT_BASE + np.nan_to_num(lags) @ SEAT_W) * np.exp(0.1 * ((dates.dayofweek >= 4) - 3 / 7) + rng.normal(0, 0.01, n))  # centred weekday
+        arrival_lags = np.column_stack([np.r_[np.full(k, np.nan), arrivals[:n - k]] for k in range(len(GUEST_W))])
+        guests = 300.0 + np.nan_to_num(arrival_lags) @ GUEST_W
+        frames.append(pd.DataFrame({"market": market, "date": dates, "seats": seats, "p2p": 0.5 * seats,
+                                    "new_arrivals_filled": arrivals, "guests": guests}))
+    return pd.concat(frames, ignore_index=True)
+
+
+SEAT_W = np.array([0.30, 0.15, 0.08, 0.04])
+SEAT_BASE = 200.0
+GUEST_W = np.exp(-np.arange(8) / 3.0)
+
+
 def _ar1_backtest(phi: float, sigma: float, folds: int = 40, horizon: int = 120, seed: int = 11, scale: dict | None = None) -> pd.DataFrame:
     """Back-test-shaped predictions whose log errors follow an AR(1) along the horizon."""
     rng = np.random.default_rng(seed)

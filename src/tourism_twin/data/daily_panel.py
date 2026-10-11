@@ -32,7 +32,7 @@ from tourism_twin.config import SETTINGS
 from tourism_twin.data.imputation import interpolate_within_series
 from tourism_twin.data.panel import build_market_case
 from tourism_twin.data.repository import LakeRepository
-from tourism_twin.domain.markets import TOP_15_INTERNATIONAL_MARKETS
+from tourism_twin.domain.markets import DOMESTIC, TOP_15_INTERNATIONAL_MARKETS
 from tourism_twin.features import PANEL_FEATURES
 from tourism_twin.features.lags import DEFAULT_MAX_LAG
 
@@ -150,6 +150,40 @@ def build_nationality_panel(
     if (gaps != 1).any():
         raise ValueError("A nationality's daily series is not contiguous; lags would be misaligned")
     return PANEL_FEATURES.apply(rows, DAILY_FEATURES, anchor="date", max_lag=max_lag, series="nationality")
+
+
+def daily_seats(repository: Optional[LakeRepository] = None) -> pd.DataFrame:
+    """Scheduled seats and point-to-point passengers per (market, date) from the daily flight table,
+    departure country mapped to market exactly as in the weekly panel (approximate: departure
+    country is not nationality)."""
+    case = build_market_case(tuple(TOP_15_INTERNATIONAL_MARKETS)).format(col="departure_country_name")
+    connection = (repository or LakeRepository()).sql()
+    try:
+        seats = connection.execute(f"""
+            SELECT date, CASE
+{case}
+                END AS market,
+                SUM(total_seats) AS seats, SUM(total_p2p) AS p2p
+            FROM flight_daily GROUP BY 1, 2
+        """).df()
+    finally:
+        connection.close()
+    seats["date"] = pd.to_datetime(seats["date"])
+    return seats
+
+
+def with_scheduled_seats(panel: pd.DataFrame, repository: Optional[LakeRepository] = None) -> pd.DataFrame:
+    """`panel` plus daily `seats` and `p2p` per market (planning chain input). From the first day of
+    the daily flight data on, a market-day without a flight has 0 seats; before it (2022, monthly
+    flights only) and for DOMESTIC (no flights) both stay missing. Lags: feature `seat_lags`."""
+    flights = daily_seats(repository)
+    start = flights["date"].min()
+    out = panel.drop(columns=[c for c in ("seats", "p2p") if c in panel.columns]).merge(
+        flights, on=["market", "date"], how="left", validate="one_to_one")
+    covered = (out["date"] >= start) & (out["market"] != DOMESTIC)
+    out[["seats", "p2p"]] = out[["seats", "p2p"]].where(~covered, out[["seats", "p2p"]].fillna(0.0))
+    out.index = panel.index
+    return out
 
 
 def save_daily_panel(

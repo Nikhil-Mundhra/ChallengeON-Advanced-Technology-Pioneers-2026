@@ -19,11 +19,12 @@ from tourism_twin.models.components import (
     LinearTrend,
     LocalLevel,
     ResidualGBM,
+    SeatKernel,
 )
 from tourism_twin.models.components.base import Component
 from tourism_twin.models.fitters import Backfitting, JointLinear
 
-BLOCKS = ("flow", "time", "holiday", "flight", "residual")  # docs/model_design.md §3.1
+BLOCKS = ("flow", "time", "holiday", "flight", "residual")  # docs/model/nowcast.md#blocks
 
 Entry = Union[str, Tuple[str, Mapping[str, Any]]]  # a registered name, or (name, constructor params)
 T = TypeVar("T")
@@ -72,6 +73,7 @@ class ComponentRegistry(Registry[Component]):
 
 COMPONENTS = ComponentRegistry("component")
 COMPONENTS.register("arrivals_kernel", ArrivalsConvolution)   # flow
+COMPONENTS.register("seat_kernel", SeatKernel)                # flow (planning chain: seats -> arrivals)
 COMPONENTS.register("local_level", LocalLevel)                # time
 COMPONENTS.register("linear_trend", LinearTrend)              # time
 COMPONENTS.register("slope", CentredSlope)                    # time

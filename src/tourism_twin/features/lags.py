@@ -29,3 +29,21 @@ def arrivals_mean_90(frame: pd.DataFrame, series: str = "market", **_) -> pd.Ser
     """Trailing BASE_WINDOW_DAYS mean of new arrivals within each series (market, or nationality),
     today included (shorter at a series' start). Expects rows sorted by (series, date), contiguous."""
     return frame.groupby(series)["new_arrivals_filled"].transform(lambda s: s.rolling(BASE_WINDOW_DAYS, min_periods=1).mean())
+
+
+DEFAULT_SEAT_MAX_LAG = 7
+
+
+def seat_lag_column(k: int) -> str:
+    return f"seats_lag_{k}"
+
+
+@PANEL_FEATURES.feature(Kind.LAG, requires=["market", "date", "seats"])
+def seat_lags(frame: pd.DataFrame, max_seat_lag: int = DEFAULT_SEAT_MAX_LAG, series: str = "market", **_) -> pd.DataFrame:
+    """seats_lag_0..max_seat_lag (scheduled seats k days earlier) plus seat_lag_complete (every lag
+    known; seats are missing before the daily flight data starts). Expects rows sorted by (series,
+    date) with a contiguous daily series per `series`; shifts never cross series."""
+    by_series = frame.groupby(series)["seats"]
+    lags = pd.DataFrame({seat_lag_column(k): by_series.shift(k) for k in range(max_seat_lag + 1)}, index=frame.index)
+    lags["seat_lag_complete"] = lags.notna().all(axis=1)
+    return lags

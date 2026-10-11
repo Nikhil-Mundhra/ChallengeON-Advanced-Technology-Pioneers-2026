@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 from tourism_twin.domain.scenario import ScenarioLever
 from tourism_twin.domain.seasons import SEASONS, assign_season
+from tourism_twin.features import PANEL_FEATURES
 
 
 WATERFALL_PARTS = ("waterfall_seats", "waterfall_lf", "waterfall_p2p", "waterfall_multiplier", "waterfall_los")
@@ -118,3 +119,33 @@ def test_event_exposure_is_the_share_of_the_week_in_a_window_that_covers_the_mar
     frame = pd.DataFrame({"market": ["CHINA", "INDIA"], "week_start": [week, week]})
     exposure = event_exposure_matrix(frame, ["chinese_new_year"])
     assert exposure[0, 0] == pytest.approx(4 / 7) and exposure[1, 0] == 0.0
+
+
+def test_seat_chain_recovers_both_links_and_a_scenario_reruns_them_end_to_end():
+    from synthetic import GUEST_W, _seat_chain_frame
+    from tourism_twin.models.handler import flagged
+    from tourism_twin.models.spec import ModelSpec
+    from tourism_twin.planning.chain import ChainSpec
+
+    frame = _seat_chain_frame()
+    seats_link = ModelSpec(components=(("seat_kernel", {"max_lag": 3}), "weekday"), rules=(flagged("seat_lag_complete"),),
+                           options=(("target", "new_arrivals_filled"),))
+    guests_link = ModelSpec(components=(("arrivals_kernel", {"max_lag": 7}),), rules=(flagged("lag_complete"),))
+    spec = ChainSpec(seats_link, guests_link, seat_max_lag=3, arrival_max_lag=7)
+    # Link 2 learns from observed arrival lags (in the daily panel already; built here).
+    chain = spec.build().fit(PANEL_FEATURES.apply(frame[frame["date"] < "2024-09-01"], ["arrival_lags"], max_lag=7))
+
+    later = frame["date"] >= "2024-09-01"
+    predicted = chain.predict_frame(frame)
+    assert np.abs(predicted.loc[later, "guests"] / frame.loc[later, "guests"] - 1).max() < 0.03
+    assert predicted["guests"].isna().sum() == 2 * (3 + 7)  # each market's lag warm-up only
+
+    result = chain.scenario(frame, "A", "2024-10-01", "2024-10-30", 0.10).dropna()
+    d_arrivals = result["scenario_arrivals"] - result["arrivals"]
+    d_guests = result["scenario_guests"] - result["guests"]
+    days = (result["date"] - pd.Timestamp("2024-10-01")).dt.days
+    assert (d_arrivals[(days < 0) | (days > 29 + 3)].abs() < 1e-9).all()  # seats reach arrivals over lags 0..3
+    assert (d_guests[(days < 0) | (days > 29 + 3 + 7)].abs() < 1e-9).all()  # then guests over lags 0..7
+    assert (d_arrivals[(days >= 0) & (days <= 29)] > 0).all()
+    # Guests respond through link 2's kernel applied to link 1's arrival change, not a fixed ratio.
+    assert d_guests.sum() == pytest.approx(GUEST_W.sum() * d_arrivals.sum(), rel=0.03)

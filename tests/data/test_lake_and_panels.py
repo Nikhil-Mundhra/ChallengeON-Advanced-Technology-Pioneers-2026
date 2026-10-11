@@ -67,16 +67,19 @@ def test_daily_lags_cross_the_train_test_boundary(daily_panel: pd.DataFrame, mar
 
 
 def test_daily_panel_sums_to_the_weekly_panel(daily_panel: pd.DataFrame, weekly_panel: pd.DataFrame):
-    daily = daily_panel[daily_panel["date"] >= "2023-01-01"]
+    from tourism_twin.data.daily_panel import with_scheduled_seats
+
+    daily = with_scheduled_seats(daily_panel[daily_panel["date"] >= "2023-01-01"])
     daily = daily.assign(week_start=daily["date"].dt.to_period("W-SUN").dt.start_time.dt.date)
     sums = (
         daily.groupby(["week_start", "dataset_split", "market"])
-        .agg(guests=("guests", lambda s: s.sum(min_count=1)), new_arrivals=("new_arrivals", lambda s: s.sum(min_count=1)))
+        .agg(guests=("guests", lambda s: s.sum(min_count=1)), new_arrivals=("new_arrivals", lambda s: s.sum(min_count=1)),
+             seats=("seats", "sum"), p2p=("p2p", "sum"))  # DOMESTIC has no flights: 0, as in the weekly panel
         .reset_index()
     )
     merged = weekly_panel.merge(sums, on=["week_start", "dataset_split", "market"], how="outer", suffixes=("_weekly", "_daily"), indicator=True)
     assert (merged["_merge"] == "both").all()
-    for column in ("guests", "new_arrivals"):
+    for column in ("guests", "new_arrivals", "seats", "p2p"):
         weekly_values, daily_values = merged[f"{column}_weekly"], merged[f"{column}_daily"]
         assert (weekly_values.isna() == daily_values.isna()).all(), column
         both = weekly_values.notna()

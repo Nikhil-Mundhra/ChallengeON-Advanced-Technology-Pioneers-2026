@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from tourism_twin.features import PANEL_FEATURES
-from tourism_twin.models.components import AnnualFourier, ArrivalsConvolution, DayOfWeek, EventKernel, LinearRegressors, LinearTrend, LocalLevel, ResidualGBM
+from tourism_twin.models.components import AnnualFourier, ArrivalsConvolution, DayOfWeek, EventKernel, LinearRegressors, LinearTrend, LocalLevel, ResidualGBM, SeatKernel
 from tourism_twin.models.composite import AdditiveLogModel
 from tourism_twin.models.fitters import Backfitting, JointLinear
 from synthetic import _synthetic, _calendar, _daily, _conv_frame, _calendar_conv_frame
@@ -121,7 +121,7 @@ def test_arrivals_convolution_recovers_a_known_survival_kernel():
 
 
 def test_arrivals_kernel_log_gradient_matches_finite_differences():
-    from tourism_twin.models.components.arrivals_conv import log_gradient, log_objective
+    from tourism_twin.models.components.convolution import log_gradient, log_objective
 
     rng = np.random.default_rng(2)
     design, penalty = rng.uniform(1, 50, (200, 6)), 0.1 * rng.normal(size=(3, 6))
@@ -208,3 +208,22 @@ def test_residual_gbm_picks_up_a_structure_the_other_parts_miss():
     model = AdditiveLogModel([LinearTrend(), ResidualGBM(["signal"])], fitter=Backfitting()).fit(frame)
     gbm = model.decompose(frame)["gbm"]
     assert gbm[flag == 1].mean() - gbm[flag == 0].mean() == pytest.approx(0.25, abs=0.02)
+
+
+def test_seat_kernel_recovers_a_known_seat_kernel_and_keeps_its_bounds():
+    from synthetic import SEAT_BASE, SEAT_W, _seat_chain_frame
+
+    frame = PANEL_FEATURES.apply(_seat_chain_frame(markets=("A",)), ["seat_lags"], max_seat_lag=3)
+    spec = dict(fitter=Backfitting(), target="new_arrivals_filled", include_flag="seat_lag_complete")
+    model = AdditiveLogModel([SeatKernel(max_lag=3), DayOfWeek()], **spec).fit(frame)
+    fitted = model.explain()["A"]["seats"]
+    np.testing.assert_allclose(fitted["survival_w"], SEAT_W, atol=0.01)
+    assert list(fitted["base_stock_by_knot"].values()) == pytest.approx([SEAT_BASE] * 3, rel=0.1)
+    # Physical cap: arrivals per seat <= cap_factor x P2P per seat (0.5 here); 0.6 x 0.5 = 0.3 < sum(w) = 0.57.
+    capped = AdditiveLogModel([SeatKernel(max_lag=3, cap_factor=0.6), DayOfWeek()], **spec).fit(frame).explain()["A"]["seats"]
+    assert capped["kernel_cap"] == pytest.approx(0.3) and capped["cap_binds"]
+    assert capped["kernel_sum"] == pytest.approx(0.3, rel=1e-6)
+    # Shrinking the base share toward a pooled value moves it there as the ridge grows.
+    shares = [AdditiveLogModel([SeatKernel(max_lag=3, share_target=0.6, share_ridge=ridge), DayOfWeek()], **spec).fit(frame)
+              .explain()["A"]["seats"]["base_stock_share"] for ridge in (0.0, 1.0, 1000.0)]
+    assert shares[0] < shares[1] < shares[2] and shares[2] == pytest.approx(0.6, abs=0.01)

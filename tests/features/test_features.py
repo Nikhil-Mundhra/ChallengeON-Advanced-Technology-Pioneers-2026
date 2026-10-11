@@ -82,3 +82,11 @@ def test_one_off_periods_are_flagged_and_masked_from_training():
     both = pd.concat([frame, frame.assign(market="DOMESTIC")], ignore_index=True)
     flags = PANEL_FEATURES.apply(both[["date", "market"]], ["is_one_off_period"], anchor="date")["is_one_off_period"]
     assert flags[both["market"] == "UNITED KINGDOM"].sum() == 28 and flags[both["market"] == "DOMESTIC"].sum() == 0
+
+
+def test_seat_lags_stay_inside_one_market_and_are_unknown_before_seats_start():
+    frame = pd.DataFrame({"market": ["A"] * 4 + ["B"] * 4, "date": list(pd.date_range("2023-01-01", periods=4)) * 2,
+                          "seats": [np.nan, 10.0, 20.0, 30.0, 1.0, 2.0, 3.0, 4.0]})
+    lags = PANEL_FEATURES.apply(frame, ["seat_lags"], max_seat_lag=1)
+    assert lags["seats_lag_1"].tolist()[4:] == pytest.approx([np.nan, 1.0, 2.0, 3.0], nan_ok=True)  # B never reads A
+    assert lags["seat_lag_complete"].tolist() == [False, False, True, True, False, True, True, True]
