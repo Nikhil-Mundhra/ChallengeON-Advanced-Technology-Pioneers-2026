@@ -13,7 +13,7 @@
 - reasoning: no `because` or `so` clauses, rejected alternatives, history or motivation in guides or docs; the why goes in a code comment (`agents/code/comments.md`) or the commit message.
 - decisions: no decision logs, changelogs or dated "we chose" records; the current fact goes in its doc, the rule in its guide.
 - form: one statement per fact; a table when facts share attributes; no prose a table or bullet can carry.
-- numbers: result numbers (errors, gains, coverage, effects) live only in `docs/results/`, each table naming its source artifact; experiment measurements live in `docs/evidence/`; every other file links there.
+- numbers: result numbers (errors, gains, coverage, effects) live only in `docs/results/`, each table naming its source artifact; experiment measurements live in `docs/evidence/`, each citing its `experiment/<name>/` folder, whose `README.md` and `results.md` hold the full tables; every other file links there.
 - language: plain words; no em dashes; no bold as decoration; sentence-case headings that name what the section holds; no sentence that describes the document itself; no filler, staged run-ups, triads by habit or inflated words (crucial, robust, seamless, leverage, showcase).
 
 ## Workflow

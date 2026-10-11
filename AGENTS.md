@@ -8,6 +8,7 @@ Entry point for the Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT ch
 - code comments in any language → `agents/code/comments.md`
 - guest model: components, specs, fitting, inputs, events, nowcast and planning equations → `agents/model/guest-model.md`
 - comparing, validating or scoring models; shipping a component; reporting a result → `agents/model/evaluation.md`
+- running or reading a model experiment in `experiment/` → `agents/model/experiment.md`
 - lake artifacts, raw workbooks, submission files, generated output, the web bundle → `agents/data/artifacts.md`
 - presentation deck in `meta/deck/` → `agents/deck.md`
 - writing or changing any .md → `agents/docs/writing.md`

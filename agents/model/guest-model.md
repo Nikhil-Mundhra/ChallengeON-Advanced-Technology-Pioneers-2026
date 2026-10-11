@@ -27,13 +27,16 @@
 - partial refit: refitting some components against frozen others is for experiments only; a shipped model is fully refitted.
 - nowcast inputs: test-split hotel New Arrivals (kernel) and calendar blocks only; lags of New Arrivals are allowed in both splits; never a feature derived from `Guests`; never flight, transfer, premium or seat features.
 - planning chain: one equation per link (flights → hotel arrivals → guests), simulated end to end; never flights and arrivals in the same guests equation.
+- schedule response: the simulator's seat lever scales guests by the elasticity read off the fitted chain (`planning/schedule_response.py`, stored in `lake/curated/flight_response.json`); never a hand-set curve, cap or constant.
+- capacity growth: an assumption over `capacity_trend.EFFECT_RANGE` with the historical co-movement as its central value (`planning/capacity_trend.py`); labelled an assumption, never a measured effect.
 - calendar: calendar terms go in every equation; never de-seasonalize a variable separately before fitting.
 - new input: enters as a mixing weight inside the arrivals kernel or as a centred ratio, with one pooled coefficient; never a free additive log term, never fitted per country.
 - kernel: non-negative and non-increasing, `w = triu(ones) @ d` with `d >= 0` (never `triu(ones).T`), `w_0 <= 1`, base stock `c >= 0`.
 - labels: kernel weights, their sum and guests ÷ arrivals ratios are fitting quantities; never output, export or label them as length of stay; the planning factor L is the "guests-per-arrival factor".
 - encoding: categoricals (day of week, month, market, holiday type) one-hot, never integer-coded; annual season as Fourier terms on day of year; continuous inputs (arrivals, P2P, seats) in log; load factor as spline or bins.
 - lunar holidays: explicit dates per year, never a fixed month.
-- events: occurrences go in `domain/events.csv` with `scope` (all, international, a market or a pooled-market nationality); `kind=one_off` rows are masked from training through `is_one_off_period`; scoped events (`chinese_new_year`, `morocco_winter_block`) stay out of `DEFAULT_KERNEL_EVENTS` until they pass the gate.
+- events: occurrences go in `domain/events.csv` with `scope` (all, domestic, international, a market or a pooled-market nationality); `kind=one_off` rows are masked from training through `is_one_off_period`; market-scoped event types stay out of `DEFAULT_KERNEL_EVENTS` until they pass the gate.
+- event types: every non-one-off type in `events.csv` enters the weekly residual (`planning/calendar_features.py`) as soon as it is added; a new type is a planning metric change (AGENTS.md `metrics`).
 - legacy weeks: never derive `HOLIDAY_WEEKS` or `MAJOR_EVENT_WEEKS` from `events.csv`.
 - outlook: before `twin outlook --winter Y`, add that window's event occurrences to `events.csv`, unconfirmed lunar dates labelled `(expected)`.
 - intervals: fit `models/noise.NoiseModel` on out-of-sample back-test errors only; the interval of a sum (week, date range, total over markets) comes from `NoiseModel.range_interval` or the summed series' own errors; never add bounds.

@@ -7,7 +7,7 @@
 
 ## Rules
 - raw workbooks: `01a - DCT Dataset/` (or `TWIN_SOURCE_DIR`) is gitignored and supplied locally; never edit or commit it.
-- committed lake: `lake/manifest.json` and the tracked files in `lake/curated/` are committed despite `.gitignore` (check with `git ls-files lake`).
+- committed lake: `lake/manifest.json` and the tracked files in `lake/curated/` are committed despite `.gitignore` (check with `git ls-files lake`); a new committed artifact there is added with `git add -f`.
 - scratch: commands that write the lake or `output/` (`build-lake`, `build-panel`, `build-daily-panel`, `train`, `evaluate`, `make all`, `predict`, `charts`, `report`, `evaluate-model`, `ablate-blocks`, `outlook`) run against scratch dirs, never the checkout: `TWIN_LAKE_DIR=/tmp/lake TWIN_OUTPUT_DIR=/tmp/out make all`.
 - submission: never use a submission file unless `validate_predictions` returns no problems.
 - floor: nationality Guests are floored at max(New Arrivals, 10); absent test days get below-threshold arrivals, never interpolation.
@@ -15,4 +15,6 @@
 - narration: narration and LLM text read `market_outputs.json` fields only and never compute numbers; a new number is added in `nowcast/outputs.py`.
 - pickle: `residual_engine.pkl` pickles a plain dict of scikit-learn estimators, never a project class.
 - bundle: after any model or artifact change, run `make export` and commit `web/public/data` with the change; never hand-edit bundle files.
+- fast export: `make export-fast` reuses `lake/curated/noise_model.json` (written by the first `twin export`), stale after any nowcast change; commit only a bundle from `make export`, and never commit the cache.
+- bundle schema: a change to a bundle file's shape bumps `SCHEMA_VERSION` in `export/bundle.py` and the check in `web/src/data/bundle.ts` together.
 - raw arrivals: the bundle exports derived terms (what-if base, pre, in, floor, multiplier), never raw arrivals.
