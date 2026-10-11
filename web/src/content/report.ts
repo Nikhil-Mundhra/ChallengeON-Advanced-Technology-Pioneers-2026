@@ -77,9 +77,9 @@ export const PLANNING_HOLDOUT = {
   rows: [
     { model: "Historical seasonal prior", wmape: 23.0, bias: -6.6 },
     { model: "Calendar ridge (no aviation)", wmape: 22.0, bias: -8.5 },
-    { model: "Structural chain only", wmape: 23.14, bias: 5.93 },
+    { model: "Structural chain only", wmape: 23.00, bias: 6.06 },
     { model: "Structural + calendar residual (before events)", wmape: 21.74, bias: 5.36 },
-    { model: "Structural + calendar and event residual", wmape: 20.62, bias: 5.55, shipped: true },
+    { model: "Structural + calendar and event residual", wmape: 20.29, bias: 5.91, shipped: true },
   ],
 };
 
@@ -95,7 +95,7 @@ export const SUCCESS_CRITERIA = [
 
 export const LIMITATIONS = [
   "Departure country stands in for nationality; the calibrated multiplier absorbs the mismatch.",
-  "Weekly planning intervals cover 65.2% of holdout weeks against 80% nominal: they are too narrow.",
+  "Weekly planning intervals cover 65.7% of holdout weeks against 80% nominal: they are too narrow.",
   "The guests-per-arrival factor is a stock-to-flow ratio, not a measured length of stay.",
   "Markets without flights use archetype defaults (cold start).",
   "The weekly model has no growth term: multi-year projections repeat the fitted seasonal profile, and growth is an assumption the user sets. Holiday-week flags end in November 2026.",
