@@ -39,6 +39,7 @@ Entry point for the Abu Dhabi Tourism Digital Twin (ChallengeON ATP 2026, DCT ch
 Makefile : pipeline, test, web and server targets; `make docs-lint`
 README.md : project summary for visitors: what it does, install, run, links into `docs/`
 docs/ : facts: data, architecture, model, evidence, results, user guide
+experiment/ : model experiments, one folder each with its code, README and aggregate results; outputs in `<name>/out/` (gitignored)
 lake/ : curated tables and model artifacts
 meta/ : deck source, research outputs, audit inputs and dated records
 pyproject.toml : package metadata, dependencies and extras

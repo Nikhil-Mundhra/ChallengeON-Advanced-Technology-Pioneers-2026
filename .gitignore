@@ -21,3 +21,6 @@ ollama_server.log
 # Raw competition dataset
 01a - DCT Dataset/
 .run/
+
+# Experiment outputs (cached predictions, licensed data)
+experiment/*/out/
