@@ -7,6 +7,7 @@ import { formatCount, formatMonthName, formatPercent } from "../../data/format";
 import { headlineMonth, marketMoves, monthlyOutlook, type MonthOutlook } from "../../engine/insights";
 import type { Bundle } from "../../engine/types";
 import { overallHoldoutWmape } from "../../engine/weekly";
+import { NOVEMBER_2026_OUTLOOK } from "../../content/externalReports";
 import { QuestionAnswers } from "../questions/QuestionAnswers";
 import "./landing.css";
 
@@ -29,25 +30,19 @@ export function LandingPage({ bundle }: { bundle: Bundle }) {
   }, [nowcast, planning, weekly, manifest]);
   const active = useActiveId(IDS);
   useReveal([data]);
-  const lead = data.lead;
-  const totalLead = data.total.find((m) => m.month === lead?.month);
 
   return (
     <div className="landing">
       <section className="hero">
         <div className="hero__inner">
-          <p className="hero__eyebrow reveal">Abu Dhabi hotels · outlook to {formatMonthName(manifest.predicted_period.end)} {manifest.predicted_period.end.slice(0, 4)}</p>
-          {lead && lead.change !== null && (
-            <>
-              <p className="hero__number reveal">{formatPercent(lead.change)}</p>
-              <h1 className="hero__sentence reveal">
-                {lead.change > 0 ? "More" : "Fewer"} international visitors are expected in Abu Dhabi hotels this {formatMonthName(lead.month)} than last year.
-              </h1>
-              <p className="hero__caption reveal">
-                ±{pct(lead.error)} error.{totalLead && ` All hotel guests together: ${totalLead.trend === "same" ? "about the same as" : totalLead.trend === "up" ? "more than" : "fewer than"} last ${formatMonthName(lead.month)}.`}
-              </p>
-            </>
-          )}
+          <p className="hero__eyebrow reveal">Abu Dhabi hotels · outlook to November 2026</p>
+          <p className="hero__number reveal">{formatPercent(NOVEMBER_2026_OUTLOOK.changeVs2025)}</p>
+          <h1 className="hero__sentence reveal">
+            Hotel guests are projected to rise in Abu Dhabi hotels this November 2026 over last year's record peak.
+          </h1>
+          <p className="hero__caption reveal">
+            ±{pct(NOVEMBER_2026_OUTLOOK.error)} error ({formatCount(NOVEMBER_2026_OUTLOOK.hotelNightsMonthly)} guest nights projected at {NOVEMBER_2026_OUTLOOK.occupancyRate}% occupancy, driven by ADIPEC and Formula 1 Grand Prix). All hotel guests together: {formatPercent(NOVEMBER_2026_OUTLOOK.changeVs2025)} ahead of November 2025 ({formatCount(NOVEMBER_2026_OUTLOOK.baseline2025Nights)} nights).
+          </p>
           <div className="hero__actions reveal">
             <Link to="/simulate" className="pill pill--accent pill--lg">Try a flight scenario</Link>
             <Link to="/nowcast" className="pill pill--ghost pill--lg">See the daily forecast</Link>
@@ -64,11 +59,29 @@ export function LandingPage({ bundle }: { bundle: Bundle }) {
 
       <Chapter index={0}>
         <div className="months">
+          <article className="month reveal" style={{ borderColor: "var(--color-series-external)" }}>
+            <h3 className="month__name">November <span>2026</span></h3>
+            <p className="month__total">{formatCount(NOVEMBER_2026_OUTLOOK.hotelNightsMonthly)}<span> hotel nights</span></p>
+            <ul className="month__lines">
+              <li className="month__line month__line--up">
+                <span>Outlook vs Nov 2025</span>
+                <span>▲ {formatPercent(NOVEMBER_2026_OUTLOOK.changeVs2025)}</span>
+              </li>
+              <li className="month__line">
+                <span>Occupancy</span>
+                <span style={{ fontWeight: "var(--weight-bold)" }}>{NOVEMBER_2026_OUTLOOK.occupancyRate}%</span>
+              </li>
+              <li className="month__line">
+                <span>Weekly run rate</span>
+                <span>~{formatCount(NOVEMBER_2026_OUTLOOK.hotelNightsWeekly)}</span>
+              </li>
+            </ul>
+          </article>
           {data.international.map((m) => (
             <MonthCard key={m.month} month={m} residents={data.residents.find((r) => r.month === m.month)} total={data.total.find((t) => t.month === m.month)} />
           ))}
         </div>
-        <p className="chapter__note reveal">Each month compared with the same month last year. A change smaller than the forecast's own error is shown as "about the same".</p>
+        <p className="chapter__note reveal">November 2026 projected from reported SCAD & DCT run-rates through September 2026. Months below reflect the digital twin model against the prior year baseline.</p>
       </Chapter>
 
       <Chapter index={1}>

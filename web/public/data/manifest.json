@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "version": "20261011-174113-bca6876",
-  "created": "2026-10-11T17:41:13+00:00",
-  "git_sha": "bca6876",
+  "version": "20261011-175813-d9de50a",
+  "created": "2026-10-11T17:58:13+00:00",
+  "git_sha": "d9de50a",
   "spec": "twin_daily",
   "coverage": 0.8,
   "predicted_period": {
@@ -10,11 +10,11 @@
     "end": "2026-02-28"
   },
   "files": {
-    "nowcast": "20261011-174113-bca6876/nowcast.json",
-    "whatif": "20261011-174113-bca6876/whatif.json",
-    "planning": "20261011-174113-bca6876/planning.json",
-    "weekly": "20261011-174113-bca6876/weekly.json",
-    "golden": "20261011-174113-bca6876/golden.json"
+    "nowcast": "20261011-175813-d9de50a/nowcast.json",
+    "whatif": "20261011-175813-d9de50a/whatif.json",
+    "planning": "20261011-175813-d9de50a/planning.json",
+    "weekly": "20261011-175813-d9de50a/weekly.json",
+    "golden": "20261011-175813-d9de50a/golden.json"
   },
   "sha256": {
     "nowcast": "3e989e82f8bbfa4bc6a730600adabf9126f3bfb056ce1bea85b3dc9980ac6f96",
