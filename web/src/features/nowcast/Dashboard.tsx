@@ -14,7 +14,7 @@ import "./dashboard.css";
 
 type Grain = "day" | "week";
 
-export function Dashboard({ bundle, search }: { bundle: Bundle; search: string }) {
+export function Dashboard({ bundle }: { bundle: Bundle }) {
   const seriesNames = useMemo(() => [...AGGREGATES, ...Object.keys(bundle.nowcast.series).filter((n) => !(AGGREGATES as readonly string[]).includes(n)).sort()], [bundle]);
   const [input, setInput] = useState<NowcastInput>({ series: "TOTAL", startIndex: 0, length: 28, domestic: 1, international: 1, market: 1 });
   const [grain, setGrain] = useState<Grain>("week");
@@ -38,7 +38,7 @@ export function Dashboard({ bundle, search }: { bundle: Bundle; search: string }
           <TrendBand data={trend} showWhatIf={view.changed} />
         </Card>
       </div>
-      <NationalityList nowcast={bundle.nowcast} start={view.dates[from]} end={view.dates[to]} filter={search} />
+      <NationalityList nowcast={bundle.nowcast} start={view.dates[from]} end={view.dates[to]} />
     </PageLayout>
   );
 }
