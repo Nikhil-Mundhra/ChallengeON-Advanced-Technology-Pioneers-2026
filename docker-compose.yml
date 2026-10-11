@@ -1,0 +1,21 @@
+# Convenience composition — each service also builds alone:
+#   docker build --target web -t tourism-twin-web . && docker run -p 8080:80 tourism-twin-web
+#   docker build --target api -t tourism-twin-api . && docker run -p 8090:8080 tourism-twin-api
+services:
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "8080:80"
+
+  api:
+    build:
+      context: .
+      target: api
+    ports:
+      - "8090:8080"
+    # Optional: mount the raw workbooks to run `twin build-lake` / `twin predict`
+    # inside the container. Not needed for serve/simulate (committed artifacts).
+    # volumes:
+    #   - "./01a - DCT Dataset:/app/01a - DCT Dataset:ro"
