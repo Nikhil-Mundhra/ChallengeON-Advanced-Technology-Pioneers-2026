@@ -6,6 +6,7 @@ import { formatCount, formatSigned, toneOf } from "../../data/format";
 import { capacityOutlook } from "../../engine/capacity";
 import { scheduleEffect, simulate, type Planning } from "../../engine/planning";
 import { playback } from "../../engine/playback";
+import { getExternalWeeklyRate } from "../../content/externalReports";
 import { holdoutWmape, timeline, totalTimeline, type Weekly } from "../../engine/weekly";
 import { ALL_MARKETS, DEFAULT_INPUT, leverReducer, marketOptions, scenarioFromQuery, scenarioQuery, startOptions, toLever } from "./levers";
 import { LeverPanel } from "./LeverPanel";
@@ -46,14 +47,20 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
   const seasons = useMemo(() => Object.keys(Object.values(planning.calibration)[0]), [planning]);
   const weeks = useMemo(() => Object.values(weekly.markets)[0].week, [weekly]);
   const firstWeek = useMemo(() => weeks[weeks.indexOf(weekly.last_actual_week) + 1] ?? weekly.last_actual_week, [weeks, weekly]);
-  const picks = useMemo(() => startOptions(weeks, firstWeek), [weeks, firstWeek]);
+  const today = new Date().toISOString().slice(0, 10);
+  const todayWeek = useMemo(() => weeks.find((w) => w >= today) ?? firstWeek, [weeks, today, firstWeek]);
+  const picks = useMemo(() => {
+    const quarters = startOptions(weeks, firstWeek);
+    const combined = [firstWeek, todayWeek, ...quarters];
+    return Array.from(new Set(combined)).sort().filter((w) => w !== todayWeek);
+  }, [weeks, firstWeek, todayWeek]);
   const [search, setSearch] = useSearchParams();
-  const opened = useMemo(() => scenarioFromQuery(search, { markets: markets.map((m) => m.value), seasons, starts: [firstWeek, ...picks] }),
-    [search, markets, seasons, firstWeek, picks]);
+  const opened = useMemo(() => scenarioFromQuery(search, { markets: markets.map((m) => m.value), seasons, starts: [todayWeek, ...picks] }),
+    [search, markets, seasons, todayWeek, picks]);
   const [market, setMarket] = useState(opened.market);
   const [season, setSeason] = useState(opened.season ?? seasons[0]);
   const [input, dispatch] = useReducer(leverReducer, DEFAULT_INPUT, () => opened.input);
-  const [start, setStart] = useState(opened.start ?? firstWeek);
+  const [start, setStart] = useState(opened.start ?? todayWeek);
   const [view, setView] = useState<View>("map");
   const [growthPct, setGrowthPct] = useState(0);
 
@@ -84,8 +91,12 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
   const capacityPct = all ? 0 : input.capacityPct;
   const options = { start, growthPct, capacityPct };
   const pb = useMemo(() => playback(planning, weekly, market, lever, options), [planning, weekly, market, lever, start, growthPct, capacityPct]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const points = useMemo(() => (all ? totalTimeline(planning, weekly, market, lever, options) : timeline(planning, weekly, market, lever, options)),
+  const rawPoints = useMemo(() => (all ? totalTimeline(planning, weekly, market, lever, options) : timeline(planning, weekly, market, lever, options)),
     [planning, weekly, market, lever, start, growthPct, capacityPct, all]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const points = useMemo(() => {
+    if (!all) return rawPoints;
+    return rawPoints.map((p) => ({ ...p, external: getExternalWeeklyRate(p.week) }));
+  }, [rawPoints, all]);
   const schedule = all ? null : scheduleEffect(planning, market, season, lever);
   const capacity = { years: CAPACITY_YEARS, ...capacityOutlook(planning, capacityPct, CAPACITY_YEARS) };
   const [week, setWeek] = useState(() => Math.max(0, pb.weeks.indexOf(start)));

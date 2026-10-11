@@ -62,3 +62,34 @@ chinese_new_year,lunar,2027-02-06,-7,14,CHINA,Chinese New Year 2027 (expected),C
 morocco_winter_block,solar,2023-12-01,-45,90,MOROCCO,Morocco winter guest-stock block 2023/24,Morocco guests per arrival 5.0-7.8 Nov-Dec 2023 (2.6-3.1 in 2022/23)
 morocco_winter_block,solar,2024-12-01,-45,90,MOROCCO,Morocco winter guest-stock block 2024/25,Morocco guests per arrival 6.9-10.9 Jan-Feb 2025
 morocco_winter_block,solar,2025-12-01,-45,90,MOROCCO,Morocco winter guest-stock block 2025/26 (assumed to recur),Two winters observed; not in 2022/23
+diwali,lunar,2022-10-24,-5,10,INDIA,Diwali 2022,India festival surge and school holidays
+diwali,lunar,2023-11-12,-5,10,INDIA,Diwali 2023,India festival surge and school holidays
+diwali,lunar,2024-10-31,-5,10,INDIA,Diwali 2024,India festival surge and school holidays
+diwali,lunar,2025-10-20,-5,10,INDIA,Diwali 2025,India festival surge and school holidays
+diwali,lunar,2026-11-08,-5,10,INDIA,Diwali 2026,India festival surge and school holidays
+russian_may_holidays,solar,2022-05-01,-7,12,RUSSIAN FEDERATION,Russian May Holidays 2022,Labor Day to Victory Day spring recess
+russian_may_holidays,solar,2023-05-01,-7,12,RUSSIAN FEDERATION,Russian May Holidays 2023,Labor Day to Victory Day spring recess
+russian_may_holidays,solar,2024-05-01,-7,12,RUSSIAN FEDERATION,Russian May Holidays 2024,Labor Day to Victory Day spring recess
+russian_may_holidays,solar,2025-05-01,-7,12,RUSSIAN FEDERATION,Russian May Holidays 2025,Labor Day to Victory Day spring recess
+russian_may_holidays,solar,2026-05-01,-7,12,RUSSIAN FEDERATION,Russian May Holidays 2026,Labor Day to Victory Day spring recess
+uk_easter_break,lunar,2022-04-17,-10,10,UNITED KINGDOM,UK Easter Break 2022,UK 2-week school holiday surge
+uk_easter_break,lunar,2023-04-09,-10,10,UNITED KINGDOM,UK Easter Break 2023,UK 2-week school holiday surge
+uk_easter_break,lunar,2024-03-31,-10,10,UNITED KINGDOM,UK Easter Break 2024,UK 2-week school holiday surge
+uk_easter_break,lunar,2025-04-20,-10,10,UNITED KINGDOM,UK Easter Break 2025,UK 2-week school holiday surge
+uk_easter_break,lunar,2026-04-05,-10,10,UNITED KINGDOM,UK Easter Break 2026,UK 2-week school holiday surge
+saudi_summer_peak,solar,2022-08-01,-14,14,SAUDI ARABIA,Saudi Summer Holiday 2022,Gulf school break and family migration
+saudi_summer_peak,solar,2023-08-01,-14,14,SAUDI ARABIA,Saudi Summer Holiday 2023,Gulf school break and family migration
+saudi_summer_peak,solar,2024-08-01,-14,14,SAUDI ARABIA,Saudi Summer Holiday 2024,Gulf school break and family migration
+saudi_summer_peak,solar,2025-08-01,-14,14,SAUDI ARABIA,Saudi Summer Holiday 2025,Gulf school break and family migration
+saudi_summer_peak,solar,2026-08-01,-14,14,SAUDI ARABIA,Saudi Summer Holiday 2026,Gulf school break and family migration
+nauryz_holiday,solar,2022-03-22,-4,7,KAZAKHSTAN,Nauryz Spring Holiday 2022,Kazakhstan national holiday and spring break
+nauryz_holiday,solar,2023-03-22,-4,7,KAZAKHSTAN,Nauryz Spring Holiday 2023,Kazakhstan national holiday and spring break
+nauryz_holiday,solar,2024-03-22,-4,7,KAZAKHSTAN,Nauryz Spring Holiday 2024,Kazakhstan national holiday and spring break
+nauryz_holiday,solar,2025-03-22,-4,7,KAZAKHSTAN,Nauryz Spring Holiday 2025,Kazakhstan national holiday and spring break
+nauryz_holiday,solar,2026-03-22,-4,7,KAZAKHSTAN,Nauryz Spring Holiday 2026,Kazakhstan national holiday and spring break
+passover_holiday,lunar,2022-04-16,-3,8,ISRAEL,Passover Holiday 2022,Israel spring school vacation and Passover
+passover_holiday,lunar,2023-04-06,-3,8,ISRAEL,Passover Holiday 2023,Israel spring school vacation and Passover
+passover_holiday,lunar,2024-04-23,-3,8,ISRAEL,Passover Holiday 2024,Israel spring school vacation and Passover
+passover_holiday,lunar,2025-04-13,-3,8,ISRAEL,Passover Holiday 2025,Israel spring school vacation and Passover
+passover_holiday,lunar,2026-04-02,-3,8,ISRAEL,Passover Holiday 2026,Israel spring school vacation and Passover
+

@@ -17,6 +17,7 @@ const short = (week: string) => formatMonth(week, "short");
 const NAMES: Record<string, string> = {
   actual: "Real", holdout: "Model check", model: "Forecast without changes", scenario: "Forecast with your changes", band: "Likely range",
   capacityRange: "If guests follow seat growth fully or not at all",
+  external: "Internet derived (not part of dataset)",
 };
 
 /** Weekly hotel guests over time: real weeks, the model's check against weeks it had not seen, and
@@ -72,6 +73,7 @@ export function Timeline({ data, checked, forecastFrom, changesFrom, flags = [] 
         <Line dataKey="model" name="model" stroke={SERIES.forecast} strokeDasharray="5 4" dot={false} strokeWidth={1.5} isAnimationActive={false} />
         <Line dataKey="holdout" name="holdout" stroke={SERIES.check} dot={false} strokeWidth={2} connectNulls={false} isAnimationActive={false} />
         <Line dataKey="actual" name="actual" stroke={SERIES.actual} dot={false} strokeWidth={1.5} connectNulls={false} isAnimationActive={false} />
+        <Line dataKey="external" name="external" stroke={SERIES.external} strokeWidth={2} dot={false} strokeDasharray="3 3" connectNulls={false} isAnimationActive={false} />
         <Line dataKey="scenario" name="scenario" stroke={SERIES.scenario} dot={false} strokeWidth={2.2} connectNulls={false} isAnimationActive={false} />
         <Brush dataKey="week" height={22} travellerWidth={14} stroke="var(--color-comparison)" fill="var(--color-surface)" tickFormatter={short} />
       </ComposedChart>

@@ -14,6 +14,7 @@ export const SERIES = {
   forecast: "var(--color-text-muted)",
   scenario: "var(--color-accent)",
   check: "var(--color-series-check)",
+  external: "var(--color-series-external)",
   comparison: "var(--color-comparison)",
   up: "var(--color-up)",
   down: "var(--color-down)",

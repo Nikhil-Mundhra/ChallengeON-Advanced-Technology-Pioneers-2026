@@ -39,6 +39,7 @@
   --color-strong: var(--brand-black);
 
   --color-series-check: var(--brand-red);
+  --color-series-external: #0077b6;
   --color-band-forecast: #d8cfc1;
   --color-topbar-field: rgba(255, 255, 255, 0.12);
 
@@ -95,6 +96,7 @@
     --color-neutral-soft: #172227;
     --color-strong: #e1e8eb;
     --color-series-check: #e63946;
+    --color-series-external: #38bdf8;
     --color-band-forecast: #1f2a30;
 
     --color-surface-glass: rgba(19, 26, 29, 0.88);

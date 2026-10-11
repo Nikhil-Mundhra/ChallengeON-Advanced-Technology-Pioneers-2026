@@ -1,8 +1,8 @@
 {
-  "schema_version": 2,
-  "version": "20261011-135925-69aae99",
-  "created": "2026-10-11T13:59:25+00:00",
-  "git_sha": "69aae99",
+  "schema_version": 1,
+  "version": "20261011-170814-e015fdd",
+  "created": "2026-10-11T17:08:14+00:00",
+  "git_sha": "e015fdd",
   "spec": "twin_daily",
   "coverage": 0.8,
   "predicted_period": {
@@ -10,24 +10,23 @@
     "end": "2026-02-28"
   },
   "files": {
-    "nowcast": "20261011-135925-69aae99/nowcast.json",
-    "whatif": "20261011-135925-69aae99/whatif.json",
-    "planning": "20261011-135925-69aae99/planning.json",
-    "weekly": "20261011-135925-69aae99/weekly.json",
-    "golden": "20261011-135925-69aae99/golden.json"
+    "nowcast": "20261011-170814-e015fdd/nowcast.json",
+    "whatif": "20261011-170814-e015fdd/whatif.json",
+    "planning": "20261011-170814-e015fdd/planning.json",
+    "weekly": "20261011-170814-e015fdd/weekly.json",
+    "golden": "20261011-170814-e015fdd/golden.json"
   },
   "sha256": {
-    "nowcast": "7cee6b70c706c00aaf6c2b7c04668c66f3f9c574667461dc813ce00737c649d9",
-    "whatif": "9472455604de3be7bc4c4ff889a9ca26979675c4c7715f6e470b0a06210c5f08",
-    "planning": "26b81f0656f77884e7d228d8a914dd8438c8c838fba44f8ef779c8a9c638afd3",
-    "weekly": "90d308cad1ae9f067b305df14bd991819c34792cd7378055a4621bbbf42f4c58",
-    "golden": "b2937ede77a463830017583c767d1602e05a3d0df97e77939ab4b96a89117446"
+    "nowcast": "06ec8b443554db18341500c4402c2e4e2761627361c987a8cda61c8c42a3d0c6",
+    "whatif": "8bc16a18642bd2efb3d180dedab4f5cbda46573ea96931137eee9870bd9a6835",
+    "planning": "d05f8af404e9d763a79be6a4e8c8a193b784906756930e2a0ccf2b83fd53c356",
+    "weekly": "395a2a73b971f647661f0bbdec2844993a74b2bf62b6fa0ce9d60bcad531c27b",
+    "golden": "a6cc509bc7cb32d53641c6596c77841a2ecf04ad74a025fb08ff4b11bca250e7"
   },
   "weights": {
     "structural_calibration": "228849c412167bb542ab0124f3a707e74fbb098284c1b85803dddf6236cb0e1b",
-    "flight_response": "e0f68c67abdf9f3a3635ff8cc6c55e39f53f557350a773426c52c156988c60cb",
-    "residual_engine": "021918346707709a4ed9d54a73231061b3f25e449cd1c07f332366d00d399bce",
+    "residual_engine": "aa5fabc6bf9507fc50401357a91f16cfc5b27190043f391d6a37693a63435415",
     "conformal_calibrator": "c365c002b40498a7329cfdcf42b2b297bed1d747e33218c30d45e888b7d30fd6",
-    "evaluation_results": "cf46b4e425e94a070c21c1ff03ceaebe6caa50c1a91bb0a47176aeac6128ca1a"
+    "evaluation_results": "b72fbc96d4261907d66989bd34692262b0e37e41eba88ebcf52a723204e34a52"
   }
 }

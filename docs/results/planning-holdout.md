@@ -23,9 +23,9 @@ Source: `lake/curated/evaluation_results.json` (`benchmark`, `benchmark_leaders`
 | 1. Historical seasonal prior (market-season mean) | 23.00% | −6.60% | 3,172.8 | 6,156.5 |
 | 2. Calendar only (per-market ridge, no aviation) | 22.00% | −8.50% | 3,035.6 | 5,839.0 |
 | 3. Structural only (planning mode) | 23.00% | +6.06% | 3,173.7 | 5,987.5 |
-| 4. Hybrid (structural + residual) | 20.49% | +5.68% | 2,827.1 | 5,275.2 |
+| 4. Hybrid (structural + residual) | 20.43% | +5.68% | 2,818.2 | 5,220.1 |
 
-The hybrid leads on all four metrics (bias by absolute value), 1.51 pp ahead of the calendar-only model.
+The hybrid leads on all four metrics (bias by absolute value), 1.57 pp ahead of the calendar-only model.
 
 ## By season
 

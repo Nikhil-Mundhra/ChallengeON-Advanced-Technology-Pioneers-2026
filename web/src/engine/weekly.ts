@@ -42,6 +42,7 @@ export interface WeekPoint {
   band: [number, number] | null;
   capacityRange: [number, number] | null;   // scenario with guests not following seat growth, and following one for one
   event: string | null;
+  external?: number | null;    // Internet derived benchmark (SCAD / DCT reports; not part of competition dataset)
 }
 
 export interface TimelineOptions { start: string; growthPct?: number; capacityPct?: number }
