@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
-  "version": "20261011-170814-e015fdd",
-  "created": "2026-10-11T17:08:14+00:00",
-  "git_sha": "e015fdd",
+  "schema_version": 2,
+  "version": "20261011-174113-bca6876",
+  "created": "2026-10-11T17:41:13+00:00",
+  "git_sha": "bca6876",
   "spec": "twin_daily",
   "coverage": 0.8,
   "predicted_period": {
@@ -10,21 +10,22 @@
     "end": "2026-02-28"
   },
   "files": {
-    "nowcast": "20261011-170814-e015fdd/nowcast.json",
-    "whatif": "20261011-170814-e015fdd/whatif.json",
-    "planning": "20261011-170814-e015fdd/planning.json",
-    "weekly": "20261011-170814-e015fdd/weekly.json",
-    "golden": "20261011-170814-e015fdd/golden.json"
+    "nowcast": "20261011-174113-bca6876/nowcast.json",
+    "whatif": "20261011-174113-bca6876/whatif.json",
+    "planning": "20261011-174113-bca6876/planning.json",
+    "weekly": "20261011-174113-bca6876/weekly.json",
+    "golden": "20261011-174113-bca6876/golden.json"
   },
   "sha256": {
-    "nowcast": "06ec8b443554db18341500c4402c2e4e2761627361c987a8cda61c8c42a3d0c6",
+    "nowcast": "3e989e82f8bbfa4bc6a730600adabf9126f3bfb056ce1bea85b3dc9980ac6f96",
     "whatif": "8bc16a18642bd2efb3d180dedab4f5cbda46573ea96931137eee9870bd9a6835",
-    "planning": "d05f8af404e9d763a79be6a4e8c8a193b784906756930e2a0ccf2b83fd53c356",
+    "planning": "a5ab874d825b647e4e7f50baba8d43aac0427b1e0989983125c5d601016c9bf9",
     "weekly": "395a2a73b971f647661f0bbdec2844993a74b2bf62b6fa0ce9d60bcad531c27b",
-    "golden": "a6cc509bc7cb32d53641c6596c77841a2ecf04ad74a025fb08ff4b11bca250e7"
+    "golden": "3ddb68108aca81799e9384f6363a3c4f283948db0aed65d7414a1e645a332a50"
   },
   "weights": {
     "structural_calibration": "228849c412167bb542ab0124f3a707e74fbb098284c1b85803dddf6236cb0e1b",
+    "flight_response": "e0f68c67abdf9f3a3635ff8cc6c55e39f53f557350a773426c52c156988c60cb",
     "residual_engine": "aa5fabc6bf9507fc50401357a91f16cfc5b27190043f391d6a37693a63435415",
     "conformal_calibrator": "c365c002b40498a7329cfdcf42b2b297bed1d747e33218c30d45e888b7d30fd6",
     "evaluation_results": "b72fbc96d4261907d66989bd34692262b0e37e41eba88ebcf52a723204e34a52"

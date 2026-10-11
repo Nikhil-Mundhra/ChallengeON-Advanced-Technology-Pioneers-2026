@@ -89,6 +89,10 @@ class Settings:
         return self.curated_dir / "conformal_calibrator.json"
 
     @property
+    def noise_model_path(self) -> Path:
+        return self.curated_dir / "noise_model.json"
+
+    @property
     def evaluation_results_path(self) -> Path:
         return self.curated_dir / "evaluation_results.json"
 

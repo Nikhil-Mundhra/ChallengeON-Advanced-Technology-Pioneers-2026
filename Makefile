@@ -63,6 +63,10 @@ export:
 	rm -rf $(WEB_DATA)
 	$(TWIN) export --out $(WEB_DATA)
 
+export-fast:
+	rm -rf $(WEB_DATA)
+	$(TWIN) export --fast --out $(WEB_DATA)
+
 ## #11 validation summary (validation origins only; never the frozen test) -> output/validation_summary.json
 validate:
 	$(TWIN) validate

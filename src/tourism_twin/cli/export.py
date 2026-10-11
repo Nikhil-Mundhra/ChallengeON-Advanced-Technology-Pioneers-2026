@@ -12,6 +12,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("export", help="Fit, predict and write the static versioned bundle the web dashboard reads")
     parser.add_argument("--out", type=Path, default=SETTINGS.root / "web" / "public" / "data", help="bundle directory")
     parser.add_argument("--spec", default="twin_daily")
+    parser.add_argument("--fast", action="store_true", help="Fast export using cached noise model and avoiding repeated backtests")
     parser.set_defaults(func=export)
 
 
@@ -22,6 +23,7 @@ def export(args: argparse.Namespace) -> None:
     from tourism_twin.export.bundle import write_bundle
     from tourism_twin.nowcast.predict import predict_test_split
 
-    predictions = predict_test_split(spec=args.spec)
-    target = write_bundle(predictions, build_daily_panel(), pd.read_parquet(SETTINGS.panel_path), args.out, spec=args.spec)
+    panel = build_daily_panel()
+    predictions = predict_test_split(spec=args.spec, panel=panel, fast=args.fast)
+    target = write_bundle(predictions, panel, pd.read_parquet(SETTINGS.panel_path), args.out, spec=args.spec)
     print(f"bundle {target}  (manifest {args.out / 'manifest.json'})")

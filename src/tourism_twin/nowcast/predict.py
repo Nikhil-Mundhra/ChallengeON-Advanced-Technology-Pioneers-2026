@@ -49,8 +49,14 @@ def predict_test_split(
     repository: Optional[LakeRepository] = None,
     coverage: float = 0.8,
     with_intervals: bool = True,
+    panel: Optional[pd.DataFrame] = None,
+    fast: bool = False,
 ) -> TestPredictions:
-    panel = build_daily_panel(repository)
+    import json
+    from tourism_twin.config import SETTINGS
+
+    if panel is None:
+        panel = build_daily_panel(repository)
     train, test = panel[panel["dataset_split"] == "train"], panel[panel["dataset_split"] == "test"]
     model = DAILY_SPECS[spec]().fit(train)
     market = test[["market", "date"]].assign(pred=model.predict(test))
@@ -58,11 +64,16 @@ def predict_test_split(
     total = total_series(market)
     backtest_predictions, noise = None, None
     if with_intervals:
-        backtest_predictions = backtest({spec: DAILY_SPECS[spec]}, panel, NOISE_ORIGINS).predictions
-        # The total's errors are correlated across markets (shared calendar shocks), so its
-        # interval comes from the back-test errors of the summed series, not from adding bounds.
-        aggregates = [total_series(backtest_predictions), total_series(backtest_predictions, INTERNATIONAL)]
-        noise = NoiseModel().fit(pd.concat([backtest_predictions, *aggregates], ignore_index=True))
+        if fast and SETTINGS.noise_model_path.exists():
+            noise = NoiseModel.from_dict(json.loads(SETTINGS.noise_model_path.read_text(encoding="utf-8")))
+        else:
+            backtest_predictions = backtest({spec: DAILY_SPECS[spec]}, panel, NOISE_ORIGINS).predictions
+            # The total's errors are correlated across markets (shared calendar shocks), so its
+            # interval comes from the back-test errors of the summed series, not from adding bounds.
+            aggregates = [total_series(backtest_predictions), total_series(backtest_predictions, INTERNATIONAL)]
+            noise = NoiseModel().fit(pd.concat([backtest_predictions, *aggregates], ignore_index=True))
+            if not SETTINGS.noise_model_path.exists():
+                SETTINGS.noise_model_path.write_text(json.dumps(noise.to_dict(), indent=2), encoding="utf-8")
         market = market.join(noise.intervals(market, coverage))
         total = total.join(noise.intervals(total, coverage))
     else:

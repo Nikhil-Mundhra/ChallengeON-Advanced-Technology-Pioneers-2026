@@ -17,7 +17,7 @@ commit history), and bias belongs in the forecaster.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
@@ -54,6 +54,19 @@ class NoiseModel:
             first = rows.loc[rows["horizon_days"] == rows.groupby("fold")["horizon_days"].transform("min"), "error"]
             self.v0_[market] = float(np.mean(first ** 2))
         return self
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {market: {"phi": self.phi_[market], "sigma_eta": self.sigma_eta_[market], "v0": self.v0_[market]}
+                for market in self.phi_}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "NoiseModel":
+        phi, sigma, v0 = {}, {}, {}
+        for market, p in data.items():
+            phi[market] = float(p["phi"])
+            sigma[market] = float(p["sigma_eta"])
+            v0[market] = float(p["v0"])
+        return cls(phi_=phi, sigma_eta_=sigma, v0_=v0)
 
     def variance(self, markets: pd.Series, horizon: pd.Series) -> np.ndarray:
         unknown = sorted(set(markets) - set(self.phi_))
