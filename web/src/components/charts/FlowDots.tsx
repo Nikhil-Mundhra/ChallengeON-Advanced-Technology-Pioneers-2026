@@ -96,11 +96,12 @@ export function FlowDots({ arcs, rates, mode, perDot, playing, zoom = 1, pan = {
           ctx.save();
           ctx.translate(x, y);
           ctx.rotate(angle);
+          if (z > 1) ctx.scale(1 / z, 1 / z);
           ctx.fill(plane);
           ctx.restore();
         } else {
           ctx.beginPath();
-          ctx.arc(x, y, 2.4, 0, Math.PI * 2);
+          ctx.arc(x, y, 2.4 / z, 0, Math.PI * 2);
           ctx.fill();
         }
       }
