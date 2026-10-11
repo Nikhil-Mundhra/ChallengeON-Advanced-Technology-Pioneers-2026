@@ -37,6 +37,7 @@ class ResidualMLEngine:
         train_df: pd.DataFrame,
         structural_engine: StructuralEngine,
         alphas: np.ndarray = np.logspace(-2, 4, 25),
+        market_recency: Optional[Dict[str, float]] = None,
     ) -> "ResidualMLEngine":
         """Train regularized ridge residual models per market on historical actuals - structural.
 
@@ -45,7 +46,11 @@ class ResidualMLEngine:
         (StructuralEngine.planning_guests). Realized load factor, P2P share, and arrivals are
         never used; training on them would teach the residual to correct a smaller structural
         error than the one it faces in production.
+
+        `market_recency` specifies optional exponential half-life in days per market (e.g. {"CHINA": 365.0})
+        to weight recent residual behavior during post-COVID recovery regimes.
         """
+        recency_map = {"CHINA": 365.0} if market_recency is None else dict(market_recency)
         train = train_df.copy()
         train["guests_struct"] = structural_engine.planning_guests_for(train)
         train["residual"] = train["guests"] - train["guests_struct"]
@@ -62,10 +67,11 @@ class ResidualMLEngine:
             y = m_df["residual"].values
 
             model = RidgeCV(alphas=alphas)
-            if m in ("CHINA",) and max_date is not None and "week_start" in m_df.columns:
+            if m in recency_map and max_date is not None and "week_start" in m_df.columns:
                 week_dates = pd.to_datetime(m_df["week_start"])
                 dt_days = (max_date - week_dates).dt.days
-                w = (0.5 ** (dt_days / 180.0)).to_numpy(dtype=float)
+                half_life = recency_map[m]
+                w = (0.5 ** (dt_days / half_life)).to_numpy(dtype=float)
                 model.fit(X, y, sample_weight=w)
             else:
                 model.fit(X, y)

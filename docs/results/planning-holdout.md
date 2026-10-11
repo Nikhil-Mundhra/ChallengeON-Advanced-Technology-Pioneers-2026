@@ -23,9 +23,9 @@ Source: `lake/curated/evaluation_results.json` (`benchmark`, `benchmark_leaders`
 | 1. Historical seasonal prior (market-season mean) | 23.00% | −6.60% | 3,172.8 | 6,156.5 |
 | 2. Calendar only (per-market ridge, no aviation) | 22.00% | −8.50% | 3,035.6 | 5,839.0 |
 | 3. Structural only (planning mode) | 23.00% | +6.06% | 3,173.7 | 5,987.5 |
-| 4. Hybrid (structural + residual) | 20.29% | +5.91% | 2,799.5 | 5,251.9 |
+| 4. Hybrid (structural + residual) | 20.49% | +5.68% | 2,827.1 | 5,275.2 |
 
-The hybrid leads on all four metrics (bias by absolute value), 1.71 pp ahead of the calendar-only model.
+The hybrid leads on all four metrics (bias by absolute value), 1.51 pp ahead of the calendar-only model.
 
 ## By season
 
@@ -50,13 +50,13 @@ Autumn_Shoulder is not in the holdout window. Per-market results: `market_breakd
 
 ## CHINA recency weighting
 
-CHINA rows are weighted by recency in both planning trainers (`planning/structural.py` weighted market-season averages at half-life 365 days, `planning/residual.py` ridge sample weights at half-life 180 days); every other market keeps the flat mean. CHINA is named in the trainers rather than selected by a spec, so this fit cannot be ablated from `ModelSpec` data.
+CHINA rows are weighted by recency in both planning trainers (`planning/structural.py` weighted market-season averages at half-life 365 days, `planning/residual.py` ridge sample weights at half-life 365 days, parameterized via `market_recency`); every other market keeps the flat mean.
 
 | Measurement | Without | With | Source |
 | --- | ---: | ---: | --- |
 | CHINA weekly WMAPE | 43.08% | 39.49% | `evaluation_results.json` (`market_breakdown`) |
 | CHINA weekly bias | −43.08% | −39.40% | `evaluation_results.json` (`market_breakdown`) |
-| Hybrid WMAPE (all markets) | 20.62% | 20.29% | `evaluation_results.json` (`benchmark`) |
+| Hybrid WMAPE (all markets) | 20.62% | 20.49% | `evaluation_results.json` (`benchmark`) |
 | International planning WMAPE | 27.52% | 27.31% | `evaluation_results.json` (`diagnostics`) |
 | Domestic forecast WMAPE | 16.04% | 16.04% | `evaluation_results.json` (`diagnostics`) |
 | Holdout coverage | 65.2% | 65.7% | `evaluation_results.json` (`demonstrated_coverage_pct`) |

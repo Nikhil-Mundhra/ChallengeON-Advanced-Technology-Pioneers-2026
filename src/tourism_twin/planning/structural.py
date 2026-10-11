@@ -55,20 +55,25 @@ class StructuralEngine:
         panel_path: Path = SETTINGS.panel_path,
         save_path: Optional[Path] = SETTINGS.calibration_path,
         max_date: str = TRAINING_CUTOFF,
+        market_recency: Optional[Dict[str, float]] = None,
     ) -> "StructuralEngine":
         """Calibrate baseline parameters from complete training weeks."""
         train_df = training_window(pd.read_parquet(panel_path), max_date)
-        return cls.calibrate(train_df, save_path=save_path)
+        return cls.calibrate(train_df, save_path=save_path, market_recency=market_recency)
 
     @classmethod
     def calibrate(
         cls,
         train_df: pd.DataFrame,
         save_path: Optional[Path] = None,
-        recency_half_life_days: float = 365.0,
-        recency_markets: tuple = ("CHINA",),
+        market_recency: Optional[Dict[str, float]] = None,
     ) -> "StructuralEngine":
-        """Calibrate seasonal baseline parameters per market from a window of weekly panel rows."""
+        """Calibrate seasonal baseline parameters per market from a window of weekly panel rows.
+
+        `market_recency` specifies optional exponential half-life in days per market (e.g. {"CHINA": 365.0})
+        to account for regime shifts without altering unweighted baselines.
+        """
+        recency_map = {"CHINA": 365.0} if market_recency is None else dict(market_recency)
         engine = cls()
         calibration_dict: Dict[str, Any] = {}
 
@@ -87,10 +92,11 @@ class StructuralEngine:
                 if n_weeks == 0:
                     continue
 
-                if market in recency_markets and max_date is not None and "week_start" in s_df.columns:
+                if market in recency_map and max_date is not None and "week_start" in s_df.columns:
                     week_dates = pd.to_datetime(s_df["week_start"])
                     dt_days = (max_date - week_dates).dt.days
-                    w = (0.5 ** (dt_days / recency_half_life_days)).to_numpy(dtype=float)
+                    half_life = recency_map[market]
+                    w = (0.5 ** (dt_days / half_life)).to_numpy(dtype=float)
                     w_norm = w / w.sum()
                     avg_seats = float(np.sum(s_df["seats"].to_numpy(dtype=float) * w_norm))
                     avg_pax = float(np.sum(s_df["pax"].to_numpy(dtype=float) * w_norm))
