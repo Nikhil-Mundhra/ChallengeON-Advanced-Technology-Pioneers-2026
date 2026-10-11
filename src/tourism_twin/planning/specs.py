@@ -55,11 +55,13 @@ SEATS_LINK = ModelSpec(components=(("seat_kernel", {"max_lag": 7}), _SEASON, "we
 #   from data; binds for China, the Americas/Africa and Asia-Pacific clusters, Russia, the US);
 # - each market's base share is shrunk toward the median base share of the unpooled fits (learned per
 #   fit); the strength 0.01 was best of {0.01, 0.1, 1} (weekly market-week WAPE 20.09 / 20.23 / 20.33);
+# - link 1's base knots every 60 days, best of {30, 60, 90, 120, 182, 365} (daily -0.62 pp [-0.89, -0.30],
+#   5/7 folds vs 365); the last knot then sits on the recent level;
 # - link 2 is trained on link 1's in-sample arrivals (what it reads in prediction), smearing on both.
-# Against the prototype (seat_chain_prototype): daily -1.30 pp [-1.74, -0.83], 7/7 folds; against
-# LegacyHybrid weekly: -4.81 pp [-6.10, -3.64], 7/7 folds; level bias -9.2% (prototype -11.2%).
+# With 365-day knots, against the prototype (seat_chain_prototype): daily -1.30 pp [-1.74, -0.83], 7/7
+# folds; against LegacyHybrid weekly: -4.81 pp [-6.10, -3.64], 7/7 folds. Level bias -7.2% (365: -9.2%).
 SEAT_CHAIN = ChainSpec(
-    SEATS_LINK.replace_component("seat_kernel", ("seat_kernel", {"max_lag": 7, "cap_factor": 1.0})),
+    SEATS_LINK.replace_component("seat_kernel", ("seat_kernel", {"max_lag": 7, "cap_factor": 1.0, "knot_days": 60})),
     replace(GUESTS_LINK, options=(("bias_correction", "smearing"),)),
     guests_trained_on="predicted", pooled_share_ridge=0.01)
 
