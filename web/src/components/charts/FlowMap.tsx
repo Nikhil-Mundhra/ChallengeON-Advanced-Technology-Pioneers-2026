@@ -51,8 +51,8 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highli
     });
   }, []);
 
-  const zoomIn = () => applyZoom(zoom * 1.35);
-  const zoomOut = () => applyZoom(zoom / 1.35);
+  const zoomIn = () => applyZoom(zoom * 1.2);
+  const zoomOut = () => applyZoom(zoom / 1.2);
   const reset = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
@@ -63,7 +63,8 @@ export function FlowMap({ flows, hub, domestic, selected, onSelect, dots, highli
     const my = (e.clientY - rect.top) * (MAP_HEIGHT / rect.height);
     const cx = (mx - pan.x) / zoom;
     const cy = (my - pan.y) / zoom;
-    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const zoomDelta = -e.deltaY * 0.0015;
+    const factor = Math.exp(Math.max(-0.15, Math.min(0.15, zoomDelta)));
     applyZoom(zoom * factor, [cx, cy]);
   };
 
