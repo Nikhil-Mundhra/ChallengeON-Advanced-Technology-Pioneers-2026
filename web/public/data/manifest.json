@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "version": "20261010-163810-fa648af",
-  "created": "2026-10-10T16:38:10+00:00",
-  "git_sha": "fa648af",
+  "version": "20261011-074659-d17114e",
+  "created": "2026-10-11T07:46:59+00:00",
+  "git_sha": "d17114e",
   "spec": "twin_daily",
   "coverage": 0.8,
   "predicted_period": {
@@ -10,23 +10,23 @@
     "end": "2026-02-28"
   },
   "files": {
-    "nowcast": "20261010-163810-fa648af/nowcast.json",
-    "whatif": "20261010-163810-fa648af/whatif.json",
-    "planning": "20261010-163810-fa648af/planning.json",
-    "weekly": "20261010-163810-fa648af/weekly.json",
-    "golden": "20261010-163810-fa648af/golden.json"
+    "nowcast": "20261011-074659-d17114e/nowcast.json",
+    "whatif": "20261011-074659-d17114e/whatif.json",
+    "planning": "20261011-074659-d17114e/planning.json",
+    "weekly": "20261011-074659-d17114e/weekly.json",
+    "golden": "20261011-074659-d17114e/golden.json"
   },
   "sha256": {
     "nowcast": "db02f7765f04e22514649e3f28beede08ade288e21c3bf453210fcf57a81723b",
     "whatif": "b0edb8fe5578b03438d0c88b4649fc097e3a8deb3843aaec6b511b4c8b6e159f",
-    "planning": "d674e11bef490482de5c6d73935efe144c69ab21c9ae413e5c949a4521488613",
-    "weekly": "1766218a77c3a04da59fdc7e051b1ac3230e42d227181f4d5f11d2afd06d8dfd",
-    "golden": "b3209d1b6fd3dedf96de2ec4efb553143fd45427c4d9f7edb77e6229a43512e7"
+    "planning": "82896f0ca8a31e79e96eb6ac1fbce733ee7a51e95385ca8daf84420b2d7914f0",
+    "weekly": "680280fca10604f418c260dcf66eb9096391bc786c35624e98e5e26ab3c09581",
+    "golden": "28742fdbac17bda90b726085010850ef29f67cb55861b501d2581f157c3b4dba"
   },
   "weights": {
-    "structural_calibration": "70d64ca0edea84fcb9cf691300c289750f7ef8d0dc6c7fdf47accd9a1232c663",
-    "residual_engine": "56e25c9356f30ec33351613f9daabb1eefee128331e21b4dd94e775d03850337",
-    "conformal_calibrator": "913ddbbaa9520fb043745e04e09a7f61ab4b6e8007694c039123d9be65304788",
-    "evaluation_results": "cc32b58369cffb93e0e0c9f2fcac3b1239f79c246fbb54e284956bb3db234b52"
+    "structural_calibration": "228849c412167bb542ab0124f3a707e74fbb098284c1b85803dddf6236cb0e1b",
+    "residual_engine": "0de3ebbaa4920620e3ff1553be91dc91943131e43948d4bf36a3e4a319ad5e12",
+    "conformal_calibrator": "c365c002b40498a7329cfdcf42b2b297bed1d747e33218c30d45e888b7d30fd6",
+    "evaluation_results": "b235a215509f31e73bb5306737054b600db7a9948eb1e87ba287463c0dbb1435"
   }
 }
