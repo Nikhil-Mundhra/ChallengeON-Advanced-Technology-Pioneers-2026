@@ -24,17 +24,22 @@ function getPlanePath(): Path2D | null {
 /** Moving airplanes along the arcs, drawn on a canvas over the map: arriving planes travel to Abu Dhabi,
  *  leaving planes travel back. Each market sends one plane per `perDot` people per week, per second.
  *  Nothing moves when the reader prefers reduced motion or the tab is hidden. */
-export function FlowDots({ arcs, rates, mode, perDot, playing }: {
+export function FlowDots({ arcs, rates, mode, perDot, playing, zoom = 1, pan = { x: 0, y: 0 } }: {
   arcs: Record<string, Arc>; rates: Record<string, { in: number; out: number }>; mode: DotMode; perDot: number; playing: boolean;
+  zoom?: number; pan?: { x: number; y: number };
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const live = useRef({ rates, mode, perDot, playing, arcs });
-  live.current = { rates, mode, perDot, playing, arcs };
+  const live = useRef({ rates, mode, perDot, playing, arcs, zoom, pan });
+  live.current = { rates, mode, perDot, playing, arcs, zoom, pan };
   const startRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (playing) startRef.current?.();
   }, [playing]);
+
+  useEffect(() => {
+    startRef.current?.();
+  }, [zoom, pan.x, pan.y]);
 
   useEffect(() => {
     const node = canvas.current;
@@ -50,14 +55,13 @@ export function FlowDots({ arcs, rates, mode, perDot, playing }: {
     const resize = () => {
       const ratio = window.devicePixelRatio || 1;
       node.width = node.clientWidth * ratio; node.height = node.clientHeight * ratio;
-      ctx.setTransform((node.width / MAP_WIDTH), 0, 0, (node.height / MAP_HEIGHT), 0, 0);
     };
     const observer = new ResizeObserver(resize);
     observer.observe(node); resize();
 
     const tick = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
-      const { rates: r, mode: m, perDot: unit, playing: on, arcs: a } = live.current;
+      const { rates: r, mode: m, perDot: unit, playing: on, arcs: a, zoom: z = 1, pan: p = { x: 0, y: 0 } } = live.current;
       if (on && unit > 0) {
         for (const [market, rate] of Object.entries(r)) {
           const arc = a[market]; if (!arc) continue;
@@ -69,7 +73,14 @@ export function FlowDots({ arcs, rates, mode, perDot, playing }: {
           o.in = Math.min(o.in, 1); o.out = Math.min(o.out, 1);
         }
       }
-      ctx.clearRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, node.width, node.height);
+      ctx.restore();
+
+      const scaleX = node.width / MAP_WIDTH;
+      const scaleY = node.height / MAP_HEIGHT;
+      ctx.setTransform(scaleX * z, 0, 0, scaleY * z, p.x * scaleX, p.y * scaleY);
       const plane = getPlanePath();
       for (let i = dots.length - 1; i >= 0; i -= 1) {
         const d = dots[i];
