@@ -65,12 +65,15 @@ class StructuralEngine:
         cls,
         train_df: pd.DataFrame,
         save_path: Optional[Path] = None,
+        recency_half_life_days: float = 365.0,
+        recency_markets: tuple = ("CHINA",),
     ) -> "StructuralEngine":
         """Calibrate seasonal baseline parameters per market from a window of weekly panel rows."""
         engine = cls()
         calibration_dict: Dict[str, Any] = {}
 
         markets = sorted(train_df["market"].unique())
+        max_date = pd.to_datetime(train_df["week_start"]).max() if "week_start" in train_df.columns else None
 
         for market in markets:
             engine.params[market] = {}
@@ -84,11 +87,22 @@ class StructuralEngine:
                 if n_weeks == 0:
                     continue
 
-                avg_seats = float(s_df["seats"].mean())
-                avg_pax = float(s_df["pax"].mean())
-                avg_p2p = float(s_df["p2p"].mean())
-                avg_arrivals = float(s_df["new_arrivals"].mean())
-                avg_guests = float(s_df["guests"].mean())
+                if market in recency_markets and max_date is not None and "week_start" in s_df.columns:
+                    week_dates = pd.to_datetime(s_df["week_start"])
+                    dt_days = (max_date - week_dates).dt.days
+                    w = (0.5 ** (dt_days / recency_half_life_days)).to_numpy(dtype=float)
+                    w_norm = w / w.sum()
+                    avg_seats = float(np.sum(s_df["seats"].to_numpy(dtype=float) * w_norm))
+                    avg_pax = float(np.sum(s_df["pax"].to_numpy(dtype=float) * w_norm))
+                    avg_p2p = float(np.sum(s_df["p2p"].to_numpy(dtype=float) * w_norm))
+                    avg_arrivals = float(np.sum(s_df["new_arrivals"].to_numpy(dtype=float) * w_norm))
+                    avg_guests = float(np.sum(s_df["guests"].to_numpy(dtype=float) * w_norm))
+                else:
+                    avg_seats = float(s_df["seats"].mean())
+                    avg_pax = float(s_df["pax"].mean())
+                    avg_p2p = float(s_df["p2p"].mean())
+                    avg_arrivals = float(s_df["new_arrivals"].mean())
+                    avg_guests = float(s_df["guests"].mean())
 
                 # Operational ratios
                 lf = avg_pax / avg_seats if avg_seats > 0 else 0.80

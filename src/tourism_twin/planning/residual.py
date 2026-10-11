@@ -52,6 +52,7 @@ class ResidualMLEngine:
 
         # Train a regularized RidgeCV model per market
         markets = sorted(train["market"].unique())
+        max_date = pd.to_datetime(train["week_start"]).max() if "week_start" in train.columns else None
         for m in markets:
             m_df = train[train["market"] == m]
             if len(m_df) < 5:
@@ -61,7 +62,13 @@ class ResidualMLEngine:
             y = m_df["residual"].values
 
             model = RidgeCV(alphas=alphas)
-            model.fit(X, y)
+            if m in ("CHINA",) and max_date is not None and "week_start" in m_df.columns:
+                week_dates = pd.to_datetime(m_df["week_start"])
+                dt_days = (max_date - week_dates).dt.days
+                w = (0.5 ** (dt_days / 180.0)).to_numpy(dtype=float)
+                model.fit(X, y, sample_weight=w)
+            else:
+                model.fit(X, y)
             self.models[m] = model
             self.residual_history[m] = y
             self.residual_std[m] = float(np.std(y - model.predict(X)))
