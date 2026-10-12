@@ -1,5 +1,7 @@
 # Presentation deck
 
+Team presentation slides: [presentation.pdf](presentation.pdf).
+
 Edit `deck.yaml`, then build:
 
 ```bash

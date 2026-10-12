@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="logo.svg" alt="Abu Dhabi Hotel Outlook" width="360" />
+  <img src="logo.svg" alt="AeroLodge Metrics" width="360" />
 </p>
 
-# Abu Dhabi Hotel Outlook
+# AeroLodge Metrics
 
 Flights in, hotel demand out. A decision tool for DCT Abu Dhabi, built for ChallengeON ATP 2026.
 
-Live site: https://abu-dhabi-hotel-outlook.vercel.app · Docs: [docs/index.md](docs/index.md) · User guide: [docs/guide/index.md](docs/guide/index.md) · Results: [docs/results/index.md](docs/results/index.md) · Challenge: [DCT challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en)
+Live site: https://abu-dhabi-hotel-outlook.vercel.app · Presentation: [meta/deck/presentation.pdf](meta/deck/presentation.pdf) · Docs: [docs/index.md](docs/index.md) · User guide: [docs/guide/index.md](docs/guide/index.md) · Results: [docs/results/index.md](docs/results/index.md) · Challenge: [DCT challenge statement](https://challengeon.atrc.ae/en/challenges/atp2026/pages/dct-challenge-statement?lang=en)
 
 ---
 
-Abu Dhabi Hotel Outlook turns air-connectivity decisions into hotel guests. A weekly planning model shows what a flight change does to demand per source market and season: a seat-ratio chain with a calendar correction sets the baseline, and a schedule change moves guests by each market's response read from a daily seats to arrivals to guests model fitted to the data. A daily nowcast predicts hotel guests from new arrivals. Both are built on one validated lake of the DCT flight and hotel data and served by a CLI and a static web app.
+AeroLodge Metrics turns air-connectivity decisions into hotel guests. A weekly planning model shows what a flight change does to demand per source market and season: a seat-ratio chain with a calendar correction sets the baseline, and a schedule change moves guests by each market's response read from a daily seats to arrivals to guests model fitted to the data. A daily nowcast predicts hotel guests from new arrivals. Both are built on one validated lake of the DCT flight and hotel data and served by a CLI and a static web app.
 
 ## Key features
 
