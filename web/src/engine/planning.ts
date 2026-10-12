@@ -240,6 +240,17 @@ export function conformalBands(planning: Planning, result: SimulationResult) {
   };
 }
 
+/** The market's own conformal margin, or null for a market without one (cold start), whose
+ *  ranges use the unmeasured default_conformal_margin. */
+export function ownMargin(planning: Planning, market: string): number | null {
+  return market.startsWith("_") ? null : planning.conformal[market] ?? null;
+}
+
+/** Share of the 30 holdout market-weeks inside the conformal range, in % (target 80; docs/results/planning-holdout.md). */
+export function holdoutCoverage(planning: Planning): number | null {
+  return planning.conformal["_demonstrated_holdout_coverage"] ?? null;
+}
+
 export interface TornadoRow { lever_name: string; high_impact_delta: number; low_impact_delta: number; swing_spread: number; relative_sensitivity: number }
 
 /** How far weekly guests swing when each lever moves up and down (planning/sensitivity.py). */
@@ -281,7 +292,7 @@ export interface WeeklyHeadline {
   residual: number;          // calendar adjustment for the market and season
   change: number;
   changePct: number | null;  // null without current service
-  errorPct: number;          // likely error of the scenario figure, as a share
+  errorPct: number | null;   // the market's own conformal margin, as a share; null without one (the default margin is not measured)
 }
 
 /** The simulator's headline numbers for one market, season and set of levers. */
@@ -291,6 +302,6 @@ export function weeklyHeadline(planning: Planning, market: string, season: strin
   return {
     result, base: calendar.base, sim: calendar.sim, residual: calendar.residual, change: calendar.delta,
     changePct: calendar.base > 0 ? calendar.delta / calendar.base : null,
-    errorPct: conformalBands(planning, result).margin,
+    errorPct: ownMargin(planning, market),
   };
 }

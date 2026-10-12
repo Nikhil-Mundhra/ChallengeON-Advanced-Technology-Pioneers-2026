@@ -70,3 +70,4 @@
   .report__hero, .report__article { padding: var(--space-5) var(--space-4); }
   .report__hero { padding-bottom: calc(var(--space-6) * 2); }
 }
+.report__reported td { text-align: left; vertical-align: top; overflow-wrap: anywhere; }

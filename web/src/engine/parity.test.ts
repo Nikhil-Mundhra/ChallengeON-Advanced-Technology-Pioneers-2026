@@ -8,7 +8,7 @@ import { DIRECTION_THRESHOLD, summariseRange } from "./range";
 import type { Manifest, Nowcast, WhatIf } from "./types";
 import { whatIfGuests } from "./whatif";
 import { capacityGuestFactor } from "./capacity";
-import { conformalBands, elasticityFor, hybrid, NO_CHANGE, scheduleRange, simulate, tornado, type Planning } from "./planning";
+import { conformalBands, elasticityFor, holdoutCoverage, hybrid, NO_CHANGE, ownMargin, scheduleRange, simulate, tornado, type Planning } from "./planning";
 import { holdoutWmape, timeline, type Weekly } from "./weekly";
 
 const DATA = join(__dirname, "../../public/data");
@@ -136,6 +136,17 @@ describe("weekly timeline", () => {
   it("reproduces the published 30-week holdout WMAPE (docs/results/planning-holdout.md: 20.43%)", () => {
     const points = Object.keys(weekly.markets).flatMap((m) => timeline(planning, weekly, m, NO_CHANGE, { start: "9999" }));
     expect(holdoutWmape(points)).toBeCloseTo(20.43, 2);
+  });
+
+  it("reads the published holdout coverage of the weekly ranges (docs/results/planning-holdout.md: 65.7%)", () => {
+    expect(holdoutCoverage(planning)).toBeCloseTo(65.7, 1);
+    expect(holdoutCoverage({ ...planning, conformal: {} })).toBeNull();
+  });
+
+  it("gives a market's own error margin, and none for a market without one", () => {
+    expect(ownMargin(planning, "UNITED KINGDOM")).toBe(planning.conformal["UNITED KINGDOM"]);
+    expect(ownMargin(planning, "JAPAN")).toBeNull();
+    expect(ownMargin(planning, "_demonstrated_holdout_coverage")).toBeNull();
   });
 
   it("moves each week by the simulator's change for its season, from the start week on", () => {
@@ -277,5 +288,25 @@ describe("growth assumption", () => {
     const i = flat.findIndex((p) => p.kind === "projected");
     expect(grown[i].model).toBeCloseTo(flat[i].model, 9);
     expect(grown[i + 52].model / flat[i + 52].model).toBeCloseTo(1.1, 2);
+  });
+});
+
+describe("outlook", () => {
+  const cases = golden.filter((c) => c.kind === "outlook_range");
+  it.skipIf(!manifest.files.outlook)("reproduces every outlook_range golden case: raw projection, calibrated figure and range", async () => {
+    const { outlookRows } = await import("./outlook");
+    const outlook = read<import("./types").Outlook>(manifest.files.outlook!);
+    const rows = outlookRows(outlook, "TOTAL");
+    expect(cases.length).toBeGreaterThan(0);
+    for (const c of cases) {
+      const row = rows.find((r) => r.month === c.month)!;
+      expect(row).toBeDefined();
+      expect(relative(row.raw, c.guests as number)).toBeLessThan(1e-9);
+      if (c.calibrated !== undefined && c.calibrated !== null) expect(relative(row.guests, c.calibrated as number)).toBeLessThan(1e-9);
+      if (row.low !== null) {
+        expect(relative(row.low, c.low as number)).toBeLessThan(1e-9);
+        expect(relative(row.high!, c.high as number)).toBeLessThan(1e-9);
+      }
+    }
   });
 });

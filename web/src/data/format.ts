@@ -5,6 +5,9 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 export const formatCount = (value: number) => (Math.abs(value) >= 10_000 ? compact.format(value) : whole.format(value));
 export const formatFull = (value: number) => whole.format(value);
+const rounded = new Intl.NumberFormat("en", { notation: "compact", maximumSignificantDigits: 3 });
+/** "1.44M": three significant figures, for a projected total that is only roughly known. */
+export const formatRounded = (value: number) => rounded.format(value);
 /** "+1,234" / "-56" / "0": a signed value, formatted by `format` (whole numbers by default). */
 export const formatSigned = (value: number, format: (v: number) => string = formatFull) => `${value > 0 ? "+" : ""}${format(value)}`;
 /** A change as a signed percentage: 0.034 -> "+3.4%". */

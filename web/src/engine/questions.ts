@@ -11,7 +11,7 @@ export interface LeverAnswer {
   market: string; season: string; lever: Lever;
   perWeek: number;            // extra hotel nights a week in that season
   visitorsPerWeek: number;    // extra hotel check-ins (visitors) a week in that season
-  errorPct: number;           // likely error of the weekly figure, as a share
+  errorPct: number | null;    // the market's own error margin on its weekly total, as a share; null without one
   year: string | null;        // forecast year summed
   perYear: number | null;     // extra hotel nights over that year
 }

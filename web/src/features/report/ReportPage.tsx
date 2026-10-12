@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { REPORTED_FIGURES } from "../../content/externalReports";
 import { LIMITATIONS, NOWCAST_VALIDATION, PLANNING_HOLDOUT, QUESTION, SECTIONS, SUCCESS_CRITERIA, type ReportSection } from "../../content/report";
 import { formatSigned } from "../../data/format";
 import type { Bundle, Manifest } from "../../engine/types";
@@ -19,7 +20,7 @@ export function ReportPage({ manifest, bundle }: { manifest: Manifest | null; bu
         <h1 className="report__question">{QUESTION}</h1>
         <dl className="report__figures">
           <Figure value="4.2% / 4.1%" label="daily guests error (WAPE), domestic / international" />
-          <Figure value="20.5%" label="weekly scenario model error (WMAPE), 30 holdout weeks" />
+          <Figure value="20.4%" label="weekly scenario model error (WMAPE), 30 holdout weeks" />
           <Figure value="21" label="markets: 15 countries, 5 regional groups, domestic" />
         </dl>
         <Link className="pill pill--accent report__cta" to="/simulate">Open the simulator</Link>
@@ -58,6 +59,7 @@ function Section({ section, bundle }: { section: ReportSection; bundle: Bundle |
       {section.id === "chain" && <ChainDiagram />}
       {section.id === "questions" && (bundle ? <QuestionAnswers planning={bundle.planning} weekly={bundle.weekly} /> : <p className="note">Loading the answers…</p>)}
       {section.id === "validation" && <ValidationTables />}
+      {section.id === "reported" && <ReportedTable />}
       {section.id === "sensitivity" && <Link className="pill pill--dark" to="/simulate">Run a scenario</Link>}
       {section.id === "limits" && (
         <ul className="report__callouts">{LIMITATIONS.map((text) => <li key={text}>{text}</li>)}</ul>
@@ -96,6 +98,25 @@ function ChainDiagram() {
       </ol>
       <figcaption>Each arrow multiplies by the next factor; a scenario edits one or more factors.</figcaption>
     </figure>
+  );
+}
+
+function ReportedTable() {
+  return (
+    <table className="table report__reported">
+      <caption>Reported by others · as published, not checked here</caption>
+      <thead><tr><th scope="col">Figure</th><th scope="col">Value</th><th scope="col">Reported by</th><th scope="col">Published</th></tr></thead>
+      <tbody>
+        {REPORTED_FIGURES.map((f) => (
+          <tr key={f.metric}>
+            <th scope="row">{f.metric}</th>
+            <td>{f.value}{f.note && <><br /><span className="note">{f.note}</span></>}</td>
+            <td>{f.source}</td>
+            <td>{f.published ?? "Date not recorded"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

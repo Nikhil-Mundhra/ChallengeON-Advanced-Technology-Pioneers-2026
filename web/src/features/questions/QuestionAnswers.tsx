@@ -56,7 +56,11 @@ function Question({ q, figure, children }: { q: string; figure: LeverAnswer; chi
     <li className="question">
       <p className="question__q">{q}</p>
       <p className="question__a">{children}</p>
-      <p className="question__note">±{Math.round(figure.errorPct * 100)}% error on the weekly figure.</p>
+      <p className="question__note">
+        {figure.errorPct === null
+          ? `${marketName(figure.market)} has no past weeks to check against, so this estimate has no measured error.`
+          : `±${Math.round(figure.errorPct * 100)}% error on ${marketName(figure.market)}'s weekly total of hotel nights.`}
+      </p>
       <Link to={workbench(figure)} className="question__try">Try your own numbers</Link>
     </li>
   );

@@ -8,3 +8,11 @@ export const CHAPTERS = [
 
 /** Daily accuracy on validation periods (docs/results/nowcast-validation.md, shipped nowcast), as shown on the report page. */
 export const DAILY_ERROR = { domestic: 4.18, international: 4.07 };
+
+/** The arrivals assumption behind each outlook scenario (src/tourism_twin/nowcast/outlook.py), completing "Projected from ...". */
+export const SCENARIO_ASSUMPTION: Record<string, string> = {
+  flat: "arrivals held at last year's level",
+  trend: "arrivals kept on their growth over the last year of data",
+};
+/** Years the outlook back-test windows fall in (`twin export` outlook bands); a growth period, so the correction leans up. */
+export const OUTLOOK_BACKTEST_YEARS = "2023 to 2024";

@@ -26,7 +26,7 @@ export function NewRouteCard({ planning, market, lever, seasons }: { planning: P
             </tbody>
           </table>
         )}
-      <p className="note">±{Math.round(rows[0].errorPct * 100)}% error at best; a new route has no past weeks to check against.</p>
+      <p className="note">A new route has no past weeks to check against, so this estimate has no measured error.</p>
     </Card>
   );
 }

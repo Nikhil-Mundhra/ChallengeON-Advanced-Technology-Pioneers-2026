@@ -54,7 +54,7 @@ export function ChainView(props: SeasonViewProps) {
         </div>
       </div>
       <p className="note">
-        Hotel nights per week for {marketName(props.market)}, estimate ±{Math.round(headline.errorPct * 100)}% error.
+        Hotel nights per week for {marketName(props.market)}, {headline.errorPct === null ? "estimate with no measured error (no past weeks to check against)" : `estimate ±${Math.round(headline.errorPct * 100)}% error`}.
         {isDomestic ? " UAE residents drive or travel locally; stays do not depend on flights." : ""}
       </p>
     </div>

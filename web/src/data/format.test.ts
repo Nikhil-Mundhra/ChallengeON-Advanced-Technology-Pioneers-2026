@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatMonth, formatPercent, formatShare, formatSigned, toneOf } from "./format";
+import { formatDate, formatRounded, formatMonth, formatPercent, formatShare, formatSigned, toneOf } from "./format";
 
 describe("format", () => {
   it("signs values and percentages once", () => {
@@ -9,6 +9,7 @@ describe("format", () => {
     expect(formatPercent(0.034)).toBe("+3.4%");
     expect(formatPercent(-0.1, 0)).toBe("-10%");
     expect(formatShare(0.282)).toBe("28.2%");
+    expect(formatRounded(1_437_512)).toBe("1.44M");
   });
   it("names months and tones", () => {
     expect(formatMonth("2025-07-21")).toBe("Jul 2025");

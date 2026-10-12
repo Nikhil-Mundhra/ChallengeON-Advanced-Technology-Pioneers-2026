@@ -31,7 +31,7 @@ export const SECTIONS: ReportSection[] = [
       "Load factor, point-to-point share, the multiplier and the guests-per-arrival factor are planner assumptions applied on top. Seat growth over several years is an assumption too: guests follow it with an effect from 0 (not at all) to 1 (one for one), and the central line is the past co-movement of guest and seat trends (0.60). That line is an association: the data cannot tell whether seats drew guests or guests drew seats.",
       "The change in guests is split step by step across seats (the schedule response), load factor, point-to-point share, multiplier and guests-per-arrival factor. The five parts add up to the total change, tested to within 1e-9 for every calibrated market, a cold-start market, every season and six lever sets.",
       "Markets without flights in the data use their archetype's default ratios (cold start) and are flagged with `is_cold_start`. The seven archetypes are Direct Leisure, Resident/VFR, Regional GCC, Hub-Mediated, Highly Seasonal, Emerging/Sparse and Domestic Staycation.",
-      "On the 30-week holdout the ratio chain alone has the same error as the seasonal average (23.00% WMAPE each). The hybrid has the lowest error of the four weekly models on all four measures, at 20.49% WMAPE.",
+      "On the 30-week holdout the ratio chain alone has the same error as the seasonal average (23.00% WMAPE each). The hybrid has the lowest error of the four weekly models on all four measures, at 20.43% WMAPE.",
     ],
   },
   {
@@ -87,12 +87,19 @@ export const SECTIONS: ReportSection[] = [
       "Weekly planning ranges cover 65.7% of holdout weeks against an 80% target: they are too narrow. Coverage is printed with every briefing.",
       "The guests-per-arrival factor is a stock-to-flow ratio, not a measured length of stay. The nowcast weight sum Σw is a fitting quantity, not a stay distribution, and the simulator does not use it.",
       "Domestic planning over-forecast 2025 by 13.05% on the holdout; 2025 domestic guests were below the 2023 to 2024 seasonal level. Domestic is modelled separately and uses no holdout arrivals.",
-      "The ratio chain alone matches the seasonal average on accuracy (23.00% vs 23.00%). The hybrid (20.49% WMAPE) is reported alongside.",
+      "The ratio chain alone matches the seasonal average on accuracy (23.00% vs 23.00%). The hybrid (20.43% WMAPE) is reported alongside.",
       "The full-fit ε sits at or near the low end of its refit range in most markets; refits on data to January to July 2024 give higher values.",
       "Cold-start markets use archetype defaults (seven archetypes; unknown countries map to Emerging/Sparse). Estimates for new origins are weak and flagged `is_cold_start`.",
       "No room inventory, so no occupancy; output is guests. No bookings, room rates, marketing spend, airfares, visa or macroeconomic data.",
       "The planning model is validated on a single forward split with no Autumn_Shoulder weeks. Projected years repeat the seasonal profile; growth is a user assumption on projected weeks only.",
+      "The data ends in February 2026. Months after that are projections under a stated arrivals assumption, since no real arrivals exist for them, and their ranges come from back-tests of the same projection. The outlook on the home page holds arrivals at last year's level and corrects the result by the middle of its past misses: in 9 back-tests 9 months ahead, all from the 2023 to 2024 growth period, real months came out 2% to 22% above the raw projection. Events after February 2026 are not in the data.",
       "Observational data: results are planning estimates, not causal effects.",
+    ],
+  },
+  {
+    id: "reported", kicker: "Outside figures", title: "Reported by others (not our model)",
+    body: [
+      "Hotel, airport and airline figures published by DCT, JLL, Abu Dhabi Airports, Etihad and the GCAA, for context. They are not in the competition data, the model does not use them, and they cannot be checked from this repository. Occupancy, room rates and airport totals measure different things from the model's hotel guests, so they are not comparable with its estimates or its error.",
     ],
   },
   {
@@ -119,7 +126,7 @@ export const PLANNING_HOLDOUT = {
     { model: "Historical seasonal prior (market-season mean)", wmape: 23.0, bias: -6.6 },
     { model: "Calendar only (per-market ridge, no aviation)", wmape: 22.0, bias: -8.5 },
     { model: "Structural chain only (planning mode)", wmape: 23.00, bias: 6.06, note: "Same error as the seasonal prior" },
-    { model: "Structural + calendar residual (hybrid)", wmape: 20.49, bias: 5.68, shipped: true, note: "Lowest error on all four holdout measures" },
+    { model: "Structural + calendar residual (hybrid)", wmape: 20.43, bias: 5.68, shipped: true, note: "Lowest error on all four holdout measures" },
   ],
 };
 

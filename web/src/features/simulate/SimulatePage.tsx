@@ -6,7 +6,6 @@ import { formatCount, formatSigned, toneOf } from "../../data/format";
 import { capacityOutlook } from "../../engine/capacity";
 import { scheduleEffect, simulate, type Planning } from "../../engine/planning";
 import { playback } from "../../engine/playback";
-import { getExternalWeeklyRate } from "../../content/externalReports";
 import { holdoutWmape, timeline, totalTimeline, type Weekly } from "../../engine/weekly";
 import { ALL_MARKETS, DEFAULT_INPUT, leverReducer, marketOptions, scenarioFromQuery, scenarioQuery, startOptions, toLever } from "./levers";
 import { LeverPanel } from "./LeverPanel";
@@ -91,12 +90,8 @@ export function SimulatePage({ planning, weekly }: { planning: Planning; weekly:
   const capacityPct = all ? 0 : input.capacityPct;
   const options = { start, growthPct, capacityPct };
   const pb = useMemo(() => playback(planning, weekly, market, lever, options), [planning, weekly, market, lever, start, growthPct, capacityPct]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const rawPoints = useMemo(() => (all ? totalTimeline(planning, weekly, market, lever, options) : timeline(planning, weekly, market, lever, options)),
+  const points = useMemo(() => (all ? totalTimeline(planning, weekly, market, lever, options) : timeline(planning, weekly, market, lever, options)),
     [planning, weekly, market, lever, start, growthPct, capacityPct, all]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const points = useMemo(() => {
-    if (!all) return rawPoints;
-    return rawPoints.map((p) => ({ ...p, external: getExternalWeeklyRate(p.week) }));
-  }, [rawPoints, all]);
   const schedule = all ? null : scheduleEffect(planning, market, season, lever);
   const capacity = { years: CAPACITY_YEARS, ...capacityOutlook(planning, capacityPct, CAPACITY_YEARS) };
   const [week, setWeek] = useState(() => Math.max(0, pb.weeks.indexOf(start)));
