@@ -17,6 +17,12 @@
                   panel week and PROJECTION_YEARS beyond it, and the forward-holdout back-test
                   prediction (fitted before HOLDOUT_START), and the event type covering most of each week. Scenario weeks are
                   max(0, structural_w + residual_w + scenario change for the week's season)
+  outlook.json    monthly guests for the 12 months after the last known arrivals, per arrivals
+                  scenario and segment, the same month a year earlier (actual guests, or the shipped
+                  nowcast's estimate where guests are withheld), and the band: the central
+                  BAND_COVERAGE of the same method's back-test misses (actual / projection - 1) at
+                  each horizon, with their median (mid); calibrated = guests x (1 + mid)
+                  (nowcast/outlook.py)
   golden.json     input -> expected output cases computed here, for parity tests of any port
 
 The model outputs are read-only and versioned, so the bundle is the store: no database.
@@ -41,7 +47,7 @@ from tourism_twin.features.lags import lag_column
 from tourism_twin.models.noise import NoiseModel
 from tourism_twin.nowcast.predict import INTERNATIONAL, TOTAL, TestPredictions, total_series
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 COVERAGES = (0.5, 0.8, 0.9)
 HISTORY_DAYS = 400
 PROJECTION_YEARS = 3
@@ -272,6 +278,69 @@ def golden_part(model, panel: pd.DataFrame, noise: NoiseModel, nowcast: Dict[str
     return {"cases": cases + planning_golden()}
 
 
+def outlook_part(predictions: TestPredictions, panel: pd.DataFrame, spec: str) -> Dict[str, Any]:
+    from tourism_twin.nowcast.outlook import (BAND_COVERAGE, SEGMENTS, horizon_backtest, horizon_errors,
+                                              monthly_outlook, segment_months)
+
+    data_end = panel["date"].max()
+    guests_end = panel.loc[panel["dataset_split"] == "train", "date"].max()
+    projections = monthly_outlook(spec)
+    errors = horizon_errors(horizon_backtest(spec))
+    total = errors[errors["segment"] == "TOTAL"]
+    default = str(total.groupby("scenario")["wape_pct"].mean().idxmin())  # lower back-test error over the horizons
+    actual = segment_months(panel[panel["dataset_split"] == "train"], "guests")
+    estimate = segment_months(predictions.market_daily, "pred")
+
+    def previous(month: pd.Period, segment: str):
+        before = month - 12
+        if before in actual.index and pd.notna(actual.at[before, segment]):
+            return float(actual.at[before, segment]), "actual"
+        if before in estimate.index and pd.notna(estimate.at[before, segment]):
+            return float(estimate.at[before, segment]), "estimate"
+        return None, None
+
+    def months(frame: pd.DataFrame, scenario: str, segment: str) -> List[Dict[str, Any]]:
+        mids = errors[(errors["scenario"] == scenario) & (errors["segment"] == segment)].set_index("horizon_months")["miss_mid"]
+        rows = []
+        for month, guests in frame[segment].items():
+            value, kind = previous(month, segment)
+            horizon = (month - data_end.to_period("M")).n
+            guests = float(f"{guests:.12g}")
+            rows.append({"month": str(month), "horizon_months": horizon, "guests": guests,
+                         "calibrated": guests * (1 + float(mids[horizon])) if horizon in mids.index else None,
+                         "previous": value, "previous_kind": kind})
+        return rows
+
+    def band(rows: pd.DataFrame) -> List[Dict[str, Any]]:
+        return [{"horizon_months": int(r.horizon_months), "low": float(r.miss_low), "mid": float(r.miss_mid),
+                 "high": float(r.miss_high),
+                 "n": int(r.n), "miss_min": float(r.miss_min), "miss_max": float(r.miss_max),
+                 "wape_pct": float(r.wape_pct), "bias_pct": float(r.bias_pct)}
+                for r in rows.sort_values("horizon_months").itertuples()]
+
+    return {
+        "data_end": data_end.date().isoformat(), "guests_known_to": guests_end.date().isoformat(), "spec": spec,
+        "coverage": BAND_COVERAGE, "default_scenario": default,
+        "scenarios": {scenario: {segment: months(frame, scenario, segment) for segment in SEGMENTS}
+                      for scenario, frame in projections.items()},
+        "band": band(total[total["scenario"] == default]),
+        "bands": {scenario: {segment: band(errors[(errors["scenario"] == scenario) & (errors["segment"] == segment)])
+                             for segment in SEGMENTS} for scenario in projections},
+    }
+
+
+def outlook_golden(outlook: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The default scenario's TOTAL range and calibrated middle per month: guests x (1 + low), (1 + mid)
+    and (1 + high)."""
+    bands = {b["horizon_months"]: b for b in outlook["band"]}
+    return [{"kind": "outlook_range", "month": m["month"], "guests": m["guests"],
+             "low": m["guests"] * (1 + bands[m["horizon_months"]]["low"]),
+             "mid": bands[m["horizon_months"]]["mid"],
+             "calibrated": m["guests"] * (1 + bands[m["horizon_months"]]["mid"]),
+             "high": m["guests"] * (1 + bands[m["horizon_months"]]["high"])}
+            for m in outlook["scenarios"][outlook["default_scenario"]]["TOTAL"] if m["horizon_months"] in bands]
+
+
 def _git_sha() -> str:
     try:
         return subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True,
@@ -291,7 +360,7 @@ def _weights_digests() -> Dict[str, str]:
 
 def write_bundle(predictions: TestPredictions, panel: pd.DataFrame, weekly_panel: pd.DataFrame, out_dir: Path, spec: str,
                  coverage: float = 0.8) -> Path:
-    """Write <out_dir>/<version>/{nowcast,whatif,planning,weekly,golden}.json and <out_dir>/manifest.json
+    """Write <out_dir>/<version>/{nowcast,whatif,planning,weekly,outlook,golden}.json and <out_dir>/manifest.json
     (pointing at that version). Earlier versions stay untouched."""
     if predictions.noise is None or predictions.model is None:
         raise ValueError("the bundle needs predictions with intervals and the fitted model")
@@ -300,7 +369,9 @@ def write_bundle(predictions: TestPredictions, panel: pd.DataFrame, weekly_panel
     version = f"{created:%Y%m%d-%H%M%S}-{_git_sha()}"
     nowcast = nowcast_part(predictions, history)
     parts = {"nowcast": nowcast, "whatif": whatif_part(predictions.model, panel), "planning": planning_part(),
-             "weekly": weekly_part(weekly_panel), "golden": golden_part(predictions.model, panel, predictions.noise, nowcast)}
+             "weekly": weekly_part(weekly_panel), "outlook": outlook_part(predictions, panel, spec),
+             "golden": golden_part(predictions.model, panel, predictions.noise, nowcast)}
+    parts["golden"]["cases"] += outlook_golden(parts["outlook"])
     target = out_dir / version
     target.mkdir(parents=True, exist_ok=True)
     digests = {}

@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tourism_twin.nowcast.outlook import FROZEN_TEST, Window, _extend_arrivals, arrivals_growth, backtest_outlook
+from tourism_twin.nowcast.outlook import (FROZEN_TEST, SCENARIOS, Window, _extend_arrivals, _predict, _scenario_predictions,
+                                          arrivals_growth, backtest_outlook, horizon_errors, segment_months)
 
 
 def _panel(days: int = 800) -> pd.DataFrame:
@@ -54,3 +55,27 @@ def test_backtest_refuses_the_frozen_test():
 def test_winter_window_spans_december_to_february():
     window = Window.winter(2026)
     assert (window.start, window.end) == (pd.Timestamp("2026-12-01"), pd.Timestamp("2027-02-28"))
+
+
+def test_monthly_outlook_fits_once_yet_matches_the_per_scenario_outlook_and_sums_whole_months():
+    panel = _panel()
+    train_end, arrivals_end = pd.Timestamp("2023-06-30"), panel["date"].max()
+    window = Window("next", arrivals_end + pd.Timedelta(days=1), arrivals_end + pd.offsets.MonthEnd(3))
+    shared = _scenario_predictions(panel, train_end, arrivals_end, window.start, window.end, "arrivals_ratio")
+    for scenario in SCENARIOS:
+        alone = _predict(panel, train_end, arrivals_end, window, "arrivals_ratio", scenario)
+        pd.testing.assert_frame_equal(shared[scenario].reset_index(drop=True), alone.reset_index(drop=True))
+    months = segment_months(shared["trend"], "pred")
+    assert np.allclose(months["TOTAL"], months["INTERNATIONAL"] + months["DOMESTIC"], rtol=1e-12) and len(months) == 3
+    gappy = panel.assign(guests=panel["guests"].where(panel["date"] != pd.Timestamp("2022-02-10")))
+    assert np.isnan(segment_months(gappy, "guests").at[pd.Period("2022-02"), "TOTAL"])
+
+
+def test_horizon_errors_report_wape_bias_and_the_central_misses():
+    scores = pd.DataFrame({"scenario": "flat", "segment": "TOTAL", "horizon_months": 9,
+                           "pred": [100.0, 100.0, 100.0, 100.0, 100.0], "actual": [90.0, 100.0, 110.0, 120.0, 130.0]})
+    row = horizon_errors(scores).iloc[0]
+    assert row["n"] == 5 and row["wape_pct"] == pytest.approx(100 * 70 / 550) and row["bias_pct"] == pytest.approx(100 * -50 / 550)
+    assert (row["miss_min"], row["miss_max"]) == pytest.approx((-0.1, 0.3))
+    assert (row["miss_low"], row["miss_high"]) == pytest.approx((-0.06, 0.26))  # 10th and 90th percentiles
+    assert row["miss_mid"] == pytest.approx(0.1) and row["miss_low"] <= row["miss_mid"] <= row["miss_high"]  # median: calibrated middle
