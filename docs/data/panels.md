@@ -18,7 +18,8 @@ Daily panel:
 | Guests | Never filled or interpolated; a market-day sums its nationalities' guests and stays missing when none is present |
 | Training rows | 27,464 market-days with guests; 26,904 after dropping `is_one_off_period` (560); 26,727 after keeping `lag_complete` (177 more rows from the first 21 days of each market). Rules: [nowcast](../model/nowcast.md#training-rows-and-inputs) |
 | Reconciliation | Observed `new_arrivals` leaves gaps missing; weekly sums of daily `guests` and `new_arrivals` equal the weekly panel exactly (tested) |
-| Use | Input of the daily nowcast; `twin predict` and the back-test build it in memory from `guest_daily.parquet` |
+| Scheduled seats | `with_scheduled_seats` adds daily `seats` and `p2p` per market from `flight_daily` (departure country mapped to market as in the weekly panel; departure country is not nationality). From the first daily flight date a market-day without flights has 0; before it and for `DOMESTIC` both stay missing. Lags `seats_lag_0..7` and `seat_lag_complete` come from feature `seat_lags`. Not in `daily_market_panel.parquet`; the planning chain adds them in memory |
+| Use | Input of the daily nowcast and, with scheduled seats, of the planning chain ([planning model](../model/planning.md#flight-response)); `twin predict`, `twin train` and the back-test build it in memory from `guest_daily.parquet` |
 
 ## Markets
 

@@ -42,7 +42,8 @@ Data dictionary vs files: it documents the two test guest files and the flight f
 | `lake/curated/residual_engine.pkl` | Market | 21 models | RidgeCV residual models | yes |
 | `lake/curated/conformal_calibrator.json` | Market | 21 | Conformal margins, target alpha 0.2, demonstrated coverage | yes |
 | `lake/curated/evaluation_results.json` | n/a | n/a | Weekly back-test metrics, benchmark leaders, market and season breakdowns | yes |
+| `lake/curated/noise_model.json` | Series | 23 | AR(1) noise parameters (`phi`, `sigma_eta`, `v0`) per nowcast series; written by the first `twin predict` or `twin export` when absent, never overwritten; read by `twin export --fast` | no |
 | `lake/analytics.duckdb` | n/a | n/a | Query database with analytical views | no |
-| `src/tourism_twin/domain/events.csv` | Event occurrence | 63 | Event, kind, anchor date, window offsets, scope, label, source; 2021 to 2027 | yes |
+| `src/tourism_twin/domain/events.csv` | Event occurrence | 93 | Event, kind, anchor date, window offsets, scope, label, source; 2021 to 2027 | yes |
 
 Example `twin query` SQL: `src/tourism_twin/data/sql/`.

@@ -16,6 +16,7 @@ Guests = Seats × LF × P2PShare × M × L
 | Part | Fact |
 | --- | --- |
 | Ratios | LF, P2P share, M and L are training-window means per market and season; none is fitted by optimisation |
+| Recency weighting (`market_recency`) | CHINA's means are weighted by recency, weight 0.5^(days before the last training week ÷ 365); every other market uses flat means. Default `{"CHINA": 365.0}` in `StructuralEngine.calibrate` and `ResidualMLEngine.fit`; an empty mapping turns it off |
 | Market bridge | Departure country k is linked to nationality k; M absorbs non-national passengers, indirect connections and overland arrivals. A 45 × 33 country-to-nationality matrix (1,485 parameters) is not estimated |
 | Planning prediction (`planning_guests`) | Scheduled seats × calibrated LF, P2P share, M, L. A served market whose seats carry no P2P passengers has zero aviation arrivals; an unserved market keeps its calibrated arrivals. The simulator baseline uses the same rule (`MarketSeasonParams.arrivals_from`) |
 | Domestic | `DOMESTIC` = calibrated seasonal arrivals × L, independent of seats; seat, frequency, load-factor and P2P levers have no effect; multiplier and stay-factor levers do (tested) |
@@ -26,6 +27,23 @@ Guests = Seats × LF × P2PShare × M × L
 ## Flight response
 
 Artifact: `lake/curated/flight_response.json`, written by `twin train` (`planning/training.py`) and exported in `planning.json` as `flight_response`.
+
+The schedule elasticity is read off the daily planning chain (`planning/chain.py`, `SeatChain`), international markets only:
+
+```text
+link 1 (arrivals):  NewArrivals_t = (c_t + Σ_{k=0..7}  w_k · Seats_{t−k})    × exp(season + weekday + events)
+link 2 (guests):    Guests_t      = (c_t + Σ_{k=0..21} v_k · Arrivals_{t−k}) × exp(season + weekday + events)
+```
+
+| Part | Fact |
+| --- | --- |
+| Specs | `CHAIN_SPECS` in `planning/specs.py`: `seat_chain` (shipped, `SEAT_CHAIN`) and `seat_chain_prototype`; each link is a `ModelSpec` fitted per market on the daily panel |
+| Link 1 (`SeatKernel`, `seat_kernel`) | The `ArrivalsConvolution` kernel constraints (shared base class `ConvolutionKernel`, `models/components/convolution.py`) on the market's own daily scheduled seats, lags 0 to 7 (feature `seat_lags`, input from `with_scheduled_seats`); target `new_arrivals_filled`; smearing bias correction |
+| Link 1 settings in `seat_chain` | Σw ≤ `cap_factor` (1.0) × P2P passengers ÷ seats over the market's training rows; base-stock knots every 60 days; each market's base share refitted toward the median base share of the unpooled fits (`pooled_share_ridge` 0.01) |
+| Link 2 | The international nowcast form (`INTL_NOWCAST` components, 45-day knots), declared separately as `GUESTS_LINK` (`planning` does not import `nowcast`); in `seat_chain` trained on link 1's in-sample predicted arrivals, with smearing |
+| `seat_chain_prototype` | No cap, no pooling, 365-day link 1 knots, link 2 trained on observed arrivals, no smearing on link 2 |
+| Prediction | Link 2 reads the lags of link 1's predicted arrivals, never observed ones; a seat change moves arrivals over the next 7 days and guests over the next 28. A scenario re-runs both links on changed seats (`SeatChain.scenario`) |
+| Rows | `DOMESTIC` is excluded (no flights; NaN). A market's first 28 days only warm the lags up; a missing day leaves the lags that read it unknown |
 
 | Lever | Model | Fact |
 | --- | --- | --- |
@@ -45,7 +63,7 @@ Hybrid = max(0, planning_guests + residual)
 
 | Fact |
 | --- |
-| One `RidgeCV` per market |
+| One `RidgeCV` per market; CHINA's fit weights each week by recency (`market_recency`, half-life 365 days) |
 | Features: two week-of-year sine/cosine pairs, quarter dummies, winter and summer flags, holiday-week flag (Eid al-Fitr, Eid al-Adha, National Day, New Year and festive weeks), major-event-week flag (ADIPEC, Formula 1), each `events.csv` event's share of the week for the markets it covers (`event_exposure_matrix`) |
 | Target: actual guests − `planning_guests` |
 | In a scenario the residual is the mean fitted residual over the market's training weeks in that season (`season_residual` in `residual_engine.pkl`) |
@@ -57,9 +75,10 @@ Hybrid = max(0, planning_guests + residual)
 
 | Component | Method |
 | --- | --- |
-| Monte Carlo (1,500 draws default) | Load factor and P2P share ~ Beta (method of moments, sd 0.03 and 0.04); multiplier and stay factor × Normal(1, 0.06) and Normal(1, 0.04); residuals by 4-week block bootstrap of the market's weekly training residuals; seed from the scenario via SHA-256. On a served route each draw's scenario arrivals are its baseline arrivals × the structural arrivals ratio |
-| Conformal margin | Per market: (1 − α) quantile of in-sample relative planning-mode error on the training window, α = 0.2 |
-| Coverage | Holdout coverage of the conformal range against its 80% target: [planning holdout](../results/planning-holdout.md) |
+| Shown range (`p10`, `p50`, `p90`, `delta_*` of `UncertaintyBands`) | Scenario guests × (1 ± the market's conformal margin); P50 is the structural scenario; read by `twin simulate`, the briefing, the API and the web app |
+| Monte Carlo (1,500 draws default) | Computed next to the shown range and returned as the `mc_*` fields of `UncertaintyBands`; no output prints them. Load factor and P2P share ~ Beta (method of moments, sd 0.03 and 0.04); multiplier and stay factor × Normal(1, 0.06) and Normal(1, 0.04); residuals by 4-week block bootstrap of the market's weekly training residuals; seed from the scenario via SHA-256. On a served route each draw's scenario arrivals are its baseline arrivals × the structural arrivals ratio |
+| Conformal margin | Per market: (1 − α) quantile of in-sample relative planning-mode error on the training window, α = 0.2. A market without its own margin (cold start) uses 0.28 (`uncertainty.py`, `default_conformal_margin` in `planning.json`), which is not measured; the web app shows such estimates with no error figure |
+| Coverage | Holdout coverage of the conformal range against its 80% target: [planning holdout](../results/planning-holdout.md). Copied from `evaluation_results.json` into the calibrator; without that file it is `None` and the briefing, `twin simulate` and the API say it is not measured |
 | Tornado | Guest swing for ±15% seats, ±4 pp LF, ±5 pp P2P share, ±10% multiplier, ±0.5 stay factor; cold-start markets use a reference route |
 
 ## Archetypes (`domain/archetypes.py`)

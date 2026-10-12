@@ -44,8 +44,8 @@ Autumn_Shoulder is not in the holdout window. Per-market results: `market_breakd
 | Measurement | Source | Result |
 | --- | --- | --- |
 | Holdout market-weeks inside structural prediction × (1 ± conformal margin), nominal 80% | `evaluation_results.json` (`demonstrated_coverage_pct`) | 65.7% |
-| Hybrid with the calendar residual alone (no event shares) | earlier `twin evaluate` run | 21.74% WMAPE, bias +5.36% |
-| Event shares in the residual, weekly WAPE on validation origins | `compare` | −0.7 pp [−1.55, −0.16], 7/7 origins |
+| Hybrid with the calendar residual alone (no event shares), old event set | earlier `twin evaluate` run, before the six origin-specific events | 21.74% WMAPE, bias +5.36% |
+| Event shares in the residual, weekly WAPE on validation origins, old event set | `compare`, before the six origin-specific events; not rerun | −0.7 pp [−1.55, −0.16], 7/7 origins |
 | Weekly back-test reproduced in the web engine | `web/src/engine/parity.test.ts` | Same WMAPE as the benchmark hybrid |
 
 ## CHINA recency weighting
@@ -56,7 +56,7 @@ CHINA rows are weighted by recency in both planning trainers (`planning/structur
 | --- | ---: | ---: | --- |
 | CHINA weekly WMAPE | 43.08% | 39.49% | `evaluation_results.json` (`market_breakdown`) |
 | CHINA weekly bias | −43.08% | −39.40% | `evaluation_results.json` (`market_breakdown`) |
-| Hybrid WMAPE (all markets) | 20.62% | 20.49% | `evaluation_results.json` (`benchmark`) |
+| Hybrid WMAPE (all markets), old event set | 20.62% | 20.49% | `evaluation_results.json` (`benchmark`) at bb86e05^ (without) and 5250163 (with), both before the six origin-specific events in `events.csv`; the current artifact, with them, gives 20.43% ([benchmark](#benchmark)) |
 | International planning WMAPE | 27.52% | 27.31% | `evaluation_results.json` (`diagnostics`) |
 | Domestic forecast WMAPE | 16.04% | 16.04% | `evaluation_results.json` (`diagnostics`) |
 | Holdout coverage | 65.2% | 65.7% | `evaluation_results.json` (`demonstrated_coverage_pct`) |

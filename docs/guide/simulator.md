@@ -9,7 +9,7 @@ For one source market and one season, the simulator compares a baseline week wit
 | Conversion chain | Seats → passengers → P2P passengers → hotel new arrivals → hotel guests, baseline vs scenario |
 | Waterfall | Guest lift split sequentially across 5 levers; the parts sum to the total |
 | Hybrid lift | Structural lift plus the residual adjustment |
-| Schedule range | Scenario guests at the low and high end of the market's schedule elasticity (web: `scheduleRange`) |
+| Schedule range | Scenario guests at the low and high end of the market's schedule elasticity (Python `StructuralEngine.schedule_range`, not printed by `twin simulate`; web `scheduleRange`) |
 | Uncertainty | P10 / P50 / P90 of total guests and of the lift: scenario guests × (1 ± the market's conformal margin) ([planning model](../model/planning.md#uncertainty-and-sensitivity-planninguncertaintypy-planningconformalpy-planningsensitivitypy)); the Monte Carlo draws are computed but not printed |
 | Tornado | Swing in guests for a fixed up and down shock to each lever |
 | Briefing | One-paragraph summary |
@@ -31,32 +31,32 @@ Source: `src/tourism_twin/cli/simulate.py`.
 
 ```bash
 twin simulate --market "UNITED KINGDOM" --season Winter_Peak \
-  --delta-freq 2.0 --gauge 290.0 --delta-lf 0.02
+  --delta-freq 2.0 --gauge 290.0
 ```
 
 | Argument | Default | Meaning |
 | :--- | :---: | :--- |
 | `--market` | `UNITED KINGDOM` | One of the 21 modelled markets, or an unmodelled country (`SWEDEN`, `BRAZIL`) with its archetype's defaults (cold start) |
 | `--season` | `Winter_Peak` | `Winter_Peak` (Nov to Mar), `Spring_Shoulder` (Apr to May), `Summer_Trough` (Jun to Aug), `Autumn_Shoulder` (Sep to Oct) |
-| `--delta-freq` | `2.0` | Added weekly round-trip flights; each adds `--gauge` inbound seats per week |
+| `--delta-freq` | `0.0` | Added weekly round-trip flights; each adds `--gauge` inbound seats per week |
 | `--gauge` | `290.0` | Seats per added flight (290 B787-9, 180 A320) |
 | `--delta-seats-pct` | `0.0` | Proportional change in existing seats (`0.15` = +15%; `-1.0` = route closure) |
-| `--delta-lf` | `0.02` | Absolute change in load factor (`0.02` = +2 pp) |
+| `--delta-lf` | `0.0` | Absolute change in load factor (`0.02` = +2 pp) |
 | `--delta-p2p` | `0.0` | Absolute change in P2P share |
 | `--delta-mult-pct` | `0.0` | Proportional change in response multiplier (`0.05` = +5%) |
 | `--delta-los` | `0.0` | Absolute change in the stay factor L (guests ÷ hotel arrivals) |
 
-`DOMESTIC` has no aviation input: only `--delta-mult-pct` and `--delta-los` change domestic guests.
+Every lever defaults to no change; a run moves only the levers it names. `DOMESTIC` has no aviation input: only `--delta-mult-pct` and `--delta-los` change domestic guests.
 
 ## Reading the briefing
 
 | Section | Content |
 | --- | --- |
-| Executive recommendation | Weekly guest lift, % vs baseline, P10 to P90 range of the lift, holdout coverage, top tornado driver |
+| Executive recommendation | Weekly guest lift, % vs baseline, P10 to P90 range of the lift, holdout coverage when measured, the lever that moves the result most at the fixed tornado steps |
 | Conversion chain | Weekly seats, passengers, P2P, hotel new arrivals, hotel guests (guest-days), load factor, P2P share, response multiplier; baseline vs scenario |
 | Waterfall | Lift in the order seats, load factor, P2P share, response multiplier, stay factor; a lever's share depends on its position |
-| Uncertainty | P10/P50/P90 of simulated total guests and of the lift from the conformal margin, and the holdout coverage; the P10 of the lift can be negative when capacity is added |
-| Tornado | Swing for ±15% seats, ±4 pp load factor, ±5 pp P2P share, ±10% multiplier, ±0.5 stay factor, ranked |
+| Range | P10 (low), point and P90 (high) of simulated total guests and of the lift: scenario guests ± the market's conformal margin; the holdout coverage of such ranges against the 80% target, or "not measured" when `evaluation_results.json` is missing; the P10 of the lift can be negative when capacity is added |
+| Tornado | Swing for ±15% seats, ±4 pp load factor, ±5 pp P2P share, ±10% multiplier, ±0.5 stay factor, ranked, with swing ÷ baseline guests |
 
 ## Market directory
 

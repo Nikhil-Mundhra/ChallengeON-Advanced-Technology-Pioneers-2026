@@ -34,10 +34,10 @@ Out of scope: individual-traveller prediction or profiling; itinerary reconstruc
 | Competition forecast | `twin predict`: `Guests` for every test-file row, validated against the test workbooks, with P10/P50/P90 |
 | Adjustable conversion chain | 7 levers over seats → passengers → P2P → hotel arrivals → guests; every stage baseline vs scenario |
 | Historical validation | Nowcast: 7 validation origins, frozen test scored once, two baselines, interval coverage, direction accuracy. Planning: forward holdout (104 calibration weeks, 30 holdout weeks), 4-model benchmark. [Results](results/index.md) |
-| Sensitivity analysis | Tornado ranking; Monte Carlo P10/P50/P90 |
+| Sensitivity analysis | Tornado ranking; P10/P50/P90 from conformal margins; schedule range from the elasticity's range over refits |
 | Granularity | Nowcast: 21 markets daily; the 30 pooled-market nationalities modelled directly. Planning: 21 markets × 4 seasons, weekly |
 | Decision relevance | Generated briefing naming the lift, range and top driver |
-| Reproducibility | Source hashes in `lake/manifest.json`, env-configurable paths, `make all` from the raw workbooks, seeded Monte Carlo, tests |
+| Reproducibility | Source hashes in `lake/manifest.json`, env-configurable paths, `make all` from the raw workbooks, seeded Monte Carlo and bootstrap, tests |
 
 ## Operating modes
 

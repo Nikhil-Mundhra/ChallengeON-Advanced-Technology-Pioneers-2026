@@ -18,7 +18,7 @@ AeroLodge Metrics turns air-connectivity decisions into hotel guests. A weekly p
 * Transparent chain: seats → passengers → visitors → hotel nights, every step a lever you can move.
 * Learned flight response: guests follow a schedule change by each market's elasticity per season, with a range from refits on earlier data; seat growth over years is an assumption with a 0 to one-for-one range.
 * Validated: time-ordered validation origins and a frozen test period scored once, never shuffled.
-* Ranges: every forecast number comes with its ±error.
+* Ranges: forecasts carry a range measured on back-tests; estimates with no back-test (new routes, the outlook's market split) say so.
 * Reproducible: one command rebuilds the lake, the models, the charts and the report from the raw workbooks.
 * Static site: scenarios are computed in the browser from a versioned data bundle; no server runs at request time.
 
@@ -60,17 +60,17 @@ Web app: http://localhost:5180. JSON API: http://127.0.0.1:8090. Stop both with 
 
 ### Check it
 
-* Outlook (`/`): each coming month against the same month a year earlier, the markets growing and slowing most, and answers to the five planning questions.
+* Outlook (`/`): projected hotel nights for each coming month after the data, with a back-tested range, against the same month a year earlier; the markets growing and slowing most; and answers to the five planning questions.
 * Flight scenarios (`/simulate`): levers per market, a moving map of visitors week by week, the conversion chain, the waterfall and the biggest levers.
 * Daily forecast (`/nowcast`): guests for any date range with its error, an arrivals what-if, and the nationality list.
 * How it works (`/report`): the method, the validation and the limits, with the source of every number.
 
 ## Try a scenario
 
-Two more weekly flights from the UK in winter, on 290-seat aircraft, load factor unchanged:
+Two more weekly flights from the UK in winter, on 290-seat aircraft (every lever not named stays at 0):
 
 ```console
-$ twin simulate --market "UNITED KINGDOM" --season Winter_Peak --delta-freq 2 --gauge 290 --delta-lf 0
+$ twin simulate --market "UNITED KINGDOM" --season Winter_Peak --delta-freq 2 --gauge 290
 
 Metric                               Baseline     Scenario        Net Shift
 Weekly Seat Capacity                   13,844       14,424             +580
@@ -80,13 +80,13 @@ Hotel New Arrivals                      3,789        3,838              +49
 Hotel Guests (Guest-Days)              17,645       17,872             +227
 
 TOTAL ATTRIBUTED LIFT                            +227.2             100.0%
-Scenario Outcome             P10 (Conservative)     P50 (Median) P90 (Optimistic)
+Scenario Outcome                    P10 (Low)            Point       P90 (High)
 Incremental Demand Lift                -6,563             +227           +7,018
 ```
 
-A 4.2% seat increase gives 1.3% more guests: the UK's winter elasticity, read from the fitted chain, is 0.31. Without `--delta-lf 0` the command also adds 2 points of load factor (the default).
+A 4.2% seat increase gives 1.3% more guests: the UK's winter elasticity, read from the fitted chain, is 0.31.
 
-The full briefing adds the waterfall by lever, the range and the tornado ranking. The same scenario runs on `/simulate` with sliders.
+The full briefing adds the waterfall by lever, the range (scenario guests ± the market's conformal margin, with its measured holdout coverage) and the tornado ranking. The same scenario runs on `/simulate` with sliders.
 
 ## Accuracy
 

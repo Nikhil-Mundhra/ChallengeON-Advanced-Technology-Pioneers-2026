@@ -13,7 +13,7 @@ bounds = pred × exp(± z · sqrt(var(h))),   z = Φ⁻¹(0.9) for 80%
 | --- |
 | `twin predict` fits it on 8 monthly origins (2024-07-01 to 2025-02-01) with a 7-month horizon and counts h from 2025-08-01 |
 | No month or bias factor |
-| Daily predictions only; the weekly simulator uses conformal margins and Monte Carlo ([planning](planning.md)) |
+| Daily predictions only; the weekly simulator shows conformal margins and computes Monte Carlo draws alongside ([planning](planning.md#uncertainty-and-sensitivity-planninguncertaintypy-planningconformalpy-planningsensitivitypy)) |
 
 ## Sums
 

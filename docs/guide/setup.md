@@ -35,6 +35,7 @@ Requirements: Python 3.10+ and Node 20+. The raw workbooks are not in the reposi
 | --- | --- |
 | `validate` | `twin validate` |
 | `export` | `rm -rf web/public/data`, then `twin export --out web/public/data` |
+| `export-fast` | `rm -rf web/public/data`, then `twin export --fast --out web/public/data` |
 | `backend` | `test` + `export` |
 | `frontend` | `web-install`, `web-test`, `web-build` |
 | `web-dev` | Vite dev server |
@@ -66,7 +67,7 @@ TWIN_OUTPUT_DIR=/tmp/output twin predict                       # predictions out
 | --- | --- |
 | `.venv/bin/pytest -q` (`make test`) | Python tests |
 | `pytest tests/<area>` | One area |
-| `make web-test` | vitest: engine parity, formatting, lever state and slider rules, map geometry |
+| `make web-test` | vitest: engine parity, formatting, lever state and slider rules, scenario links, outlook rows, map geometry |
 | `npx tsc --noEmit` in `web/` | Type check |
 
 | Folder | Covers |
@@ -74,8 +75,8 @@ TWIN_OUTPUT_DIR=/tmp/output twin predict                       # predictions out
 | `tests/data/` | Lake grain, weekly and daily panels, calendar weeks, test-file row rules |
 | `tests/features/` | Feature registry, event registry and offsets, one-off masking |
 | `tests/models/` | Components (known-answer recovery), fitting and weights, specs, back-test harness, noise model, fitted-model evaluation |
-| `tests/nowcast/` | Baselines, submission validator, outputs, serving, same-day guests, winter outlook |
-| `tests/planning/` | Waterfall identity, planning rules, scenario residual, event exposure |
+| `tests/nowcast/` | Baselines, submission validator, outputs, serving, same-day guests, winter and monthly outlook |
+| `tests/planning/` | Waterfall identity, planning rules, scenario residual, event exposure, planning chain, schedule response, capacity co-movement |
 | `tests/reporting/` | Deck, validation and outlook numbers |
 | `tests/app/` | Web API |
 | `tests/audit/` | Audit tool |
@@ -86,13 +87,14 @@ Shared fixtures: `tests/conftest.py` (`twin`, `weekly_panel`, `daily_panel`, `ke
 | Area | Asserts |
 | :--- | :--- |
 | Lake | `flight_daily` is daily from 2023-01-01; `guest_daily` has 69,920 rows and its flag columns |
-| Feature registry | Dependencies resolve first and once; missing inputs and cycles raise |
+| Feature registry | Dependencies resolve first and once; missing inputs and cycles raise; seat lags stay inside one market and are unknown before seats start |
 | Panels | Exactly 21 markets, unique keys, load factor capped and flagged; the weekly panel rebuilds from the lake exactly; daily lags continue across the train/test boundary; weekly sums of daily guests and arrivals equal the weekly panel |
-| Model components | Each component recovers a known synthetic truth; backfitting matches the joint solution and never raises the penalised objective; the kernel's log gradient matches finite differences and beats its raw-scale warm start; w₀ ≤ 1 holds when it binds; the knot base is flat beyond training; an arrivals-proportional base follows a 0.55× shock; `GroupScale` recovers each series' scale; weights follow a favoured regime; least squares falls back to QR when gelsd fails |
+| Model components | Each component recovers a known synthetic truth; backfitting matches the joint solution and never raises the penalised objective; the kernel's log gradient matches finite differences and beats its raw-scale warm start; w₀ ≤ 1 holds when it binds; the knot base is flat beyond training; an arrivals-proportional base follows a 0.55× shock; the seat kernel recovers a known kernel, keeps Σw under its cap and moves its base share toward a target; `GroupScale` recovers each series' scale; weights follow a favoured regime; least squares falls back to QR when gelsd fails |
 | Event registry | Golden dates; windows do not overlap; Ramadan and Eid al-Fitr never share a day; the one-off 2022 shock is masked |
 | Back-test harness | No fold trains on the future (daily and weekly); segment metrics; misindexed or missing predictions raise; skipped folds reported; `compare` detects a real difference and not a null one; the harness reproduces `evaluation_results.json`; a saved model scores identically and refuses its training window |
 | Noise model | AR(1) recovery and its closed-form variance; a fold's own errors never set its own bounds |
 | Architecture | `nowcast` and `planning` never import each other; packages import only allowed layers; no row loops in `models`, `nowcast`, `planning` |
 | Competition predictions | The validator accepts mirrored files and flags bad ones; absent test days get below-threshold arrivals; full weeks with an AR(1) direction probability; the direction back-test scores each week once; the serving bundle answers range questions; the same-day GLM recovers a weekday effect and reads `*` as 0 |
-| Web engine (`parity.test.ts`) | What-if guests reproduce every market's prediction (1e-9) and the fitted model for scaled arrivals (1e-6); range intervals match `NoiseModel.range_interval`; conversion chain, waterfall, hybrid, conformal bands and tornado match Python (1e-9); the weekly back-test reproduces the published holdout WMAPE; scenario weeks move by the season's change from the start week; landing months sum the daily predictions |
-| Simulator and API | Invalid season rejected; waterfall = lift within 1e-9 for every calibrated market + `SWEDEN`, season and 6 lever sets; route closure, domestic decoupling, added capacity never lowers demand, cold-start priors, tornado, deterministic Monte Carlo; planning and simulation share one arrivals rule; the scenario residual is the season's mean fit |
+| Web engine (`parity.test.ts`) | What-if guests reproduce every market's prediction (1e-9) and the fitted model for scaled arrivals (1e-6); range intervals match `NoiseModel.range_interval`; conversion chain, waterfall, hybrid, conformal bands and tornado match Python (1e-9); the schedule response (with the pooled one for markets without seats) and the capacity-growth factors match Python; the weekly back-test reproduces the published holdout WMAPE; scenario weeks move by the season's change from the start week; landing months sum the daily predictions; the outlook's raw projection, calibrated figure and range match `outlook_range` cases; the planning bundle carries the published holdout coverage and no margin for a market without one |
+| Planning chain and flight response | The chain recovers both links of synthetic data and a scenario moves arrivals over the seat lags and guests over the seat and arrival lags; the schedule response reproduces the generator's elasticity and pools the median with the widest range for a market without seats; the capacity co-movement recovers a known slope and intercept |
+| Simulator and API | Invalid season rejected; waterfall = lift within 1e-9 for every calibrated market + `SWEDEN`, season and 6 lever sets; a served route's guests follow seats with the chain's elasticity; route closure, a new route adds at most one hotel visitor per P2P passenger, domestic decoupling, added capacity never lowers demand, cold-start priors, tornado, deterministic Monte Carlo; the quoted coverage is the measured one or none, never a default; `twin simulate` changes only the levers it is given; planning and simulation share one arrivals rule; the scenario residual is the season's mean fit |

@@ -14,6 +14,8 @@ flowchart LR
     K --> P[Predictions, intervals, market_outputs.json, serving bundle]
     N --> PN[Pooled nationality model] --> P
     NM --> P
+    N --> CH[Planning chain: seats to arrivals to guests] --> FR[flight_response.json]
+    FR --> D
     C --> D[Structural engine]
     C --> E[Residual ML]
     D --> F[Hybrid prediction]
@@ -46,7 +48,7 @@ Lowest layer first. A package imports only from itself and the packages `tests/t
 | `data/` | Ingest, validation, lake writer, manifest, `LakeRepository`, imputation, weekly and daily panels | config, domain, features |
 | `models/` | Shared model kernel, no use case: protocol, registry, spec, handler, weighting, `components/`, linear solve, fitters, composite, back-test, evaluate, noise | config, domain, features |
 | `nowcast/` | Daily competition model: specs, routing, baselines, predict, pooling, disaggregation, submission, weekly, outputs, serving, evaluation, same-day, outlook | config, domain, features, data, models |
-| `planning/` | Weekly scenario model: structural, residual, calendar features, conformal, uncertainty, sensitivity, simulator, briefing, training, evaluation, specs, baselines, chain | config, domain, features, data, models |
+| `planning/` | Weekly scenario model: structural, residual, calendar features, conformal, uncertainty, sensitivity, simulator, briefing, training, evaluation, specs, baselines, chain, schedule response, capacity trend | config, domain, features, data, models |
 | `reporting/` | Charts, prediction plot, solution PDF, database PDF, `deck/`, palettes | everything above |
 | `export/` | `bundle.py`: the web bundle; sibling of `reporting/` | everything above |
 | `cli/` | The `twin` command | everything above, `reporting`, `export` |
@@ -59,12 +61,13 @@ ModelSpec        names → fresh components        features (PANEL_FEATURES)    
 (nowcast/specs)  block of each component         row rules (named, in order)      log target            cycles components with
                                                  log target, training weights                           optional row weights
 MarketRouter: DOMESTIC rows → one spec, every other market → another
+ChainSpec (planning/chain.py): two ModelSpecs run end to end, link 2 on link 1's predicted arrivals
 ```
 
 | Layer | Module | Owns | Extended by |
 | --- | --- | --- | --- |
 | Registry | `models/registry.py` (`COMPONENTS`, `FITTERS`) | Names → factories; each component's block (`group`: flow, time, holiday, flight, residual) | `COMPONENTS.register(name, cls)` |
-| Spec | `models/spec.py` (`ModelSpec`, immutable, validated at declaration); instances in `nowcast/specs.py` and `planning/specs.py` | Components, fitter, row rules and weighting of a model | A new `ModelSpec`, or `adding`, `without`, `replace_component`, `with_weighting` |
+| Spec | `models/spec.py` (`ModelSpec`, immutable, validated at declaration); instances in `nowcast/specs.py` and `planning/specs.py` (also `CHAIN_SPECS`: `ChainSpec` pairs of link specs) | Components, fitter, row rules and weighting of a model | A new `ModelSpec`, or `adding`, `without`, `replace_component`, `with_weighting` |
 | Handler | `models/handler.py` (`DataHandler`, `RowRule`, `flagged`, `not_flagged`, `target_present`) | Feature resolution, training-row rules, log target, training weights | A new `RowRule` |
 | Weighting | `models/weighting.py` (`Uniform`, `Recency`, `ByColumn`, `Product`) | Weight of each training row; one axis per class, combined by `Product` | A class with `weights(rows) -> Series` (positive, mean 1) |
 | Evaluation | `models/evaluate.py` (`ModelCard`, `save_model`, `load_model`, `evaluate_fitted` → `Scorecard`); `twin evaluate-model` | Scores a saved model on later rows without refitting: WAPE, bias, MAE, RMSE, MSE, log-MSE per segment at day, week and month grain, error by horizon, direction of consecutive totals, interval coverage, optional per-entity table; refuses rows inside the training window | n/a |
